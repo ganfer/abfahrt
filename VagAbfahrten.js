@@ -219,6 +219,32 @@ function firstNodePath(node, target, path = []) {
   return null;
 }
 
+function firstLocationResultShape(doc) {
+  function find(node) {
+    if (!node) return null;
+    if (node.name === 'LocationResult') return node;
+    for (const c of (node.children || [])) {
+      const hit = find(c);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  const result = find(doc);
+  if (!result) return 'kein LocationResult';
+  const describe = (node) => {
+    const kids = (node.children || []).map((c) => c.name);
+    return node.name + (kids.length ? ' [' + kids.join(', ') + ']' : '');
+  };
+  const lines = [describe(result)];
+  for (const childNode of (result.children || []).slice(0, 8)) {
+    lines.push('↳ ' + describe(childNode));
+    for (const grand of (childNode.children || []).slice(0, 8)) {
+      lines.push('  ↳ ' + describe(grand));
+    }
+  }
+  return lines.join('\n');
+}
+
 function nearbyStopsFromDoc(doc) {
   const response =
     child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
@@ -450,6 +476,8 @@ async function nearbyFlow(key) {
         firstNodePath(doc, 'Location') ||
         'keiner'
       ));
+      diagnostics.push('   Struktur:');
+      diagnostics.push(firstLocationResultShape(doc));
     }
   } catch (e) {
     diagnostics.push('4/5. TRIAS-Ortssuche ✗');
