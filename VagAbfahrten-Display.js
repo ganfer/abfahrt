@@ -122,7 +122,7 @@ function eventsFromXml(raw) {
       cancelled: text(call, 'NotServicedStop') === 'true',
       line: text(section, 'PublishedLineName', 'Text') || text(section, 'PublishedLineName') || text(service, 'PublishedLineName', 'Text') || text(service, 'PublishedLineName'),
       destination: text(service, 'DestinationText', 'Text') || text(service, 'DestinationText'),
-      platform: text(call, 'EstimatedBay') || text(call, 'PlannedBay') || text(call, 'StopPointName', 'Text') || text(call, 'StopPointName') || '',
+      platform: text(call, 'EstimatedBay') || text(call, 'PlannedBay') || '',
     });
   }
   return out;
