@@ -195,7 +195,12 @@ function stopEventsFromDoc(doc) {
       plannedTime: Date.parse(planned),
       realtimeTime: estimated ? Date.parse(estimated) : null,
       cancelled,
-      line: text(service, 'PublishedLineName', 'Text') || text(service, 'PublishedLineName'),
+      line:
+        text(service, 'PublishedLineName', 'Text') ||
+        text(service, 'PublishedLineName') ||
+        text(service, 'LineRef') ||
+        text(service, 'OperatingDayRef') ||
+        '',
       destination: text(service, 'DestinationText', 'Text') || text(service, 'DestinationText'),
     });
   }
@@ -442,7 +447,7 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText) {
     none.font = Font.systemFont(12);
     none.textColor = new Color(c.dim);
   } else {
-    for (const r of rows.slice(0, 4)) {
+    for (const r of rows.slice(0, 5)) {
       addDepartureRow(w, r, stop.place, c);
       w.addSpacer(3);
     }
