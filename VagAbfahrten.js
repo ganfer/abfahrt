@@ -390,6 +390,9 @@ function addDepartureRow(w, r, place, c) {
   const row = w.addStack();
   row.layoutHorizontally();
   row.centerAlignContent();
+
+  // Fixed-width columns keep all five rows aligned. Flexible spacers around
+  // Text elements do not form real columns in Scriptable.
   const badge = row.addStack();
   badge.size = new Size(34, 22);
   badge.cornerRadius = 6;
@@ -401,24 +404,35 @@ function addDepartureRow(w, r, place, c) {
   badgeText.textColor = new Color(c.fg);
   badgeText.lineLimit = 1;
   badge.addSpacer();
+
   row.addSpacer(8);
-  const destination = row.addText(compactDestination(r.destination, place));
+
+  const destinationColumn = row.addStack();
+  destinationColumn.size = new Size(130, 22);
+  destinationColumn.centerAlignContent();
+  const destination = destinationColumn.addText(compactDestination(r.destination, place));
   destination.font = Font.mediumSystemFont(12);
   destination.textColor = new Color(r.cancelled ? c.dim : c.fg);
   destination.lineLimit = 1;
-  destination.minimumScaleFactor = 0.75;
+  destination.minimumScaleFactor = 0.65;
   if (r.cancelled) destination.textOpacity = 0.65;
 
-  row.addSpacer(6);
+  row.addSpacer(5);
 
-  // Separate scheduled/realtime departure clock column between destination
-  // and countdown. Use the actual departure time when realtime is available.
-  const clock = row.addText(fmtClock(r.at));
+  const clockColumn = row.addStack();
+  clockColumn.size = new Size(42, 22);
+  clockColumn.centerAlignContent();
+  const clock = clockColumn.addText(fmtClock(r.at));
   clock.font = Font.systemFont(11);
   clock.textColor = new Color(r.cancelled ? c.dim : c.fg);
   clock.lineLimit = 1;
 
-  row.addSpacer(10);
+  row.addSpacer(7);
+
+  const countdownColumn = row.addStack();
+  countdownColumn.size = new Size(50, 22);
+  countdownColumn.centerAlignContent();
+  countdownColumn.addSpacer();
 
   let right;
   if (r.cancelled) right = 'entfällt';
@@ -426,9 +440,8 @@ function addDepartureRow(w, r, place, c) {
     const minutes = Math.max(0, Math.floor((r.at - Date.now()) / 60000));
     right = minutes <= 0 ? 'jetzt' : minutes + ' min';
   }
-  const rightEl = row.addText(right);
+  const rightEl = countdownColumn.addText(right);
   rightEl.font = Font.boldSystemFont(12);
-  rightEl.rightAlignText();
   rightEl.textColor = new Color(r.cancelled ? c.dim : r.delayMin >= DELAY_HEAVY_MIN ? c.late : r.delayMin > 0 ? c.delay : c.ok);
   rightEl.lineLimit = 1;
 }
