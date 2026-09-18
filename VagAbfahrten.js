@@ -24,6 +24,8 @@ const REQUEST_TIMEOUT_MS = 12000;
 const RESULTS_LIMIT = 8;
 const NEARBY_RESULTS = 5;
 const DELAY_HEAVY_MIN = 5;
+const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
+const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 
 function rawParameter() {
   return String(args.queryParameters?.parameter || args.widgetParameter || '').trim();
@@ -339,9 +341,8 @@ function fmtClock(ms) {
 }
 
 function palette() {
-  return Device.isUsingDarkAppearance()
-    ? { bg: '#101010', fg: '#f0f0f0', dim: '#9a9a9a', ok: '#66bb6a', late: '#ef5350', delay: '#ff9800' }
-    : { bg: '#ffffff', fg: '#1a1a1a', dim: '#6b6b6b', ok: '#2e7d32', late: '#c62828', delay: '#ef6c00' };
+  // Keep the widget consistently dark, independent of the iOS appearance.
+  return { bg: '#101010', fg: '#f0f0f0', dim: '#9a9a9a', ok: '#66bb6a', late: '#ef5350', delay: '#ff9800' };
 }
 
 function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter) {
@@ -416,18 +417,27 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
 }
 
 async function defaultWidget(key, present, tapParameter) {
+  const hasLastStop =
+    Keychain.contains(LAST_STOP_REF_KEY) &&
+    Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
+  const stopRefs = hasLastStop ? [Keychain.get(LAST_STOP_REF_KEY)] : DEFAULT_STOPS;
+  const title =
+    hasLastStop && Keychain.contains(LAST_STOP_NAME_KEY)
+      ? Keychain.get(LAST_STOP_NAME_KEY)
+      : 'Brauerei Ganter';
+
   try {
-    const events = await fetchDepartures(DEFAULT_STOPS, key);
+    const events = await fetchDepartures(stopRefs, key);
     const rows = withDelay(events, Date.now());
     const sub = events.length
       ? `${events.length} Ereignisse gelesen`
       : 'API antwortete ohne Events';
-    const w = buildWidget('Brauerei Ganter', rows.length ? null : sub, rows, cancelledCount(events, Date.now()), tapParameter);
+    const w = buildWidget(title, rows.length ? null : sub, rows, cancelledCount(events, Date.now()), tapParameter);
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
   } catch (e) {
-    const w = buildWidget('Brauerei Ganter', null, [], 0, e.message, tapParameter);
+    const w = buildWidget(title, null, [], 0, e.message, tapParameter);
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
@@ -513,6 +523,8 @@ async function nearbyFlow(key) {
   }
 
   const chosen = stops[idx];
+  Keychain.set(LAST_STOP_REF_KEY, chosen.stopRef);
+  Keychain.set(LAST_STOP_NAME_KEY, chosen.name);
   try {
     let events;
     try {
