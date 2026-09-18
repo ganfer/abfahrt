@@ -26,6 +26,30 @@ const DELAY_HEAVY_MIN = 5;
 const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
 const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 
+// User-facing widget layout configuration. Widths are points inside the
+// medium Scriptable widget. Hide columns you do not need and give the freed
+// space to another visible column.
+const WIDGET_CONFIG = {
+  rows: 5,
+  columns: {
+    line: { visible: true, width: 34 },
+    destination: { visible: true, width: 125 },
+    departureTime: { visible: true, width: 42 },
+    countdown: { visible: true, width: 50 },
+  },
+  spacing: {
+    columns: 6,
+    rows: 3,
+  },
+  fontSize: {
+    line: 11,
+    destination: 12,
+    departureTime: 11,
+    countdown: 12,
+  },
+  badgeHeight: 22,
+};
+
 function rawParameter() {
   return String(args.queryParameters?.parameter || args.widgetParameter || '').trim();
 }
@@ -391,64 +415,80 @@ function compactDestination(destination, place) {
   return value || destination || '–';
 }
 
+function addColumnSpacer(row, hasPreviousColumn) {
+  if (hasPreviousColumn) row.addSpacer(Math.max(0, WIDGET_CONFIG.spacing.columns));
+}
+
 function addDepartureRow(w, r, place, c) {
   const row = w.addStack();
   row.layoutHorizontally();
   row.centerAlignContent();
+  let hasColumn = false;
+  const columns = WIDGET_CONFIG.columns;
+  const height = Math.max(16, WIDGET_CONFIG.badgeHeight);
 
-  // Fixed-width columns keep all five rows aligned. Flexible spacers around
-  // Text elements do not form real columns in Scriptable.
-  const badge = row.addStack();
-  badge.size = new Size(34, 22);
-  badge.cornerRadius = 6;
-  badge.backgroundColor = new Color('#2c2c2e');
-  badge.centerAlignContent();
-  badge.addSpacer();
-  const badgeText = badge.addText(r.line || '–');
-  badgeText.font = Font.boldSystemFont(11);
-  badgeText.textColor = new Color(c.fg);
-  badgeText.lineLimit = 1;
-  badge.addSpacer();
-
-  row.addSpacer(8);
-
-  const destinationColumn = row.addStack();
-  destinationColumn.size = new Size(130, 22);
-  destinationColumn.centerAlignContent();
-  const destination = destinationColumn.addText(compactDestination(r.destination, place));
-  destination.font = Font.mediumSystemFont(12);
-  destination.textColor = new Color(r.cancelled ? c.dim : c.fg);
-  destination.lineLimit = 1;
-  destination.minimumScaleFactor = 0.65;
-  if (r.cancelled) destination.textOpacity = 0.65;
-
-  row.addSpacer(5);
-
-  const clockColumn = row.addStack();
-  clockColumn.size = new Size(42, 22);
-  clockColumn.centerAlignContent();
-  const clock = clockColumn.addText(fmtClock(r.at));
-  clock.font = Font.systemFont(11);
-  clock.textColor = new Color(r.cancelled ? c.dim : c.fg);
-  clock.lineLimit = 1;
-
-  row.addSpacer(7);
-
-  const countdownColumn = row.addStack();
-  countdownColumn.size = new Size(50, 22);
-  countdownColumn.centerAlignContent();
-  countdownColumn.addSpacer();
-
-  let right;
-  if (r.cancelled) right = 'entfällt';
-  else {
-    const minutes = Math.max(0, Math.floor((r.at - Date.now()) / 60000));
-    right = minutes <= 0 ? 'jetzt' : minutes + ' min';
+  if (columns.line.visible) {
+    const badge = row.addStack();
+    badge.size = new Size(Math.max(1, columns.line.width), height);
+    badge.cornerRadius = 6;
+    badge.backgroundColor = new Color('#2c2c2e');
+    badge.centerAlignContent();
+    badge.addSpacer();
+    const badgeText = badge.addText(r.line || '–');
+    badgeText.font = Font.boldSystemFont(WIDGET_CONFIG.fontSize.line);
+    badgeText.textColor = new Color(c.fg);
+    badgeText.lineLimit = 1;
+    badgeText.minimumScaleFactor = 0.6;
+    badge.addSpacer();
+    hasColumn = true;
   }
-  const rightEl = countdownColumn.addText(right);
-  rightEl.font = Font.boldSystemFont(12);
-  rightEl.textColor = new Color(r.cancelled ? c.dim : r.delayMin >= DELAY_HEAVY_MIN ? c.late : r.delayMin > 0 ? c.delay : c.ok);
-  rightEl.lineLimit = 1;
+
+  if (columns.destination.visible) {
+    addColumnSpacer(row, hasColumn);
+    const column = row.addStack();
+    column.size = new Size(Math.max(1, columns.destination.width), height);
+    column.centerAlignContent();
+    const destination = column.addText(compactDestination(r.destination, place));
+    destination.font = Font.mediumSystemFont(WIDGET_CONFIG.fontSize.destination);
+    destination.textColor = new Color(r.cancelled ? c.dim : c.fg);
+    destination.lineLimit = 1;
+    destination.minimumScaleFactor = 0.6;
+    if (r.cancelled) destination.textOpacity = 0.65;
+    hasColumn = true;
+  }
+
+  if (columns.departureTime.visible) {
+    addColumnSpacer(row, hasColumn);
+    const column = row.addStack();
+    column.size = new Size(Math.max(1, columns.departureTime.width), height);
+    column.centerAlignContent();
+    const clock = column.addText(fmtClock(r.at));
+    clock.font = Font.systemFont(WIDGET_CONFIG.fontSize.departureTime);
+    clock.textColor = new Color(r.cancelled ? c.dim : c.fg);
+    clock.lineLimit = 1;
+    clock.minimumScaleFactor = 0.7;
+    hasColumn = true;
+  }
+
+  if (columns.countdown.visible) {
+    addColumnSpacer(row, hasColumn);
+    const column = row.addStack();
+    column.size = new Size(Math.max(1, columns.countdown.width), height);
+    column.centerAlignContent();
+    column.addSpacer();
+
+    let right;
+    if (r.cancelled) right = 'entfällt';
+    else {
+      const minutes = Math.max(0, Math.floor((r.at - Date.now()) / 60000));
+      right = minutes <= 0 ? 'jetzt' : minutes + ' min';
+    }
+    const rightEl = column.addText(right);
+    rightEl.font = Font.boldSystemFont(WIDGET_CONFIG.fontSize.countdown);
+    rightEl.textColor = new Color(r.cancelled ? c.dim : r.delayMin >= DELAY_HEAVY_MIN ? c.late : r.delayMin > 0 ? c.delay : c.ok);
+    rightEl.lineLimit = 1;
+    rightEl.minimumScaleFactor = 0.65;
+  }
 }
 
 function buildWidget(title, subtitle, rows, cancelledN, errorText) {
@@ -478,9 +518,9 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText) {
     none.font = Font.systemFont(12);
     none.textColor = new Color(c.dim);
   } else {
-    for (const r of rows.slice(0, 5)) {
+    for (const r of rows.slice(0, Math.max(1, WIDGET_CONFIG.rows))) {
       addDepartureRow(w, r, stop.place, c);
-      w.addSpacer(3);
+      w.addSpacer(Math.max(0, WIDGET_CONFIG.spacing.rows));
     }
   }
   w.addSpacer();

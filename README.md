@@ -59,3 +59,33 @@ Vor dem Überschreiben prüft er den HTTP-Status, eine Mindestgröße und charak
 Der TRIAS-Key und die zuletzt ausgewählte Haltestelle liegen im iOS-Keychain und werden durch ein Script-Update nicht verändert.
 
 > **Hinweis:** Der Updater verwendet den iCloud-Dateispeicher von Scriptable. `VagAbfahrten.js` und `VagAbfahrten-Updater.js` sollten deshalb beide im Scriptable-iCloud-Ordner liegen.
+
+
+## Widget-Konfiguration
+
+Das Layout kann direkt über `WIDGET_CONFIG` am Anfang von `VagAbfahrten.js` angepasst werden. Für jede Spalte lässt sich festlegen, ob sie sichtbar ist und wie breit sie dargestellt wird.
+
+```js
+const WIDGET_CONFIG = {
+  rows: 5,
+  columns: {
+    line: { visible: true, width: 34 },
+    destination: { visible: true, width: 125 },
+    departureTime: { visible: true, width: 42 },
+    countdown: { visible: true, width: 50 },
+  },
+  spacing: {
+    columns: 6,
+    rows: 3,
+  },
+  fontSize: {
+    line: 11,
+    destination: 12,
+    departureTime: 11,
+    countdown: 12,
+  },
+  badgeHeight: 22,
+};
+```
+
+Beispiel: Um die Abfahrtszeit auszublenden und der Richtung mehr Platz zu geben, setze `departureTime.visible` auf `false` und erhöhe `destination.width`. Sichtbare Spalten werden mit einem einheitlichen konfigurierbaren Abstand gerendert, damit der tabellenartige Aufbau erhalten bleibt.
