@@ -6,6 +6,8 @@
 // current GitHub version. The existing local script is only replaced after
 // the download has passed basic validation.
 
+const MANIFEST_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Updater.js';
+
 const FILES = [
   {
     url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten.js',
@@ -57,13 +59,51 @@ async function downloadSource(file) {
   return source;
 }
 
+
+function filesFromUpdaterSource(source) {
+  // Evaluate only the literal FILES array from the trusted updater source.
+  // This lets an older updater discover files added by a newer release in
+  // the same run, without executing the downloaded updater itself.
+  const start = source.indexOf('const FILES = [');
+  if (start < 0) throw new Error('Updater-Manifest fehlt.');
+  const arrayStart = source.indexOf('[', start);
+  const endMarker = '\n];';
+  const arrayEnd = source.indexOf(endMarker, arrayStart);
+  if (arrayEnd < 0) throw new Error('Updater-Manifest ist unvollständig.');
+  const literal = source.slice(arrayStart, arrayEnd + 2);
+  const parsed = Function('"use strict"; return (' + literal + ');')();
+  if (!Array.isArray(parsed) || !parsed.length) throw new Error('Updater-Manifest ist leer.');
+  for (const file of parsed) {
+    if (!file || typeof file.url !== 'string' || typeof file.name !== 'string' || typeof file.marker !== 'string') {
+      throw new Error('Updater-Manifest enthält einen ungültigen Eintrag.');
+    }
+    if (!file.url.startsWith('https://raw.githubusercontent.com/ganfer/vag-widget/main/')) {
+      throw new Error('Updater-Manifest enthält eine unerwartete Quelle.');
+    }
+  }
+  return parsed;
+}
+
+async function currentFilesManifest() {
+  const req = new Request(MANIFEST_URL);
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
+  const source = await req.loadString();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200) throw new Error(`Updater-Manifest: GitHub HTTP ${status || '?'}`);
+  return filesFromUpdaterSource(source);
+}
+
 async function main() {
   const fm = targetFileManager();
 
   try {
-    // Download and validate every managed script before replacing any local file.
+    // Always read the current updater manifest from GitHub first. An older
+    // installed updater can therefore discover newly added managed scripts
+    // immediately, instead of requiring a second updater run.
+    const files = await currentFilesManifest();
     const downloads = [];
-    for (const file of FILES) {
+    for (const file of files) {
       downloads.push({ file, source: await downloadSource(file) });
     }
 
@@ -74,7 +114,7 @@ async function main() {
 
     await show(
       'VAG Widget aktualisiert',
-      'VagAbfahrten.js, VagAbfahrten-Display.js, VagAbfahrten-Config.js und der Updater selbst wurden aktualisiert.\n\nDeine VagAbfahrten.config.json bleibt unverändert.',
+      `${downloads.length} Skripte wurden aus dem aktuellen GitHub-Manifest aktualisiert.\n\n${downloads.map((item) => '• ' + item.file.name).join('\n')}\n\nDeine VagAbfahrten.config.json bleibt unverändert.`,
     );
   } catch (e) {
     await show(
