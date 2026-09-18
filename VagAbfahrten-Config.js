@@ -15,6 +15,17 @@ const DEFAULTS = {
   spacing: { columns: 6, rows: 3 },
   fontSize: { line: 11, destination: 12, platform: 10, departureTime: 11, countdown: 12 },
   badgeHeight: 22,
+  fullscreen: {
+    rows: 8,
+    columns: {
+      line: { visible: true, width: 64 },
+      destination: { visible: true, width: 190 },
+      platform: { visible: true, width: 70 },
+      departureTime: { visible: true, width: 82 },
+      countdown: { visible: true, width: 92 },
+    },
+    fontSize: 16,
+  },
 };
 
 const fm = FileManager.iCloud();
@@ -41,6 +52,17 @@ function loadConfig() {
       },
       spacing: { ...DEFAULTS.spacing, ...(saved.spacing || {}) },
       fontSize: { ...DEFAULTS.fontSize, ...(saved.fontSize || {}) },
+      fullscreen: {
+        ...DEFAULTS.fullscreen,
+        ...(saved.fullscreen || {}),
+        columns: {
+          line: { ...DEFAULTS.fullscreen.columns.line, ...(saved.fullscreen?.columns?.line || {}) },
+          destination: { ...DEFAULTS.fullscreen.columns.destination, ...(saved.fullscreen?.columns?.destination || {}) },
+          platform: { ...DEFAULTS.fullscreen.columns.platform, ...(saved.fullscreen?.columns?.platform || {}) },
+          departureTime: { ...DEFAULTS.fullscreen.columns.departureTime, ...(saved.fullscreen?.columns?.departureTime || {}) },
+          countdown: { ...DEFAULTS.fullscreen.columns.countdown, ...(saved.fullscreen?.columns?.countdown || {}) },
+        },
+      },
     };
   } catch (_) {
     return clone(DEFAULTS);
@@ -85,6 +107,50 @@ async function configureColumn(cfg, key, label) {
   if (choice === 1) col.width = await askNumber(label + ' – Breite', 'Breite der Spalte in Punkten.', col.width, 20, 220);
 }
 
+async function configureFullscreen(cfg) {
+  const labels = {
+    line: 'Linie',
+    destination: 'Richtung',
+    platform: 'Gleis',
+    departureTime: 'Abfahrtszeit',
+    countdown: 'Restzeit',
+  };
+
+  while (true) {
+    const a = new Alert();
+    a.title = 'Fullscreen konfigurieren';
+    a.message = `${cfg.fullscreen.rows} Abfahrten · Schrift ${cfg.fullscreen.fontSize} pt\n` +
+      Object.keys(labels).map((key) =>
+        `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? cfg.fullscreen.columns[key].width + ' px' : 'aus'}`
+      ).join('\n');
+    a.addAction('Anzahl Abfahrten');
+    a.addAction('Linie');
+    a.addAction('Richtung');
+    a.addAction('Gleis');
+    a.addAction('Abfahrtszeit');
+    a.addAction('Restzeit');
+    a.addAction('Schriftgröße');
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) cfg.fullscreen.rows = await askNumber('Fullscreen – Abfahrten', 'Wie viele Abfahrten sollen angezeigt werden?', cfg.fullscreen.rows, 1, 30);
+    if (choice >= 1 && choice <= 5) {
+      const key = ['line', 'destination', 'platform', 'departureTime', 'countdown'][choice - 1];
+      const col = cfg.fullscreen.columns[key];
+      const b = new Alert();
+      b.title = labels[key];
+      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} px`;
+      b.addAction(col.visible ? 'Spalte ausblenden' : 'Spalte einblenden');
+      b.addAction('Breite ändern');
+      b.addCancelAction('Zurück');
+      const sub = await b.present();
+      if (sub === 0) col.visible = !col.visible;
+      if (sub === 1) col.width = await askNumber(labels[key] + ' – Breite', 'Breite in Pixeln für die Fullscreen-Tabelle.', col.width, 40, 400);
+    }
+    if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Fullscreen – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
+  }
+}
+
 function summary(cfg) {
   const names = {
     line: 'Linie',
@@ -96,7 +162,7 @@ function summary(cfg) {
   const columns = Object.keys(names)
     .map((key) => `${names[key]}: ${cfg.columns[key].visible ? cfg.columns[key].width + ' pt' : 'aus'}`)
     .join('\n');
-  return `${cfg.rows} Abfahrten\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt`;
+  return `${cfg.rows} Widget-Abfahrten\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nFullscreen: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
 }
 
 async function save(cfg) {
@@ -124,6 +190,7 @@ async function main() {
     menu.addAction('Restzeit');
     menu.addAction('Abstände');
     menu.addAction('Schriftgrößen');
+    menu.addAction('Fullscreen-Ansicht');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -147,11 +214,12 @@ async function main() {
       cfg.fontSize.departureTime = await askNumber('Abfahrtszeit – Schriftgröße', '', cfg.fontSize.departureTime, 8, 18);
       cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
     }
-    if (choice === 8) {
+    if (choice === 8) await configureFullscreen(cfg);
+    if (choice === 9) {
       await save(cfg);
       break;
     }
-    if (choice === 9) {
+    if (choice === 10) {
       await reset();
       break;
     }

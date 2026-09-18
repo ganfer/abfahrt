@@ -13,6 +13,11 @@ const FILES = [
     marker: "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';",
   },
   {
+    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Display.js',
+    name: 'VagAbfahrten-Display.js',
+    marker: "const DISPLAY_CONFIG_DEFAULTS =",
+  },
+  {
     url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Config.js',
     name: 'VagAbfahrten-Config.js',
     marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
@@ -69,7 +74,7 @@ async function main() {
 
     await show(
       'VAG Widget aktualisiert',
-      'VagAbfahrten.js, VagAbfahrten-Config.js und der Updater selbst wurden aktualisiert.\n\nDeine VagAbfahrten.config.json bleibt unverändert.',
+      'VagAbfahrten.js, VagAbfahrten-Display.js, VagAbfahrten-Config.js und der Updater selbst wurden aktualisiert.\n\nDeine VagAbfahrten.config.json bleibt unverändert.',
     );
   } catch (e) {
     await show(
