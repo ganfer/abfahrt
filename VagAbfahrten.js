@@ -413,7 +413,7 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   foot.font = Font.systemFont(9);
   foot.textColor = new Color(errorText ? c.late : c.dim);
   // The departures widget has one reliable action: refresh the saved stop.
-  w.url = 'scriptable:///run/VagAbfahrten?action=refresh';
+  w.url = `${URLScheme.forRunningScript()}&action=refresh`;
   return w;
 }
 
@@ -421,7 +421,7 @@ function buildLocationWidget() {
   const c = palette();
   const w = new ListWidget();
   w.backgroundColor = new Color(c.bg);
-  w.url = 'scriptable:///run/VagAbfahrten?action=location';
+  w.url = `${URLScheme.forRunningScript()}&action=location`;
 
   w.addSpacer();
   const icon = w.addText('⌖');
