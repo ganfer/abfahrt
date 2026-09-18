@@ -354,15 +354,6 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   const titleEl = header.addText(title);
   titleEl.font = Font.boldSystemFont(15);
   titleEl.textColor = new Color(c.fg);
-  header.addSpacer();
-  const locationButton = header.addStack();
-  locationButton.size = new Size(52, 36);
-  locationButton.centerAlignContent();
-  locationButton.setPadding(5, 14, 5, 14);
-  locationButton.url = 'scriptable:///run/VagAbfahrten?action=location';
-  const locationAction = locationButton.addText('⌖');
-  locationAction.font = Font.boldSystemFont(23);
-  locationAction.textColor = new Color(c.fg);
   if (subtitle) {
     const sub = w.addText(subtitle);
     sub.font = Font.mediumSystemFont(11);
@@ -421,8 +412,33 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   const foot = w.addText(footerText);
   foot.font = Font.systemFont(9);
   foot.textColor = new Color(errorText ? c.late : c.dim);
-  // Keep the widget itself without a URL so the nested location action remains
-  // independently tappable. Regular updates are handled by Scriptable/iOS.
+  // The departures widget has one reliable action: refresh the saved stop.
+  w.url = 'scriptable:///run/VagAbfahrten?action=refresh';
+  return w;
+}
+
+function buildLocationWidget() {
+  const c = palette();
+  const w = new ListWidget();
+  w.backgroundColor = new Color(c.bg);
+  w.url = 'scriptable:///run/VagAbfahrten?action=location';
+
+  w.addSpacer();
+  const icon = w.addText('⌖');
+  icon.font = Font.boldSystemFont(30);
+  icon.textColor = new Color(c.fg);
+  icon.centerAlignText();
+
+  const title = w.addText('Haltestelle');
+  title.font = Font.boldSystemFont(13);
+  title.textColor = new Color(c.fg);
+  title.centerAlignText();
+
+  const sub = w.addText('ändern');
+  sub.font = Font.systemFont(11);
+  sub.textColor = new Color(c.dim);
+  sub.centerAlignText();
+  w.addSpacer();
   return w;
 }
 
@@ -603,6 +619,7 @@ async function main() {
   const parameter = rawParameter();
   const action = String(args.queryParameters?.action || '').trim().toLowerCase();
   const wantsSetup = parameter.toLowerCase() === 'setup';
+  const wantsLocationWidget = parameter.toLowerCase() === 'location';
   const hasKeyInKeychain =
     Keychain.contains('TRIAS_REQUESTOR_REF') &&
     Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
@@ -645,7 +662,13 @@ async function main() {
     return;
   }
 
-  if (present && action === 'location') {
+  if (!present && wantsLocationWidget) {
+    Script.setWidget(buildLocationWidget());
+    Script.complete();
+    return;
+  }
+
+  if (present && (action === 'location' || wantsLocationWidget)) {
     await nearbyFlow(key);
     return;
   }
