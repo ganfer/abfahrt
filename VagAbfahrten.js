@@ -724,6 +724,12 @@ async function nearbyFlow(key) {
   }
 }
 
+function htmlEsc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch]));
+}
+
 async function presentDeparturesTable(key) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
@@ -736,8 +742,9 @@ async function presentDeparturesTable(key) {
 
   try {
     const events = await fetchDepartures(stopRefs, key);
+    const now = Date.now();
     const rows = events
-      .filter((e) => (e.realtimeTime || e.plannedTime) >= Date.now())
+      .filter((e) => (e.realtimeTime || e.plannedTime) >= now)
       .map((e) => {
         const at = e.realtimeTime || e.plannedTime;
         const rawDelayMin = e.realtimeTime
@@ -752,35 +759,80 @@ async function presentDeparturesTable(key) {
       .sort((a, b) => a.at - b.at)
       .slice(0, RESULTS_LIMIT);
 
-    const table = new UITable();
-    table.showSeparators = true;
+    const place = splitStopName(title).place;
+    const defs = [
+      { key: 'line', label: 'Linie', value: (r) => r.line || '–', cls: 'line' },
+      { key: 'destination', label: 'Richtung', value: (r) => compactDestination(r.destination, place), cls: 'destination' },
+      { key: 'platform', label: 'Gleis', value: (r) => r.platform || '–', cls: 'platform' },
+      { key: 'departureTime', label: 'Abfahrt', value: (r) => fmtClock(r.at), cls: 'time' },
+      {
+        key: 'countdown',
+        label: 'Restzeit',
+        cls: 'countdown',
+        value: (r) => {
+          if (r.cancelled) return 'entfällt';
+          const minutes = Math.max(0, Math.floor((r.at - Date.now()) / 60000));
+          return minutes <= 0 ? 'jetzt' : minutes + ' min';
+        },
+      },
+    ].filter((d) => WIDGET_CONFIG.columns[d.key].visible);
 
-    const heading = new UITableRow();
-    heading.isHeader = true;
-    heading.addText(title, 'Abfahrten · aktualisiert ' + fmtClock(Date.now()));
-    table.addRow(heading);
+    const header = defs.map((d) => `<th class="${d.cls}">${htmlEsc(d.label)}</th>`).join('');
+    const body = rows.length
+      ? rows.map((r) => {
+          const cells = defs.map((d) => {
+            let state = '';
+            if (d.key === 'countdown') {
+              state = r.cancelled ? ' cancelled' : r.delayMin >= DELAY_HEAVY_MIN ? ' late' : r.delayMin > 0 ? ' delayed' : ' ontime';
+            }
+            return `<td class="${d.cls}${state}">${htmlEsc(d.value(r))}</td>`;
+          }).join('');
+          return `<tr>${cells}</tr>`;
+        }).join('')
+      : `<tr><td class="empty" colspan="${Math.max(1, defs.length)}">Keine kommenden Abfahrten</td></tr>`;
 
-    for (const r of rows) {
-      const row = new UITableRow();
-      row.height = 52;
-      if (WIDGET_CONFIG.columns.line.visible) row.addText(r.line || '–', 'Linie');
-      if (WIDGET_CONFIG.columns.destination.visible) row.addText(compactDestination(r.destination, splitStopName(title).place), 'Richtung');
-      if (WIDGET_CONFIG.columns.platform.visible) row.addText(r.platform || '–', 'Gleis');
-      if (WIDGET_CONFIG.columns.departureTime.visible) row.addText(fmtClock(r.at), 'Abfahrt');
-      if (WIDGET_CONFIG.columns.countdown.visible) {
-        const minutes = Math.max(0, Math.floor((r.at - Date.now()) / 60000));
-        row.addText(r.cancelled ? 'entfällt' : minutes <= 0 ? 'jetzt' : minutes + ' min', 'Restzeit');
-      }
-      table.addRow(row);
-    }
+    const html = `<!doctype html>
+<html lang="de">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>
+  :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom)); background: #101010; color: #f0f0f0; }
+  h1 { margin: 0; font-size: 28px; line-height: 1.15; }
+  .meta { margin: 6px 0 22px; color: #9a9a9a; font-size: 13px; }
+  .table-wrap { overflow-x: auto; border: 1px solid #2c2c2e; border-radius: 14px; }
+  table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
+  th { padding: 11px 10px; text-align: left; color: #9a9a9a; font-size: 12px; font-weight: 600; background: #181818; border-bottom: 1px solid #2c2c2e; }
+  td { padding: 14px 10px; font-size: 16px; border-bottom: 1px solid #252525; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  tr:last-child td { border-bottom: 0; }
+  .line { width: 64px; font-weight: 700; }
+  .destination { width: auto; }
+  .platform { width: 70px; text-align: center; }
+  .time { width: 82px; }
+  .countdown { width: 92px; text-align: right; font-weight: 700; }
+  .ontime { color: #66bb6a; }
+  .delayed { color: #ff9800; }
+  .late { color: #ef5350; }
+  .cancelled { color: #9a9a9a; }
+  .empty { text-align: center; color: #9a9a9a; padding: 28px; }
+</style>
+</head>
+<body>
+  <h1>${htmlEsc(title)}</h1>
+  <div class="meta">Abfahrten · aktualisiert ${htmlEsc(fmtClock(Date.now()))}</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>
+</body>
+</html>`;
 
-    if (!rows.length) {
-      const empty = new UITableRow();
-      empty.addText('Keine kommenden Abfahrten');
-      table.addRow(empty);
-    }
-
-    await table.present(true);
+    const web = new WebView();
+    await web.loadHTML(html);
+    await web.present(true);
   } catch (e) {
     await showLocationDiagnostics(['Abfahrtsübersicht konnte nicht geladen werden.'], e.message);
   }
