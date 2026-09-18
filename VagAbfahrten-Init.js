@@ -1,0 +1,75 @@
+// Variables used by Scriptable: icon-color: green; icon-glyph: download;
+//
+// One-time installer for VagAbfahrten.
+// Copy this script to Scriptable and run it once. After a successful install
+// it removes itself from the Scriptable storage it was launched from.
+
+const FILES = [
+  ['VagAbfahrten.js', "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';"],
+  ['VagAbfahrten-Display.js', 'const DISPLAY_CONFIG_DEFAULTS ='],
+  ['VagAbfahrten-Config.js', "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';"],
+];
+const BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/';
+
+async function show(title, message) {
+  const a = new Alert();
+  a.title = title;
+  a.message = message;
+  a.addAction('OK');
+  await a.present();
+}
+
+async function download(name, marker) {
+  const req = new Request(BASE_URL + name);
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
+  const source = await req.loadString();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200) throw new Error(name + ': GitHub HTTP ' + (status || '?'));
+  if (source.length < 500 || !source.includes(marker) || !source.includes('await main();')) {
+    throw new Error(name + ': Download konnte nicht validiert werden.');
+  }
+  return source;
+}
+
+function currentFileManager() {
+  const cloud = FileManager.iCloud();
+  const local = FileManager.local();
+  const scriptName = Script.name() + '.js';
+  const cloudPath = cloud.joinPath(cloud.documentsDirectory(), scriptName);
+  const localPath = local.joinPath(local.documentsDirectory(), scriptName);
+  if (local.fileExists(localPath) && !cloud.fileExists(cloudPath)) return local;
+  return cloud;
+}
+
+async function main() {
+  const target = currentFileManager();
+  try {
+    const downloads = [];
+    for (const [name, marker] of FILES) {
+      downloads.push({ name, source: await download(name, marker) });
+    }
+
+    // Validate every download before writing the first file.
+    for (const item of downloads) {
+      const path = target.joinPath(target.documentsDirectory(), item.name);
+      target.writeString(path, item.source);
+    }
+
+    const selfPath = target.joinPath(target.documentsDirectory(), Script.name() + '.js');
+    if (target.fileExists(selfPath)) target.remove(selfPath);
+
+    await show(
+      'Initialisierung abgeschlossen',
+      'Widget, Fullscreen und Config wurden installiert.\n\nDieses Initialisierungsskript wurde automatisch gelöscht. Künftige Updates startest du über VagAbfahrten-Config → Update.',
+    );
+  } catch (e) {
+    await show(
+      'Initialisierung fehlgeschlagen',
+      'Das Initialisierungsskript bleibt erhalten.\n\n' + e.message,
+    );
+  }
+  Script.complete();
+}
+
+await main();
