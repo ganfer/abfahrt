@@ -4,6 +4,7 @@
 
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
+const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULTS = {
   rows: 5,
@@ -128,6 +129,14 @@ function writeSavedStops(stops) {
   Keychain.set(SAVED_STOPS_KEY, JSON.stringify(pinned));
 }
 
+function recentStops() {
+  try {
+    return Keychain.contains(RECENT_STOPS_KEY) ? JSON.parse(Keychain.get(RECENT_STOPS_KEY)) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
 function normalizeStopName(name) {
   return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
 }
@@ -234,8 +243,39 @@ async function searchStops(query) {
 }
 
 async function addPinnedStop() {
+  const history = recentStops();
+  const menu = new Alert();
+  menu.title = 'Haltestelle fixieren';
+  menu.message = history.length
+    ? 'Wähle eine zuletzt verwendete Haltestelle oder suche nach einer anderen.'
+    : 'Noch keine Historie vorhanden. Suche nach einer Haltestelle.';
+  if (history.length) menu.addAction('Aus Historie wählen');
+  menu.addAction('Haltestelle suchen');
+  menu.addCancelAction('Abbrechen');
+  const source = await menu.present();
+  if (source === -1) return;
+
+  if (history.length && source === 0) {
+    const pinned = savedStops().filter((s) => s.pinned === true);
+    const picker = new Alert();
+    picker.title = 'Aus Historie fixieren';
+    picker.message = 'Zuletzt verwendete Haltestellen · 📌 = bereits fixiert';
+    for (const stop of history) {
+      const isPinned = pinned.some((s) =>
+        s.stopRef === stop.stopRef || normalizeStopName(s.name) === normalizeStopName(stop.name)
+      );
+      picker.addAction((isPinned ? '📌 ' : '') + stop.name);
+    }
+    picker.addCancelAction('Abbrechen');
+    const choice = await picker.present();
+    if (choice === -1) return;
+    pinStop(history[choice]);
+    await notice('Fixiert', history[choice].name + ' wurde fixiert.');
+    return;
+  }
+
   const a = new Alert();
-  a.title = 'Haltestelle fixieren';
+  a.title = 'Haltestelle suchen';
   a.message = 'Suche nach einer Haltestelle, die dauerhaft fixiert werden soll.';
   a.addTextField('Haltestelle', '');
   a.addAction('Suchen');
