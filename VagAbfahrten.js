@@ -338,8 +338,13 @@ function withDelay(events, now) {
     .filter((e) => (e.realtimeTime || e.plannedTime) >= now)
     .map((e) => {
       const at = e.realtimeTime || e.plannedTime;
-      const delayMin = e.realtimeTime
-        ? Math.max(0, Math.round((e.realtimeTime - e.plannedTime) / 60000))
+      const rawDelayMin = e.realtimeTime
+        ? Math.round((e.realtimeTime - e.plannedTime) / 60000)
+        : null;
+      // Ignore implausible realtime offsets instead of rendering misleading
+      // labels such as "+115 min" in the compact widget.
+      const delayMin = rawDelayMin !== null && rawDelayMin >= 0 && rawDelayMin <= 90
+        ? rawDelayMin
         : null;
       return { ...e, at, delayMin };
     })
@@ -360,21 +365,74 @@ function palette() {
   return { bg: '#101010', fg: '#f0f0f0', dim: '#9a9a9a', ok: '#66bb6a', late: '#ef5350', delay: '#ff9800' };
 }
 
-function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter) {
+function splitStopName(name) {
+  const value = String(name || '').trim();
+  const comma = value.indexOf(',');
+  if (comma > 0) return { place: value.slice(0, comma).trim(), stop: value.slice(comma + 1).trim() };
+  const match = value.match(/^(Friedrichsh(?:afen|\\.)?)\\s+(.+)$/i);
+  if (match) return { place: 'Friedrichshafen', stop: match[2].trim() };
+  return { place: '', stop: value };
+}
+
+function compactDestination(destination, place) {
+  let value = String(destination || '').trim();
+  if (place && value.toLocaleLowerCase('de-DE').startsWith(place.toLocaleLowerCase('de-DE') + ' ')) value = value.slice(place.length + 1);
+  value = value.replace(/^Friedrichsh(?:afen|\\.)?[, ]+/i, '');
+  return value || destination || '–';
+}
+
+function addDepartureRow(w, r, place, c) {
+  const row = w.addStack();
+  row.layoutHorizontally();
+  row.centerAlignContent();
+  const badge = row.addStack();
+  badge.size = new Size(34, 22);
+  badge.cornerRadius = 6;
+  badge.backgroundColor = new Color('#2c2c2e');
+  badge.centerAlignContent();
+  badge.addSpacer();
+  const badgeText = badge.addText(r.line || '–');
+  badgeText.font = Font.boldSystemFont(11);
+  badgeText.textColor = new Color(c.fg);
+  badgeText.lineLimit = 1;
+  badge.addSpacer();
+  row.addSpacer(8);
+  const destination = row.addText(compactDestination(r.destination, place));
+  destination.font = Font.mediumSystemFont(12);
+  destination.textColor = new Color(r.cancelled ? c.dim : c.fg);
+  destination.lineLimit = 1;
+  if (r.cancelled) destination.textOpacity = 0.65;
+  row.addSpacer();
+  let right;
+  if (r.cancelled) right = 'entfällt';
+  else {
+    const minutes = Math.max(0, Math.floor((r.at - Date.now()) / 60000));
+    right = minutes <= 0 ? 'jetzt' : minutes + ' min';
+  }
+  const rightEl = row.addText(right);
+  rightEl.font = Font.boldSystemFont(12);
+  rightEl.textColor = new Color(r.cancelled ? c.dim : r.delayMin >= DELAY_HEAVY_MIN ? c.late : r.delayMin > 0 ? c.delay : c.ok);
+  rightEl.lineLimit = 1;
+}
+
+function buildWidget(title, subtitle, rows, cancelledN, errorText) {
   const c = palette();
   const w = new ListWidget();
   w.backgroundColor = new Color(c.bg);
-  const header = w.addStack();
-  header.layoutHorizontally();
-  const titleEl = header.addText(title);
-  titleEl.font = Font.boldSystemFont(15);
+  w.setPadding(13, 14, 10, 14);
+  const stop = splitStopName(title);
+  const titleEl = w.addText(stop.stop || title);
+  titleEl.font = Font.boldSystemFont(16);
   titleEl.textColor = new Color(c.fg);
-  if (subtitle) {
-    const sub = w.addText(subtitle);
-    sub.font = Font.mediumSystemFont(11);
+  titleEl.lineLimit = 1;
+  titleEl.minimumScaleFactor = 0.75;
+  if (stop.place || subtitle) {
+    const sub = w.addText(stop.place || subtitle);
+    sub.font = Font.mediumSystemFont(10);
     sub.textColor = new Color(c.dim);
+    sub.lineLimit = 1;
   }
-  w.addSpacer(4);
+  w.addSpacer(7);
   if (errorText) {
     const err = w.addText(errorText);
     err.font = Font.systemFont(11);
@@ -384,48 +442,18 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
     none.font = Font.systemFont(12);
     none.textColor = new Color(c.dim);
   } else {
-    for (const r of rows) {
-      const rowStack = w.addStack();
-      rowStack.layoutHorizontally();
-      rowStack.addSpacer(0);
-      let left;
-      let leftColor;
-      if (r.cancelled) {
-        left = `${r.destination} ${fmtClock(r.plannedTime)} · entfällt`;
-      } else {
-        left = `${r.destination} ${fmtClock(r.plannedTime)}`;
-        if (r.delayMin) left += ` +${r.delayMin}`;
-      }
-      if (r.cancelled) leftColor = c.dim;
-      else if (r.delayMin >= DELAY_HEAVY_MIN) leftColor = c.late;
-      else if (r.delayMin > 0) leftColor = c.delay;
-      else leftColor = c.fg;
-      const line = rowStack.addText(left);
-      line.font = Font.systemFont(12);
-      line.lineLimit = 1;
-      line.textColor = new Color(leftColor);
-      if (r.cancelled) line.textOpacity = 0.7;
-      let right;
-      if (r.cancelled) right = 'entfällt';
-      else {
-        const minutes = Math.floor((r.at - Date.now()) / 60000);
-        right = minutes <= 0 ? 'jetzt' : `${minutes} min`;
-      }
-      const rightEl = rowStack.addText(right);
-      rightEl.font = Font.systemFont(12);
-      if (r.cancelled) rightEl.textColor = new Color(c.dim);
-      else if (r.delayMin >= DELAY_HEAVY_MIN) rightEl.textColor = new Color(c.late);
-      else if (r.delayMin > 0) rightEl.textColor = new Color(c.delay);
-      else rightEl.textColor = new Color(c.ok);
-      rowStack.addSpacer();
+    for (const r of rows.slice(0, 4)) {
+      addDepartureRow(w, r, stop.place, c);
+      w.addSpacer(3);
     }
   }
   w.addSpacer();
-  const footerText = errorText
-    ? `Fehler · ${fmtClock(Date.now())}`
-    : `TRIAS · ${fmtClock(Date.now())}` + (cancelledN ? ` · ${cancelledN} entfällt` : '');
-  const foot = w.addText(footerText);
-  foot.font = Font.systemFont(9);
+  const footer = w.addStack();
+  footer.layoutHorizontally();
+  footer.addSpacer();
+  const footerText = errorText ? 'Fehler · ' + fmtClock(Date.now()) : 'aktualisiert ' + fmtClock(Date.now()) + (cancelledN ? ' · ' + cancelledN + ' entfällt' : '');
+  const foot = footer.addText(footerText);
+  foot.font = Font.systemFont(8);
   foot.textColor = new Color(errorText ? c.late : c.dim);
   return w;
 }
