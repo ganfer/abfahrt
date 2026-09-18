@@ -29,7 +29,7 @@ const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 // User-facing widget layout configuration. Widths are points inside the
 // medium Scriptable widget. Hide columns you do not need and give the freed
 // space to another visible column.
-const WIDGET_CONFIG = {
+const DEFAULT_WIDGET_CONFIG = {
   rows: 5,
   columns: {
     line: { visible: true, width: 34 },
@@ -49,6 +49,40 @@ const WIDGET_CONFIG = {
   },
   badgeHeight: 22,
 };
+
+const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
+
+function mergeWidgetConfig(saved) {
+  const d = DEFAULT_WIDGET_CONFIG;
+  const s = saved || {};
+  return {
+    rows: Number.isFinite(s.rows) ? s.rows : d.rows,
+    columns: {
+      line: { ...d.columns.line, ...(s.columns?.line || {}) },
+      destination: { ...d.columns.destination, ...(s.columns?.destination || {}) },
+      departureTime: { ...d.columns.departureTime, ...(s.columns?.departureTime || {}) },
+      countdown: { ...d.columns.countdown, ...(s.columns?.countdown || {}) },
+    },
+    spacing: { ...d.spacing, ...(s.spacing || {}) },
+    fontSize: { ...d.fontSize, ...(s.fontSize || {}) },
+    badgeHeight: Number.isFinite(s.badgeHeight) ? s.badgeHeight : d.badgeHeight,
+  };
+}
+
+function loadWidgetConfig() {
+  const fm = FileManager.iCloud();
+  const path = fm.joinPath(fm.documentsDirectory(), CONFIG_FILE_NAME);
+  if (!fm.fileExists(path)) return mergeWidgetConfig(null);
+  try {
+    if (!fm.isFileDownloaded(path)) fm.downloadFileFromiCloud(path);
+    return mergeWidgetConfig(JSON.parse(fm.readString(path)));
+  } catch (_) {
+    // A broken/missing personal config must never break the departures widget.
+    return mergeWidgetConfig(null);
+  }
+}
+
+const WIDGET_CONFIG = loadWidgetConfig();
 
 function rawParameter() {
   return String(args.queryParameters?.parameter || args.widgetParameter || '').trim();
