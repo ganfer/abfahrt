@@ -202,13 +202,6 @@ function isSameStop(a, b) {
   return a.stopRef === b.stopRef || normalizeStopName(a.name) === normalizeStopName(b.name);
 }
 
-function rerunWidgetScript() {
-  // Running the widget script manually used to make Scriptable publish a fresh
-  // Home Screen snapshot. This is intentionally best-effort: Scriptable/iOS
-  // still own the final WidgetKit refresh behavior.
-  Safari.open('scriptable:///run/VagAbfahrten?refresh=1');
-}
-
 function selectStop(stop) {
   Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, stop.name);
@@ -255,7 +248,6 @@ async function chooseLocation(key, cfg) {
       const pinnedMatch = pinnedStopFor(hit, pinned);
       const selected = { ...hit, name: pinnedMatch?.displayName || hit.name };
       selectStop(selected);
-      rerunWidgetScript();
       return selected;
     }
   }
@@ -275,7 +267,6 @@ async function chooseLocation(key, cfg) {
   const pinnedMatch = pinnedStopFor(selected, pinned);
   const chosen = { ...selected, name: pinnedMatch?.displayName || selected.name };
   selectStop(chosen);
-  rerunWidgetScript();
   return chosen;
 }
 
@@ -358,7 +349,6 @@ th{font-size:12px;color:#999;text-align:left;background:#181818}td{font-size:min
 @media(max-width:430px){body{padding-left:12px;padding-right:12px}h1{font-size:26px}th,td{padding-left:4px;padding-right:4px}th{font-size:11px}}
 </style></head><body><h1>${htmlEsc(title)}</h1><div class="meta">Abfahrten · aktualisiert ${fmtClock(Date.now())}</div>
 <div class="wrap"><table><colgroup>${cols}</colgroup><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table></div>
-<div style="margin-top:18px"><a href="scriptable:///run/VagAbfahrten-Display?action=location" style="display:inline-block;color:#0a84ff;text-decoration:none;font-size:16px;padding:10px 0">⌖ Standort aktualisieren</a></div>
 </body></html>`;
 
     const web = new WebView();
