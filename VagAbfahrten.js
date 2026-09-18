@@ -88,7 +88,9 @@ function loadWidgetConfig() {
 const WIDGET_CONFIG = loadWidgetConfig();
 
 function widgetOpenUrl() {
-  return URLScheme.forRunningScript() + '&action=departures';
+  // Launch a dedicated script instead of trying to re-enter this script with
+  // query parameters. This is more reliable for Home Screen widget taps.
+  return 'scriptable:///run/VagAbfahrten-Display';
 }
 
 function rawParameter() {
@@ -881,7 +883,6 @@ async function main() {
   const present = !config.runsInWidget;
   const parameter = rawParameter();
   const wantsSetup = parameter.toLowerCase() === 'setup';
-  const wantsDepartures = String(args.queryParameters?.action || '').toLowerCase() === 'departures';
   const hasKeyInKeychain =
     Keychain.contains('TRIAS_REQUESTOR_REF') &&
     Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
@@ -921,21 +922,6 @@ async function main() {
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
-    return;
-  }
-
-  if (wantsDepartures) {
-    const diagnostic = new Alert();
-    diagnostic.title = 'Abfahrtsansicht';
-    diagnostic.message = 'Widget-Tap erkannt ✓\n\nAls Nächstes werden die Abfahrten geladen und die Fullscreen-Ansicht geöffnet.';
-    diagnostic.addAction('Weiter');
-    diagnostic.addCancelAction('Abbrechen');
-    const choice = await diagnostic.present();
-    if (choice === -1) {
-      Script.complete();
-      return;
-    }
-    await presentDeparturesTable(key);
     return;
   }
 
