@@ -355,10 +355,12 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   titleEl.font = Font.boldSystemFont(15);
   titleEl.textColor = new Color(c.fg);
   header.addSpacer();
-  const locationAction = header.addText('⌖');
+  const locationButton = header.addStack();
+  locationButton.setPadding(0, 8, 0, 8);
+  locationButton.url = 'scriptable:///run/VagAbfahrten?action=location';
+  const locationAction = locationButton.addText('⌖');
   locationAction.font = Font.boldSystemFont(17);
   locationAction.textColor = new Color(c.dim);
-  locationAction.url = 'scriptable:///run/VagAbfahrten?action=location';
   if (subtitle) {
     const sub = w.addText(subtitle);
     sub.font = Font.mediumSystemFont(11);
@@ -417,9 +419,8 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   const foot = w.addText(footerText);
   foot.font = Font.systemFont(9);
   foot.textColor = new Color(errorText ? c.late : c.dim);
-  // Normal widget tap refreshes the last saved stop. The location button in
-  // the header owns the interactive GPS/stop-selection action.
-  w.url = 'scriptable:///run/VagAbfahrten?action=refresh';
+  // Keep the widget itself without a URL so the nested location action remains
+  // independently tappable. Regular updates are handled by Scriptable/iOS.
   return w;
 }
 
