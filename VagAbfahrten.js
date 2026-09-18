@@ -515,11 +515,17 @@ async function main() {
   const present = !config.runsInWidget;
   const parameter = rawParameter();
   const wantsSetup = parameter.toLowerCase() === 'setup';
-  const hasKeyInKeychain = Keychain.contains('TRIAS_REQUESTOR_REF') && Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
+  const hasKeyInKeychain =
+    Keychain.contains('TRIAS_REQUESTOR_REF') &&
+    Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
 
-  if (!wantsSetup && !hasKeyInKeychain) {
-    const raw = parameter;
-    const parts = raw.split('|').map((p) => p.trim()).filter(Boolean);
+  if (wantsSetup) {
+    await setupMode();
+    return;
+  }
+
+  if (!hasKeyInKeychain) {
+    const parts = parameter.split('|').map((p) => p.trim()).filter(Boolean);
     const keyInParam = parts.find((p) => !/^nearby$/i.test(p));
     if (!keyInParam) {
       if (present) {
@@ -531,7 +537,7 @@ async function main() {
         null,
         [],
         0,
-        'Setup: Skript in Scriptable mit Parameter "setup" starten, dann Key eingeben.',
+        'Setup: Skript einmal in Scriptable starten und den TRIAS-Key speichern.',
         parameter,
       );
       Script.setWidget(w);
@@ -540,9 +546,9 @@ async function main() {
     }
   }
 
-  let key, nearby;
+  let key;
   try {
-    ({ key, nearby } = parseParameter());
+    ({ key } = parseParameter());
   } catch (e) {
     const w = buildWidget('VAG Widget', null, [], 0, e.message, parameter);
     if (present) w.presentMedium();
@@ -551,10 +557,13 @@ async function main() {
     return;
   }
 
-  if (nearby && present) {
+  // Scriptable's "Run Script" interaction starts the script in the foreground
+  // without forwarding the widget parameter. Foreground execution therefore
+  // means an explicit user tap and always starts the nearby/GPS flow.
+  if (present) {
     const debug = new Alert();
     debug.title = 'Nearby gestartet';
-    debug.message = 'Parameter: nearby\n\nAls Nächstes wird Location.current() aufgerufen.';
+    debug.message = 'Foreground erkannt.\n\nAls Nächstes wird Location.current() aufgerufen.';
     debug.addAction('Standort abfragen');
     await debug.present();
 
@@ -562,7 +571,7 @@ async function main() {
     return;
   }
 
-  await defaultWidget(key, present, parameter);
+  // Background/widget refresh keeps showing the fixed Brauerei Ganter stop.
+  await defaultWidget(key, false, parameter);
 }
-
 await main();
