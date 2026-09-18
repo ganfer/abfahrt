@@ -410,6 +410,74 @@ async function reset() {
   await notice('Zurückgesetzt', 'Die persönliche Konfiguration wurde gelöscht. Das Widget verwendet wieder die Standardwerte.');
 }
 
+
+const UPDATE_FILES = [
+  {
+    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten.js',
+    name: 'VagAbfahrten.js',
+    marker: "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';",
+  },
+  {
+    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Display.js',
+    name: 'VagAbfahrten-Display.js',
+    marker: 'const DISPLAY_CONFIG_DEFAULTS =',
+  },
+  {
+    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Config.js',
+    name: 'VagAbfahrten-Config.js',
+    marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
+  },
+];
+
+function updateTargets(fileName) {
+  const cloud = FileManager.iCloud();
+  const local = FileManager.local();
+  const targets = [{ label: 'iCloud', fm: cloud }];
+  const localPath = local.joinPath(local.documentsDirectory(), fileName);
+  if (local.fileExists(localPath)) targets.push({ label: 'Lokal', fm: local });
+  return targets;
+}
+
+async function downloadUpdateFile(file) {
+  const req = new Request(file.url);
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
+  const source = await req.loadString();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200) throw new Error(`${file.name}: GitHub HTTP ${status || '?'}`);
+  if (source.length < 500 || !source.includes(file.marker) || !source.includes('await main();')) {
+    throw new Error(`${file.name}: Download konnte nicht validiert werden.`);
+  }
+  return source;
+}
+
+async function updateScripts() {
+  const confirm = new Alert();
+  confirm.title = 'Skripte aktualisieren';
+  confirm.message = 'Lädt Widget, Fullscreen und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die gespeicherten Haltestellen bleiben erhalten.';
+  confirm.addAction('Update starten');
+  confirm.addCancelAction('Abbrechen');
+  if (await confirm.present() === -1) return;
+
+  try {
+    // Download and validate everything before replacing any installed script.
+    const downloads = [];
+    for (const file of UPDATE_FILES) downloads.push({ file, source: await downloadUpdateFile(file) });
+
+    const written = [];
+    for (const item of downloads) {
+      for (const target of updateTargets(item.file.name)) {
+        const path = target.fm.joinPath(target.fm.documentsDirectory(), item.file.name);
+        target.fm.writeString(path, item.source);
+        written.push(`• ${item.file.name} [${target.label}]`);
+      }
+    }
+    await notice('Update abgeschlossen', written.join('\n') + '\n\nConfig-Datei und gespeicherte Haltestellen wurden nicht verändert.');
+  } catch (e) {
+    await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
+  }
+}
+
 async function main() {
   const cfg = loadConfig();
 
@@ -422,6 +490,7 @@ async function main() {
     menu.addAction('Widget');
     menu.addAction('Fullscreen');
     menu.addAction('Gespeicherte Haltestellen');
+    menu.addAction('Update');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -432,10 +501,14 @@ async function main() {
     if (choice === 1) await configureFullscreen(cfg);
     if (choice === 2) await manageSavedStops();
     if (choice === 3) {
-      await save(cfg);
+      await updateScripts();
       break;
     }
     if (choice === 4) {
+      await save(cfg);
+      break;
+    }
+    if (choice === 5) {
       await reset();
       break;
     }
