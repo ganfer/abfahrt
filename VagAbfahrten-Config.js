@@ -7,12 +7,13 @@ const DEFAULTS = {
   rows: 5,
   columns: {
     line: { visible: true, width: 34 },
-    destination: { visible: true, width: 125 },
+    destination: { visible: true, width: 105 },
+    platform: { visible: true, width: 28 },
     departureTime: { visible: true, width: 42 },
     countdown: { visible: true, width: 50 },
   },
   spacing: { columns: 6, rows: 3 },
-  fontSize: { line: 11, destination: 12, departureTime: 11, countdown: 12 },
+  fontSize: { line: 11, destination: 12, platform: 10, departureTime: 11, countdown: 12 },
   badgeHeight: 22,
 };
 
@@ -34,6 +35,7 @@ function loadConfig() {
       columns: {
         line: { ...DEFAULTS.columns.line, ...(saved.columns?.line || {}) },
         destination: { ...DEFAULTS.columns.destination, ...(saved.columns?.destination || {}) },
+        platform: { ...DEFAULTS.columns.platform, ...(saved.columns?.platform || {}) },
         departureTime: { ...DEFAULTS.columns.departureTime, ...(saved.columns?.departureTime || {}) },
         countdown: { ...DEFAULTS.columns.countdown, ...(saved.columns?.countdown || {}) },
       },
@@ -87,6 +89,7 @@ function summary(cfg) {
   const names = {
     line: 'Linie',
     destination: 'Richtung',
+    platform: 'Gleis',
     departureTime: 'Abfahrt',
     countdown: 'Restzeit',
   };
@@ -116,6 +119,7 @@ async function main() {
     menu.addAction('Anzahl Abfahrten');
     menu.addAction('Linie');
     menu.addAction('Richtung');
+    menu.addAction('Gleis');
     menu.addAction('Abfahrtszeit');
     menu.addAction('Restzeit');
     menu.addAction('Abstände');
@@ -129,23 +133,25 @@ async function main() {
     if (choice === 0) cfg.rows = await askNumber('Anzahl Abfahrten', 'Wie viele Abfahrten sollen angezeigt werden?', cfg.rows, 1, 8);
     if (choice === 1) await configureColumn(cfg, 'line', 'Linie');
     if (choice === 2) await configureColumn(cfg, 'destination', 'Richtung');
-    if (choice === 3) await configureColumn(cfg, 'departureTime', 'Abfahrtszeit');
-    if (choice === 4) await configureColumn(cfg, 'countdown', 'Restzeit');
-    if (choice === 5) {
+    if (choice === 3) await configureColumn(cfg, 'platform', 'Gleis');
+    if (choice === 4) await configureColumn(cfg, 'departureTime', 'Abfahrtszeit');
+    if (choice === 5) await configureColumn(cfg, 'countdown', 'Restzeit');
+    if (choice === 6) {
       cfg.spacing.columns = await askNumber('Spaltenabstand', 'Abstand zwischen sichtbaren Spalten.', cfg.spacing.columns, 0, 20);
       cfg.spacing.rows = await askNumber('Zeilenabstand', 'Abstand zwischen den Abfahrten.', cfg.spacing.rows, 0, 12);
     }
-    if (choice === 6) {
+    if (choice === 7) {
       cfg.fontSize.line = await askNumber('Linie – Schriftgröße', '', cfg.fontSize.line, 8, 18);
       cfg.fontSize.destination = await askNumber('Richtung – Schriftgröße', '', cfg.fontSize.destination, 8, 18);
+      cfg.fontSize.platform = await askNumber('Gleis – Schriftgröße', '', cfg.fontSize.platform, 8, 18);
       cfg.fontSize.departureTime = await askNumber('Abfahrtszeit – Schriftgröße', '', cfg.fontSize.departureTime, 8, 18);
       cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
     }
-    if (choice === 7) {
+    if (choice === 8) {
       await save(cfg);
       break;
     }
-    if (choice === 8) {
+    if (choice === 9) {
       await reset();
       break;
     }
