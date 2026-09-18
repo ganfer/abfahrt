@@ -31,10 +31,17 @@ const FILES = [
   },
 ];
 
-function targetFileManager() {
-  // VagAbfahrten stores its TRIAS key in Keychain, so replacing the script file
-  // does not affect the saved key or selected stop.
-  return FileManager.iCloud();
+function targetFileManagers(fileName) {
+  // Scriptable can store scripts either in iCloud Drive or "On My iPhone".
+  // Update the iCloud copy (our default) and any existing local duplicate so
+  // the user cannot accidentally keep launching a stale script with the same name.
+  const cloud = FileManager.iCloud();
+  const local = FileManager.local();
+  const targets = [{ label: 'iCloud', fm: cloud }];
+
+  const localPath = local.joinPath(local.documentsDirectory(), fileName);
+  if (local.fileExists(localPath)) targets.push({ label: 'Lokal', fm: local });
+  return targets;
 }
 
 async function show(title, message) {
@@ -95,8 +102,6 @@ async function currentFilesManifest() {
 }
 
 async function main() {
-  const fm = targetFileManager();
-
   try {
     // Always read the current updater manifest from GitHub first. An older
     // installed updater can therefore discover newly added managed scripts
@@ -107,14 +112,18 @@ async function main() {
       downloads.push({ file, source: await downloadSource(file) });
     }
 
+    const written = [];
     for (const item of downloads) {
-      const target = fm.joinPath(fm.documentsDirectory(), item.file.name);
-      fm.writeString(target, item.source);
+      for (const target of targetFileManagers(item.file.name)) {
+        const path = target.fm.joinPath(target.fm.documentsDirectory(), item.file.name);
+        target.fm.writeString(path, item.source);
+        written.push(`• ${item.file.name} [${target.label}]`);
+      }
     }
 
     await show(
       'VAG Widget aktualisiert',
-      `${downloads.length} Skripte wurden aus dem aktuellen GitHub-Manifest aktualisiert.\n\n${downloads.map((item) => '• ' + item.file.name).join('\n')}\n\nDeine VagAbfahrten.config.json bleibt unverändert.`,
+      `${downloads.length} Skripte wurden aus dem aktuellen GitHub-Manifest geladen.\n\n${written.join('\n')}\n\nVorhandene lokale Duplikate wurden ebenfalls aktualisiert. Deine VagAbfahrten.config.json bleibt unverändert.`,
     );
   } catch (e) {
     await show(
