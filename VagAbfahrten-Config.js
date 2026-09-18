@@ -135,8 +135,14 @@ function normalizeStopName(name) {
 function pinStop(stop) {
   const list = savedStops().filter((s) => s.pinned === true);
   const normalized = normalizeStopName(stop.name);
+  const existing = list.find((s) => s.stopRef === stop.stopRef || normalizeStopName(s.name) === normalized);
   const filtered = list.filter((s) => s.stopRef !== stop.stopRef && normalizeStopName(s.name) !== normalized);
-  filtered.unshift({ stopRef: stop.stopRef, name: stop.name, pinned: true });
+  filtered.unshift({
+    stopRef: stop.stopRef,
+    name: stop.name,
+    displayName: existing?.displayName || '',
+    pinned: true,
+  });
   writeSavedStops(filtered);
 }
 
@@ -274,7 +280,7 @@ async function managePinnedStops() {
     a.title = 'Fixierte Haltestellen';
     a.message = stops.length ? `${stops.length} Haltestelle(n) dauerhaft fixiert.` : 'Noch keine Haltestellen fixiert.';
     a.addAction('Haltestelle fixieren');
-    for (const stop of stops) a.addAction('📌 ' + stop.name);
+    for (const stop of stops) a.addAction('📌 ' + (stop.displayName || stop.name));
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -285,14 +291,37 @@ async function managePinnedStops() {
     const index = choice - 1;
     const stop = stops[index];
     const detail = new Alert();
-    detail.title = stop.name;
-    detail.message = stop.stopRef;
+    detail.title = stop.displayName || stop.name;
+    detail.message = (stop.displayName ? 'TRIAS: ' + stop.name + '\n' : '') + stop.stopRef;
+    detail.addAction('Anzeigename ändern');
     detail.addDestructiveAction('Fixierung entfernen');
     detail.addCancelAction('Zurück');
-    if (await detail.present() === 0) {
+    const action = await detail.present();
+    if (action === 0) {
+      const rename = new Alert();
+      rename.title = 'Anzeigename ändern';
+      rename.message = 'Der TRIAS-Name bleibt unverändert und wird weiterhin für die Zuordnung verwendet.';
+      rename.addTextField('Anzeigename', stop.displayName || stop.name);
+      rename.addAction('Übernehmen');
+      rename.addAction('Eigenen Namen entfernen');
+      rename.addCancelAction('Abbrechen');
+      const renameAction = await rename.present();
+      if (renameAction === 0) {
+        const value = rename.textFieldValue(0).trim();
+        stops[index] = { ...stop, displayName: value && value !== stop.name ? value : '' };
+        writeSavedStops(stops);
+        await notice('Anzeigename gespeichert', stops[index].displayName || stop.name);
+      }
+      if (renameAction === 1) {
+        stops[index] = { ...stop, displayName: '' };
+        writeSavedStops(stops);
+        await notice('Anzeigename entfernt', stop.name);
+      }
+    }
+    if (action === 1) {
       stops.splice(index, 1);
       writeSavedStops(stops);
-      await notice('Fixierung entfernt', stop.name);
+      await notice('Fixierung entfernt', stop.displayName || stop.name);
     }
   }
 }

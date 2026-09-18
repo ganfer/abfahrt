@@ -206,8 +206,12 @@ function selectStop(stop) {
   Keychain.set(RECENT_STOPS_KEY, JSON.stringify(recent.slice(0, RECENT_STOPS_LIMIT)));
 }
 
+function pinnedStopFor(stop, pinned) {
+  return pinned.find((s) => s.pinned === true && isSameStop(s, stop)) || null;
+}
+
 function isPinnedStop(stop, pinned) {
-  return pinned.some((s) => s.pinned === true && isSameStop(s, stop));
+  return pinnedStopFor(stop, pinned) !== null;
 }
 
 function isRecentStop(stop, recent) {
@@ -231,8 +235,10 @@ async function chooseLocation(key, cfg) {
   if (cfg.location.autoSelectSavedStop) {
     const hit = stops.find((s) => isPinnedStop(s, pinned));
     if (hit) {
-      selectStop(hit);
-      return hit;
+      const pinnedMatch = pinnedStopFor(hit, pinned);
+      const selected = { ...hit, name: pinnedMatch?.displayName || hit.name };
+      selectStop(selected);
+      return selected;
     }
   }
 
@@ -240,15 +246,18 @@ async function chooseLocation(key, cfg) {
   picker.title = 'Haltestelle wählen';
   picker.message = 'Haltestellen in deiner Nähe · 📌 fixiert · ★ zuletzt verwendet';
   for (const stop of stops) {
-    const marker = isPinnedStop(stop, pinned) ? '📌 ' : isRecentStop(stop, recent) ? '★ ' : '';
-    picker.addAction(marker + stop.name);
+    const pinnedMatch = pinnedStopFor(stop, pinned);
+    const marker = pinnedMatch ? '📌 ' : isRecentStop(stop, recent) ? '★ ' : '';
+    picker.addAction(marker + (pinnedMatch?.displayName || stop.name));
   }
   picker.addCancelAction('Abbrechen');
   const choice = await picker.present();
   if (choice === -1) return null;
   const selected = stops[choice];
-  selectStop(selected);
-  return selected;
+  const pinnedMatch = pinnedStopFor(selected, pinned);
+  const chosen = { ...selected, name: pinnedMatch?.displayName || selected.name };
+  selectStop(chosen);
+  return chosen;
 }
 
 async function fetchDepartures(refs, key, count) {
