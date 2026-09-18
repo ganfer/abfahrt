@@ -87,6 +87,10 @@ function loadWidgetConfig() {
 
 const WIDGET_CONFIG = loadWidgetConfig();
 
+function widgetOpenUrl() {
+  return URLScheme.forRunningScript() + '&action=departures';
+}
+
 function rawParameter() {
   return String(args.queryParameters?.parameter || args.widgetParameter || '').trim();
 }
@@ -547,6 +551,7 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText) {
   const w = new ListWidget();
   w.backgroundColor = new Color(c.bg);
   w.setPadding(13, 14, 10, 14);
+  w.url = widgetOpenUrl();
   const stop = splitStopName(title);
   const titleEl = w.addText(stop.stop || title);
   titleEl.font = Font.boldSystemFont(16);
@@ -719,6 +724,69 @@ async function nearbyFlow(key) {
   }
 }
 
+async function presentDeparturesTable(key) {
+  const hasLastStop =
+    Keychain.contains(LAST_STOP_REF_KEY) &&
+    Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
+  const stopRefs = hasLastStop ? [Keychain.get(LAST_STOP_REF_KEY)] : DEFAULT_STOPS;
+  const title =
+    hasLastStop && Keychain.contains(LAST_STOP_NAME_KEY)
+      ? Keychain.get(LAST_STOP_NAME_KEY)
+      : 'Brauerei Ganter';
+
+  try {
+    const events = await fetchDepartures(stopRefs, key);
+    const rows = events
+      .filter((e) => (e.realtimeTime || e.plannedTime) >= Date.now())
+      .map((e) => {
+        const at = e.realtimeTime || e.plannedTime;
+        const rawDelayMin = e.realtimeTime
+          ? Math.round((e.realtimeTime - e.plannedTime) / 60000)
+          : null;
+        return {
+          ...e,
+          at,
+          delayMin: rawDelayMin !== null && rawDelayMin >= 0 && rawDelayMin <= 90 ? rawDelayMin : null,
+        };
+      })
+      .sort((a, b) => a.at - b.at)
+      .slice(0, RESULTS_LIMIT);
+
+    const table = new UITable();
+    table.showSeparators = true;
+
+    const heading = new UITableRow();
+    heading.isHeader = true;
+    heading.addText(title, 'Abfahrten · aktualisiert ' + fmtClock(Date.now()));
+    table.addRow(heading);
+
+    for (const r of rows) {
+      const row = new UITableRow();
+      row.height = 52;
+      if (WIDGET_CONFIG.columns.line.visible) row.addText(r.line || '–', 'Linie');
+      if (WIDGET_CONFIG.columns.destination.visible) row.addText(compactDestination(r.destination, splitStopName(title).place), 'Richtung');
+      if (WIDGET_CONFIG.columns.platform.visible) row.addText(r.platform || '–', 'Gleis');
+      if (WIDGET_CONFIG.columns.departureTime.visible) row.addText(fmtClock(r.at), 'Abfahrt');
+      if (WIDGET_CONFIG.columns.countdown.visible) {
+        const minutes = Math.max(0, Math.floor((r.at - Date.now()) / 60000));
+        row.addText(r.cancelled ? 'entfällt' : minutes <= 0 ? 'jetzt' : minutes + ' min', 'Restzeit');
+      }
+      table.addRow(row);
+    }
+
+    if (!rows.length) {
+      const empty = new UITableRow();
+      empty.addText('Keine kommenden Abfahrten');
+      table.addRow(empty);
+    }
+
+    await table.present(true);
+  } catch (e) {
+    await showLocationDiagnostics(['Abfahrtsübersicht konnte nicht geladen werden.'], e.message);
+  }
+  Script.complete();
+}
+
 async function setupMode() {
   const alert = new Alert();
   alert.title = 'TRIAS Key speichern';
@@ -761,6 +829,7 @@ async function main() {
   const present = !config.runsInWidget;
   const parameter = rawParameter();
   const wantsSetup = parameter.toLowerCase() === 'setup';
+  const wantsDepartures = String(args.queryParameters?.action || '').toLowerCase() === 'departures';
   const hasKeyInKeychain =
     Keychain.contains('TRIAS_REQUESTOR_REF') &&
     Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
@@ -800,6 +869,11 @@ async function main() {
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
+    return;
+  }
+
+  if (wantsDepartures) {
+    await presentDeparturesTable(key);
     return;
   }
 
