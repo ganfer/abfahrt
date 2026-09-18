@@ -272,7 +272,23 @@ function nearbyStopsFromDoc(doc) {
       text(result, 'LocationName', 'Text');
     if (stopRef && name) out.push({ stopRef, name });
   }
-  return out;
+
+  // EFA-BW may return the same physical stop multiple times with different
+  // internal references/variants. Keep only one picker entry per stop name.
+  const seenRefs = new Set();
+  const seenNames = new Set();
+  return out.filter(({ stopRef, name }) => {
+    const normalizedName = name
+      .normalize('NFKC')
+      .trim()
+      .replace(/\\s+/g, ' ')
+      .toLocaleLowerCase('de-DE');
+
+    if (seenRefs.has(stopRef) || seenNames.has(normalizedName)) return false;
+    seenRefs.add(stopRef);
+    seenNames.add(normalizedName);
+    return true;
+  });
 }
 
 async function triasPost(body) {
