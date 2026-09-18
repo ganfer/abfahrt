@@ -209,13 +209,17 @@ function nearbyStopsFromDoc(doc) {
     child(doc, 'LocationInformationResponse');
   const out = [];
   for (const result of children(response, 'LocationResult')) {
+    // EFA-BW returns stops as LocationResult/Location/StopPoint/...
+    // (not as a direct StopPoint child of LocationResult).
     const stopRef =
+      text(result, 'Location', 'StopPoint', 'StopPointRef') ||
       text(result, 'StopPoint', 'StopPointRef') ||
       text(result, 'Location', 'StopPointRef') ||
       text(result, 'StopPointRef');
     const name =
-      text(result, 'StopPoint', 'StopPointName', 'Text') ||
+      text(result, 'Location', 'StopPoint', 'StopPointName', 'Text') ||
       text(result, 'Location', 'LocationName', 'Text') ||
+      text(result, 'StopPoint', 'StopPointName', 'Text') ||
       text(result, 'LocationName', 'Text');
     if (stopRef && name) out.push({ stopRef, name });
   }
