@@ -925,6 +925,16 @@ async function main() {
   }
 
   if (wantsDepartures) {
+    const diagnostic = new Alert();
+    diagnostic.title = 'Abfahrtsansicht';
+    diagnostic.message = 'Widget-Tap erkannt ✓\n\nAls Nächstes werden die Abfahrten geladen und die Fullscreen-Ansicht geöffnet.';
+    diagnostic.addAction('Weiter');
+    diagnostic.addCancelAction('Abbrechen');
+    const choice = await diagnostic.present();
+    if (choice === -1) {
+      Script.complete();
+      return;
+    }
     await presentDeparturesTable(key);
     return;
   }
