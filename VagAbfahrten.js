@@ -190,17 +190,22 @@ function stopEventsFromDoc(doc) {
       text(service, 'Cancelled') === 'true' ||
       text(call, 'NotServicedStop') === 'true';
     if (!stopRef || !planned) continue;
+    // In TRIAS 1.2 the passenger-facing line name belongs to
+    // Service/ServiceSection/PublishedLineName. LineRef is only an internal
+    // identifier and must never be displayed as the public line number.
+    const section = child(service, 'ServiceSection');
+    const publishedLineName =
+      text(section, 'PublishedLineName', 'Text') ||
+      text(section, 'PublishedLineName') ||
+      text(service, 'PublishedLineName', 'Text') ||
+      text(service, 'PublishedLineName');
+
     events.push({
       stopRef,
       plannedTime: Date.parse(planned),
       realtimeTime: estimated ? Date.parse(estimated) : null,
       cancelled,
-      line:
-        text(service, 'PublishedLineName', 'Text') ||
-        text(service, 'PublishedLineName') ||
-        text(service, 'LineRef') ||
-        text(service, 'OperatingDayRef') ||
-        '',
+      line: publishedLineName,
       destination: text(service, 'DestinationText', 'Text') || text(service, 'DestinationText'),
     });
   }
