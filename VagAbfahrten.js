@@ -552,6 +552,12 @@ async function main() {
   }
 
   if (nearby && present) {
+    const debug = new Alert();
+    debug.title = 'Nearby gestartet';
+    debug.message = 'Parameter: nearby\n\nAls Nächstes wird Location.current() aufgerufen.';
+    debug.addAction('Standort abfragen');
+    await debug.present();
+
     await nearbyFlow(key);
     return;
   }
