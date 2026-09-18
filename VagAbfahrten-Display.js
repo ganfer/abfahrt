@@ -168,7 +168,12 @@ async function main() {
       ['countdown', 'Restzeit', (r) => r.cancelled ? 'entfällt' : Math.max(0, Math.floor((r.at - Date.now()) / 60000)) + ' min'],
     ].filter(([key]) => cfg.columns[key].visible);
 
-    const cols = defs.map(([key]) => `<col style="width:${Number(cfg.columns[key].width) || 80}px">`).join('');
+    const configuredTotal = defs.reduce((sum, [key]) => sum + (Number(cfg.columns[key].width) || 80), 0);
+    const cols = defs.map(([key]) => {
+      const width = Number(cfg.columns[key].width) || 80;
+      const percent = configuredTotal > 0 ? (width / configuredTotal) * 100 : (100 / defs.length);
+      return `<col style="width:${percent.toFixed(2)}%">`;
+    }).join('');
     const heads = defs.map(([, label]) => `<th>${htmlEsc(label)}</th>`).join('');
     const rows = events.length ? events.map((r) =>
       '<tr>' + defs.map(([key,, value]) => `<td class="${key}">${htmlEsc(value(r))}</td>`).join('') + '</tr>'
@@ -178,10 +183,11 @@ async function main() {
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
 :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
-*{box-sizing:border-box}body{margin:0;padding:max(22px,env(safe-area-inset-top)) 16px 30px;background:#101010;color:#f0f0f0}
-h1{font-size:28px;margin:0}.meta{color:#999;margin:5px 0 20px}.wrap{overflow-x:auto;border:1px solid #2c2c2e;border-radius:14px}
-table{border-collapse:collapse;min-width:100%;table-layout:fixed}th,td{padding:13px 10px;border-bottom:1px solid #292929;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-th{font-size:12px;color:#999;text-align:left;background:#181818}td{font-size:${Number(cfg.fontSize) || 16}px}.line{font-weight:700}.countdown{font-weight:700;text-align:right}
+*{box-sizing:border-box}html,body{width:100%;max-width:100%;overflow-x:hidden}body{margin:0;padding:max(22px,env(safe-area-inset-top)) 16px 30px;background:#101010;color:#f0f0f0}
+h1{font-size:28px;margin:0;overflow-wrap:anywhere}.meta{color:#999;margin:5px 0 20px}.wrap{width:100%;max-width:100%;overflow:hidden;border:1px solid #2c2c2e;border-radius:14px}
+table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:13px 6px;border-bottom:1px solid #292929;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+th{font-size:12px;color:#999;text-align:left;background:#181818}td{font-size:min(${Number(cfg.fontSize) || 16}px,4vw)}.line{font-weight:700}.platform{text-align:center}.departureTime{text-align:center}.countdown{font-weight:700;text-align:right}
+@media(max-width:430px){body{padding-left:12px;padding-right:12px}h1{font-size:26px}th,td{padding-left:4px;padding-right:4px}th{font-size:11px}}
 </style></head><body><h1>${htmlEsc(title)}</h1><div class="meta">Abfahrten · aktualisiert ${fmtClock(Date.now())}</div>
 <div class="wrap"><table><colgroup>${cols}</colgroup><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table></div></body></html>`;
 
