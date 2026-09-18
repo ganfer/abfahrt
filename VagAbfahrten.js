@@ -385,12 +385,28 @@ async function defaultWidget(key, present, tapParameter) {
   }
 }
 
+async function showLocationDiagnostics(lines, errorText) {
+  const alert = new Alert();
+  alert.title = 'Location Diagnose';
+  alert.message = lines.join('\n') + (errorText ? '\n\nFEHLER: ' + errorText : '');
+  alert.addAction('OK');
+  await alert.present();
+}
+
 async function nearbyFlow(key) {
+  const diagnostics = [
+    '1. nearby-Modus aktiv ✓',
+    '2. Key aus Parameter/Keychain ✓',
+  ];
   let loc;
   try {
     Location.setAccuracyToHundredMeters();
     loc = await Location.current();
+    diagnostics.push('3. GPS erhalten ✓');
+    diagnostics.push(`   ±${Math.round(loc.horizontalAccuracy || 0)} m`);
   } catch (e) {
+    diagnostics.push('3. GPS erhalten ✗');
+    await showLocationDiagnostics(diagnostics, e.message);
     const w = buildWidget('Standort', null, [], 0, 'GPS nicht verfügbar: ' + e.message);
     w.presentMedium();
     Script.complete();
@@ -400,8 +416,12 @@ async function nearbyFlow(key) {
   let stops;
   try {
     const xml = await triasPost(buildNearbyRequest(loc.latitude, loc.longitude, key));
+    diagnostics.push('4. TRIAS-Antwort erhalten ✓');
     stops = nearbyStopsFromDoc(parseXmlTree(xml));
+    diagnostics.push(`5. Haltestellen gefunden: ${stops.length}`);
   } catch (e) {
+    diagnostics.push('4/5. TRIAS-Ortssuche ✗');
+    await showLocationDiagnostics(diagnostics, e.message);
     const w = buildWidget('Nähe', null, [], 0, 'Ortsuche fehlgeschlagen: ' + e.message);
     w.presentMedium();
     Script.complete();
@@ -409,12 +429,14 @@ async function nearbyFlow(key) {
   }
 
   if (!stops.length) {
+    await showLocationDiagnostics(diagnostics, 'TRIAS lieferte keine auswertbaren Haltestellen.');
     const w = buildWidget('Nähe', null, [], 0, 'Keine Haltestellen gefunden');
     w.presentMedium();
     Script.complete();
     return;
   }
 
+  diagnostics.push('6. Auswahl wird geöffnet ✓');
   const picker = new Alert();
   picker.title = 'Haltestelle wählen';
   picker.message = 'GPS ±100 m';
