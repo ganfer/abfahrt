@@ -502,6 +502,49 @@ async function updateScripts() {
   }
 }
 
+async function debugPlatformData() {
+  if (!Keychain.contains('TRIAS_REQUESTOR_REF')) {
+    await notice('Debug', 'Kein TRIAS-Key im Keychain.');
+    return;
+  }
+  if (!Keychain.contains('VAG_LAST_STOP_REF')) {
+    await notice('Debug', 'Noch keine aktuelle Haltestelle gespeichert.');
+    return;
+  }
+
+  const stopRef = Keychain.get('VAG_LAST_STOP_REF');
+  const stopName = Keychain.contains('VAG_LAST_STOP_NAME') ? Keychain.get('VAG_LAST_STOP_NAME') : stopRef;
+  const key = Keychain.get('TRIAS_REQUESTOR_REF').trim();
+  const ts = new Date().toISOString();
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<Trias version="1.2" language="de" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri">
+<ServiceRequest><siri:RequestTimestamp>${ts}</siri:RequestTimestamp><siri:RequestorRef>${xmlEsc(key)}</siri:RequestorRef>
+<RequestPayload><StopEventRequest><Location><LocationRef><StopPointRef>${xmlEsc(stopRef)}</StopPointRef></LocationRef><DepArrTime>${ts}</DepArrTime></Location>
+<Params><Language>de</Language><NumberOfResults>5</NumberOfResults><IncludeRealtimeData>true</IncludeRealtimeData><StopEventPolicy>DEPARTURE</StopEventPolicy></Params>
+</StopEventRequest></RequestPayload></ServiceRequest></Trias>`;
+
+  try {
+    const req = new Request(TRIAS_ENDPOINT);
+    req.method = 'POST';
+    req.headers = { 'Content-Type': 'text/xml; charset=utf-8', Accept: 'text/xml' };
+    req.body = body;
+    req.timeoutInterval = 12;
+    const raw = await req.loadString();
+    if ((req.response?.statusCode || 200) >= 400) throw new Error('TRIAS HTTP ' + req.response.statusCode);
+
+    // Copy the complete response so no potentially relevant TRIAS field is
+    // lost through our current parser. The requestor key is not part of the response.
+    Pasteboard.copyString(raw);
+    const a = new Alert();
+    a.title = 'TRIAS-Debug kopiert';
+    a.message = `${stopName}\n${stopRef}\n\nDie vollständige XML-Antwort für die nächsten 5 Abfahrten liegt jetzt in der Zwischenablage. Füge sie hier im Chat ein; dann können wir das Gleisfeld anhand der echten EFA-BW-Daten zuordnen.`;
+    a.addAction('OK');
+    await a.present();
+  } catch (e) {
+    await notice('TRIAS-Debug fehlgeschlagen', e.message);
+  }
+}
+
 async function main() {
   const cfg = loadConfig();
 
@@ -515,6 +558,7 @@ async function main() {
     menu.addAction('Fullscreen');
     menu.addAction('Fixierte Haltestellen');
     menu.addAction('Update');
+    menu.addAction('TRIAS Gleis-Debug');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -528,11 +572,12 @@ async function main() {
       await updateScripts();
       break;
     }
-    if (choice === 4) {
+    if (choice === 4) await debugPlatformData();
+    if (choice === 5) {
       await save(cfg);
       break;
     }
-    if (choice === 5) {
+    if (choice === 6) {
       await reset();
       break;
     }
