@@ -707,10 +707,9 @@ async function nearbyFlow(key) {
   Keychain.set(LAST_STOP_REF_KEY, chosen.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, chosen.name);
 
-  // Selection is complete. The fullscreen script only renders the saved stop;
-  // it must not ask for a second location selection.
-  Safari.open('scriptable:///run/VagAbfahrten-Display');
-  Script.complete();
+  // Stay in the same Scriptable run: after choosing a stop, render the
+  // fullscreen departures table directly instead of launching another script.
+  await presentDeparturesTable(key);
 }
 
 function htmlEsc(value) {
