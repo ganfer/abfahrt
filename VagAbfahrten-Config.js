@@ -178,11 +178,14 @@ async function searchStops(query) {
   if (!Keychain.contains('TRIAS_REQUESTOR_REF')) throw new Error('Kein TRIAS-Key im Keychain.');
   const key = Keychain.get('TRIAS_REQUESTOR_REF').trim();
   const ts = new Date().toISOString();
+  // TRIAS LocationInformationRequest expects the textual stop search in
+  // InitialInput/LocationName/Text. Sending the query directly as the
+  // LocationName text can be interpreted as a place/locality search by EFA-BW.
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <Trias version="1.2" language="de" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri">
 <ServiceRequest><siri:RequestTimestamp>${ts}</siri:RequestTimestamp><siri:RequestorRef>${xmlEsc(key)}</siri:RequestorRef>
-<RequestPayload><LocationInformationRequest><InitialInput><LocationName>${xmlEsc(query)}</LocationName></InitialInput>
-<Restrictions><Type>stop</Type><NumberOfResults>10</NumberOfResults></Restrictions>
+<RequestPayload><LocationInformationRequest><InitialInput><LocationName><Text>${xmlEsc(query)}</Text></LocationName></InitialInput>
+<Restrictions><Type>stop</Type><NumberOfResults>20</NumberOfResults></Restrictions>
 </LocationInformationRequest></RequestPayload></ServiceRequest></Trias>`;
   const req = new Request(TRIAS_ENDPOINT);
   req.method = 'POST';
@@ -207,11 +210,18 @@ async function searchStops(query) {
       text(result, 'StopPointRef');
     const name =
       text(result, 'Location', 'StopPlace', 'StopPlaceName', 'Text') ||
-      text(result, 'Location', 'LocationName', 'Text') ||
+      text(result, 'Location', 'StopPlace', 'StopPlaceName') ||
       text(result, 'Location', 'StopPoint', 'StopPointName', 'Text') ||
+      text(result, 'Location', 'StopPoint', 'StopPointName') ||
+      text(result, 'Location', 'LocationName', 'Text') ||
+      text(result, 'Location', 'LocationName') ||
       text(result, 'StopPoint', 'StopPointName', 'Text') ||
-      text(result, 'LocationName', 'Text');
-    if (stopRef && name && !found.some((s) => s.stopRef === stopRef || normalizeStopName(s.name) === normalizeStopName(name))) found.push({ stopRef, name });
+      text(result, 'StopPoint', 'StopPointName') ||
+      text(result, 'LocationName', 'Text') ||
+      text(result, 'LocationName');
+    if (stopRef && name && !found.some((s) => s.stopRef === stopRef || normalizeStopName(s.name) === normalizeStopName(name))) {
+      found.push({ stopRef, name });
+    }
   }
   return found;
 }
