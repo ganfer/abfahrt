@@ -63,29 +63,16 @@ Der TRIAS-Key und die zuletzt ausgewählte Haltestelle liegen im iOS-Keychain un
 
 ## Widget-Konfiguration
 
-Das Layout kann direkt über `WIDGET_CONFIG` am Anfang von `VagAbfahrten.js` angepasst werden. Für jede Spalte lässt sich festlegen, ob sie sichtbar ist und wie breit sie dargestellt wird.
+Für persönliche Layout-Einstellungen gibt es `VagAbfahrten-Config.js`. Das Skript wird direkt in Scriptable gestartet und führt per Dialog durch die Konfiguration.
 
-```js
-const WIDGET_CONFIG = {
-  rows: 5,
-  columns: {
-    line: { visible: true, width: 34 },
-    destination: { visible: true, width: 125 },
-    departureTime: { visible: true, width: 42 },
-    countdown: { visible: true, width: 50 },
-  },
-  spacing: {
-    columns: 6,
-    rows: 3,
-  },
-  fontSize: {
-    line: 11,
-    destination: 12,
-    departureTime: 11,
-    countdown: 12,
-  },
-  badgeHeight: 22,
-};
-```
+Konfigurierbar sind:
 
-Beispiel: Um die Abfahrtszeit auszublenden und der Richtung mehr Platz zu geben, setze `departureTime.visible` auf `false` und erhöhe `destination.width`. Sichtbare Spalten werden mit einem einheitlichen konfigurierbaren Abstand gerendert, damit der tabellenartige Aufbau erhalten bleibt.
+- Anzahl der sichtbaren Abfahrten
+- Sichtbarkeit und Breite von Linie, Richtung, Abfahrtszeit und Restzeit
+- Spalten- und Zeilenabstand
+- Schriftgrößen
+- Zurücksetzen auf die Standardwerte
+
+Die Einstellungen werden separat als `VagAbfahrten.config.json` im Scriptable-iCloud-Ordner gespeichert. `VagAbfahrten.js` lädt diese Datei automatisch; fehlt sie oder ist sie ungültig, werden die eingebauten Standardwerte verwendet.
+
+Der GitHub-Updater aktualisiert `VagAbfahrten.js` und `VagAbfahrten-Config.js`, **nicht** aber `VagAbfahrten.config.json`. Persönliche Einstellungen bleiben bei Updates daher erhalten.
