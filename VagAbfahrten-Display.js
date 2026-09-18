@@ -99,6 +99,13 @@ function child(node, ...names) {
 function children(node, name) { return node ? (node.children || []).filter((c) => c.name === name) : []; }
 function text(node, ...names) { const n = child(node, ...names); return n ? (n.textContent || '').trim() : ''; }
 
+function platformFromStopPointRef(stopPointRef) {
+  const parts = String(stopPointRef || '').split(':');
+  // EFA-BW encodes the stop-position/platform as the final component of refs
+  // such as de:08435:4017:0:2. Only use it when the ref has that structure.
+  return parts.length >= 5 && parts[parts.length - 1] ? parts[parts.length - 1] : '';
+}
+
 function eventsFromXml(raw) {
   const doc = parseXml(raw);
   const response =
@@ -122,7 +129,7 @@ function eventsFromXml(raw) {
       cancelled: text(call, 'NotServicedStop') === 'true',
       line: text(section, 'PublishedLineName', 'Text') || text(section, 'PublishedLineName') || text(service, 'PublishedLineName', 'Text') || text(service, 'PublishedLineName'),
       destination: text(service, 'DestinationText', 'Text') || text(service, 'DestinationText'),
-      platform: text(call, 'EstimatedBay') || text(call, 'PlannedBay') || '',
+      platform: text(call, 'EstimatedBay') || text(call, 'PlannedBay') || platformFromStopPointRef(text(call, 'StopPointRef')) || '',
     });
   }
   return out;
