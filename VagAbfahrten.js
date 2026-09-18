@@ -33,7 +33,8 @@ const DEFAULT_WIDGET_CONFIG = {
   rows: 5,
   columns: {
     line: { visible: true, width: 34 },
-    destination: { visible: true, width: 125 },
+    destination: { visible: true, width: 105 },
+    platform: { visible: true, width: 28 },
     departureTime: { visible: true, width: 42 },
     countdown: { visible: true, width: 50 },
   },
@@ -44,6 +45,7 @@ const DEFAULT_WIDGET_CONFIG = {
   fontSize: {
     line: 11,
     destination: 12,
+    platform: 10,
     departureTime: 11,
     countdown: 12,
   },
@@ -60,6 +62,7 @@ function mergeWidgetConfig(saved) {
     columns: {
       line: { ...d.columns.line, ...(s.columns?.line || {}) },
       destination: { ...d.columns.destination, ...(s.columns?.destination || {}) },
+      platform: { ...d.columns.platform, ...(s.columns?.platform || {}) },
       departureTime: { ...d.columns.departureTime, ...(s.columns?.departureTime || {}) },
       countdown: { ...d.columns.countdown, ...(s.columns?.countdown || {}) },
     },
@@ -265,6 +268,7 @@ function stopEventsFromDoc(doc) {
       cancelled,
       line: publishedLineName,
       destination: text(service, 'DestinationText', 'Text') || text(service, 'DestinationText'),
+      platform: text(call, 'StopPointName', 'Text') || text(call, 'StopPointName') || text(call, 'PlannedBay') || text(call, 'EstimatedBay') || '',
     });
   }
   return events;
@@ -488,6 +492,19 @@ function addDepartureRow(w, r, place, c) {
     destination.lineLimit = 1;
     destination.minimumScaleFactor = 0.6;
     if (r.cancelled) destination.textOpacity = 0.65;
+    hasColumn = true;
+  }
+
+  if (columns.platform.visible) {
+    addColumnSpacer(row, hasColumn);
+    const column = row.addStack();
+    column.size = new Size(Math.max(1, columns.platform.width), height);
+    column.centerAlignContent();
+    const platform = column.addText(r.platform || '–');
+    platform.font = Font.systemFont(WIDGET_CONFIG.fontSize.platform);
+    platform.textColor = new Color(r.cancelled ? c.dim : c.fg);
+    platform.lineLimit = 1;
+    platform.minimumScaleFactor = 0.6;
     hasColumn = true;
   }
 

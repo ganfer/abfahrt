@@ -68,7 +68,7 @@ Für persönliche Layout-Einstellungen gibt es `VagAbfahrten-Config.js`. Das Skr
 Konfigurierbar sind:
 
 - Anzahl der sichtbaren Abfahrten
-- Sichtbarkeit und Breite von Linie, Richtung, Abfahrtszeit und Restzeit
+- Sichtbarkeit und Breite von Linie, Richtung, Gleis, Abfahrtszeit und Restzeit
 - Spalten- und Zeilenabstand
 - Schriftgrößen
 - Zurücksetzen auf die Standardwerte
