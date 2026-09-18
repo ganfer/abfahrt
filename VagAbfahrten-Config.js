@@ -183,13 +183,13 @@ async function searchStops(query) {
   if (!Keychain.contains('TRIAS_REQUESTOR_REF')) throw new Error('Kein TRIAS-Key im Keychain.');
   const key = Keychain.get('TRIAS_REQUESTOR_REF').trim();
   const ts = new Date().toISOString();
-  // TRIAS LocationInformationRequest expects the textual stop search in
-  // InitialInput/LocationName/Text. Sending the query directly as the
-  // LocationName text can be interpreted as a place/locality search by EFA-BW.
+  // LocationName in InitialInput is a plain string in the TRIAS 1.2
+  // LocationInformationRequest. LocationName/Text belongs to returned
+  // LocationRef structures, not to InitialInput.
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <Trias version="1.2" language="de" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri">
 <ServiceRequest><siri:RequestTimestamp>${ts}</siri:RequestTimestamp><siri:RequestorRef>${xmlEsc(key)}</siri:RequestorRef>
-<RequestPayload><LocationInformationRequest><InitialInput><LocationName><Text>${xmlEsc(query)}</Text></LocationName></InitialInput>
+<RequestPayload><LocationInformationRequest><InitialInput><LocationName>${xmlEsc(query)}</LocationName></InitialInput>
 <Restrictions><Type>stop</Type><NumberOfResults>20</NumberOfResults></Restrictions>
 </LocationInformationRequest></RequestPayload></ServiceRequest></Trias>`;
   const req = new Request(TRIAS_ENDPOINT);
