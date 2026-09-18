@@ -205,6 +205,9 @@ function isSameStop(a, b) {
 function selectStop(stop) {
   Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, stop.name);
+  // iOS controls the actual widget reload. This timestamp is a shared hint
+  // that the Home Screen snapshot is stale after a location change.
+  Keychain.set('VAG_WIDGET_INVALIDATED_AT', String(Date.now()));
 
   // Keep a small rolling history purely for highlighting nearby choices.
   // It is deliberately separate from explicitly pinned stops.
