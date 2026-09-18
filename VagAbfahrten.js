@@ -279,7 +279,7 @@ function stopEventsFromDoc(doc) {
       cancelled,
       line: publishedLineName,
       destination: text(service, 'DestinationText', 'Text') || text(service, 'DestinationText'),
-      platform: text(call, 'StopPointName', 'Text') || text(call, 'StopPointName') || text(call, 'PlannedBay') || text(call, 'EstimatedBay') || '',
+      platform: text(call, 'EstimatedBay') || text(call, 'PlannedBay') || platformFromStopPointRef(stopRef) || '',
     });
   }
   return events;
