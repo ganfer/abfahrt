@@ -25,6 +25,9 @@ const NEARBY_RESULTS = 5;
 const DELAY_HEAVY_MIN = 5;
 const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
 const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
+const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
+const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
+const RECENT_STOPS_LIMIT = 20;
 
 // User-facing widget layout configuration. Widths are points inside the
 // medium Scriptable widget. Hide columns you do not need and give the freed
@@ -52,6 +55,22 @@ const DEFAULT_WIDGET_CONFIG = {
   badgeHeight: 22,
 };
 
+const DEFAULT_FULLSCREEN_CONFIG = {
+  rows: 8,
+  columns: {
+    line: { visible: true, width: 64 },
+    destination: { visible: true, width: 190 },
+    platform: { visible: true, width: 70 },
+    departureTime: { visible: true, width: 82 },
+    countdown: { visible: true, width: 92 },
+  },
+  fontSize: 16,
+  location: {
+    autoRefreshOnOpen: false,
+    autoSelectSavedStop: true,
+  },
+};
+
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 
 function mergeWidgetConfig(saved) {
@@ -69,6 +88,15 @@ function mergeWidgetConfig(saved) {
     spacing: { ...d.spacing, ...(s.spacing || {}) },
     fontSize: { ...d.fontSize, ...(s.fontSize || {}) },
     badgeHeight: Number.isFinite(s.badgeHeight) ? s.badgeHeight : d.badgeHeight,
+    fullscreen: {
+      ...DEFAULT_FULLSCREEN_CONFIG,
+      ...(s.fullscreen || {}),
+      columns: Object.fromEntries(Object.keys(DEFAULT_FULLSCREEN_CONFIG.columns).map((key) => [
+        key,
+        { ...DEFAULT_FULLSCREEN_CONFIG.columns[key], ...(s.fullscreen?.columns?.[key] || {}) },
+      ])),
+      location: { ...DEFAULT_FULLSCREEN_CONFIG.location, ...(s.fullscreen?.location || {}) },
+    },
   };
 }
 
@@ -633,6 +661,42 @@ async function showLocationDiagnostics(lines, errorText) {
   await alert.present();
 }
 
+function savedStops() {
+  try {
+    return Keychain.contains(SAVED_STOPS_KEY) ? JSON.parse(Keychain.get(SAVED_STOPS_KEY)) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function recentStops() {
+  try {
+    return Keychain.contains(RECENT_STOPS_KEY) ? JSON.parse(Keychain.get(RECENT_STOPS_KEY)) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function normalizeStopName(name) {
+  return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+}
+
+function sameStop(a, b) {
+  return a.stopRef === b.stopRef || normalizeStopName(a.name) === normalizeStopName(b.name);
+}
+
+function pinnedStopFor(stop, pinned) {
+  return pinned.find((s) => s.pinned === true && sameStop(s, stop)) || null;
+}
+
+function rememberStop(stop) {
+  Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
+  Keychain.set(LAST_STOP_NAME_KEY, stop.name);
+  const recent = recentStops().filter((s) => !sameStop(s, stop));
+  recent.unshift({ stopRef: stop.stopRef, name: stop.name });
+  Keychain.set(RECENT_STOPS_KEY, JSON.stringify(recent.slice(0, RECENT_STOPS_LIMIT)));
+}
+
 async function nearbyFlow(key) {
   const diagnostics = [
     '1. nearby-Modus aktiv ✓',
@@ -692,10 +756,27 @@ async function nearbyFlow(key) {
   }
 
   diagnostics.push('6. Auswahl wird geöffnet ✓');
+  const pinned = savedStops().filter((s) => s.pinned === true);
+  const recent = recentStops();
+
+  if (WIDGET_CONFIG.fullscreen.location.autoSelectSavedStop) {
+    const hit = stops.find((s) => pinnedStopFor(s, pinned));
+    if (hit) {
+      const pin = pinnedStopFor(hit, pinned);
+      rememberStop({ ...hit, name: pin.displayName || hit.name });
+      await presentDeparturesTable(key);
+      return;
+    }
+  }
+
   const picker = new Alert();
   picker.title = 'Haltestelle wählen';
-  picker.message = 'GPS ±100 m';
-  for (const s of stops) picker.addAction(s.name);
+  picker.message = 'GPS ±100 m · 📌 fixiert · ★ zuletzt verwendet';
+  for (const stop of stops) {
+    const pin = pinnedStopFor(stop, pinned);
+    const isRecent = recent.some((s) => sameStop(s, stop));
+    picker.addAction((pin ? '📌 ' : isRecent ? '★ ' : '') + (pin?.displayName || stop.name));
+  }
   picker.addCancelAction('Abbrechen');
   const idx = await picker.present();
   if (idx === -1) {
@@ -703,9 +784,9 @@ async function nearbyFlow(key) {
     return;
   }
 
-  const chosen = stops[idx];
-  Keychain.set(LAST_STOP_REF_KEY, chosen.stopRef);
-  Keychain.set(LAST_STOP_NAME_KEY, chosen.name);
+  const selected = stops[idx];
+  const pin = pinnedStopFor(selected, pinned);
+  rememberStop({ ...selected, name: pin?.displayName || selected.name });
 
   // Stay in the same Scriptable run: after choosing a stop, render the
   // fullscreen departures table directly instead of launching another script.
@@ -745,8 +826,9 @@ async function presentDeparturesTable(key) {
         };
       })
       .sort((a, b) => a.at - b.at)
-      .slice(0, RESULTS_LIMIT);
+      .slice(0, WIDGET_CONFIG.fullscreen.rows);
 
+    const fs = WIDGET_CONFIG.fullscreen;
     const place = splitStopName(title).place;
     const defs = [
       { key: 'line', label: 'Linie', value: (r) => r.line || '–', cls: 'line' },
@@ -763,7 +845,7 @@ async function presentDeparturesTable(key) {
           return minutes <= 0 ? 'jetzt' : minutes + ' min';
         },
       },
-    ].filter((d) => WIDGET_CONFIG.columns[d.key].visible);
+    ].filter((d) => fs.columns[d.key].visible);
 
     const header = defs.map((d) => `<th class="${d.cls}">${htmlEsc(d.label)}</th>`).join('');
     const body = rows.length
@@ -790,15 +872,15 @@ async function presentDeparturesTable(key) {
   h1 { margin: 0; font-size: 28px; line-height: 1.15; }
   .meta { margin: 6px 0 22px; color: #9a9a9a; font-size: 13px; }
   .table-wrap { overflow-x: auto; border: 1px solid #2c2c2e; border-radius: 14px; }
-  table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   th { padding: 11px 10px; text-align: left; color: #9a9a9a; font-size: 12px; font-weight: 600; background: #181818; border-bottom: 1px solid #2c2c2e; }
-  td { padding: 14px 10px; font-size: 16px; border-bottom: 1px solid #252525; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  td { padding: 14px 10px; font-size: ${Number(fs.fontSize) || 16}px; border-bottom: 1px solid #252525; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   tr:last-child td { border-bottom: 0; }
-  .line { width: 64px; font-weight: 700; }
+  .line { width: ${Number(fs.columns.line.width) || 64}px; font-weight: 700; }
   .destination { width: auto; }
-  .platform { width: 70px; text-align: center; }
-  .time { width: 82px; }
-  .countdown { width: 92px; text-align: right; font-weight: 700; }
+  .platform { width: ${Number(fs.columns.platform.width) || 70}px; text-align: center; }
+  .time { width: ${Number(fs.columns.departureTime.width) || 82}px; }
+  .countdown { width: ${Number(fs.columns.countdown.width) || 92}px; text-align: right; font-weight: 700; }
   .ontime { color: #66bb6a; }
   .delayed { color: #ff9800; }
   .late { color: #ef5350; }
