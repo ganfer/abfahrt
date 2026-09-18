@@ -3,6 +3,8 @@
 // Interactive configuration assistant for VagAbfahrten.
 
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
+const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
+const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULTS = {
   rows: 5,
   columns: {
@@ -112,6 +114,168 @@ async function configureColumn(cfg, key, label) {
   if (choice === 1) col.width = await askNumber(label + ' – Breite', 'Breite der Spalte in Punkten.', col.width, 20, 220);
 }
 
+
+function savedStops() {
+  try {
+    return Keychain.contains(SAVED_STOPS_KEY) ? JSON.parse(Keychain.get(SAVED_STOPS_KEY)) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function writeSavedStops(stops) {
+  Keychain.set(SAVED_STOPS_KEY, JSON.stringify(stops.slice(0, 20)));
+}
+
+function normalizeStopName(name) {
+  return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+}
+
+function rememberStop(stop) {
+  const list = savedStops();
+  const normalized = normalizeStopName(stop.name);
+  const filtered = list.filter((s) => s.stopRef !== stop.stopRef && normalizeStopName(s.name) !== normalized);
+  filtered.unshift({ stopRef: stop.stopRef, name: stop.name });
+  writeSavedStops(filtered);
+}
+
+function xmlEsc(v) {
+  return String(v).replace(/[<>&"']/g, (ch) => ({
+    '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;',
+  }[ch]));
+}
+
+function parseXml(raw) {
+  const root = { name: '#document', textContent: '', children: [] };
+  let current = root;
+  const parser = new XMLParser(raw);
+  parser.didStartElement = (name, attrs) => {
+    const rawName = String(name);
+    const node = { name: rawName.includes(':') ? rawName.split(':').pop() : rawName, attrs: attrs || {}, textContent: '', children: [], parent: current };
+    current.children.push(node);
+    current = node;
+  };
+  parser.didEndElement = () => { current = current.parent || root; };
+  parser.foundCharacters = (s) => { current.textContent += s; };
+  parser.parse();
+  return root;
+}
+
+function child(node, ...names) {
+  let level = node ? [node] : [];
+  for (const name of names) {
+    const next = [];
+    for (const n of level) for (const c of (n.children || [])) if (c.name === name) next.push(c);
+    if (!next.length) return null;
+    level = next;
+  }
+  return level[0];
+}
+function children(node, name) { return node ? (node.children || []).filter((c) => c.name === name) : []; }
+function text(node, ...names) { const n = child(node, ...names); return n ? (n.textContent || '').trim() : ''; }
+
+async function searchStops(query) {
+  if (!Keychain.contains('TRIAS_REQUESTOR_REF')) throw new Error('Kein TRIAS-Key im Keychain.');
+  const key = Keychain.get('TRIAS_REQUESTOR_REF').trim();
+  const ts = new Date().toISOString();
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<Trias version="1.2" language="de" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri">
+<ServiceRequest><siri:RequestTimestamp>${ts}</siri:RequestTimestamp><siri:RequestorRef>${xmlEsc(key)}</siri:RequestorRef>
+<RequestPayload><LocationInformationRequest><InitialInput><LocationName>${xmlEsc(query)}</LocationName></InitialInput>
+<Restrictions><Type>stop</Type><NumberOfResults>10</NumberOfResults></Restrictions>
+</LocationInformationRequest></RequestPayload></ServiceRequest></Trias>`;
+  const req = new Request(TRIAS_ENDPOINT);
+  req.method = 'POST';
+  req.headers = { 'Content-Type': 'text/xml; charset=utf-8', Accept: 'text/xml' };
+  req.body = body;
+  req.timeoutInterval = 12;
+  const raw = await req.loadString();
+  if ((req.response?.statusCode || 200) >= 400) throw new Error('TRIAS HTTP ' + req.response.statusCode);
+  const doc = parseXml(raw);
+  const response =
+    child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
+    child(doc, 'Trias', 'LocationInformationResponse') ||
+    child(doc, 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
+    child(doc, 'LocationInformationResponse');
+  const found = [];
+  for (const result of children(response, 'LocationResult')) {
+    const stopRef =
+      text(result, 'Location', 'StopPlace', 'StopPlaceRef') ||
+      text(result, 'Location', 'StopPoint', 'StopPointRef') ||
+      text(result, 'StopPoint', 'StopPointRef') ||
+      text(result, 'Location', 'StopPointRef') ||
+      text(result, 'StopPointRef');
+    const name =
+      text(result, 'Location', 'StopPlace', 'StopPlaceName', 'Text') ||
+      text(result, 'Location', 'LocationName', 'Text') ||
+      text(result, 'Location', 'StopPoint', 'StopPointName', 'Text') ||
+      text(result, 'StopPoint', 'StopPointName', 'Text') ||
+      text(result, 'LocationName', 'Text');
+    if (stopRef && name && !found.some((s) => s.stopRef === stopRef || normalizeStopName(s.name) === normalizeStopName(name))) found.push({ stopRef, name });
+  }
+  return found;
+}
+
+async function addSavedStop() {
+  const a = new Alert();
+  a.title = 'Haltestelle hinzufügen';
+  a.message = 'Suche nach Haltestellenname, z. B. „Freiburg Hauptbahnhof“.';
+  a.addTextField('Haltestelle', '');
+  a.addAction('Suchen');
+  a.addCancelAction('Abbrechen');
+  if (await a.present() === -1) return;
+  const query = a.textFieldValue(0).trim();
+  if (!query) return;
+  try {
+    const results = await searchStops(query);
+    if (!results.length) {
+      await notice('Keine Treffer', 'Für diese Suche wurden keine Haltestellen gefunden.');
+      return;
+    }
+    const picker = new Alert();
+    picker.title = 'Haltestelle speichern';
+    picker.message = `${results.length} Treffer für „${query}“`;
+    for (const stop of results) picker.addAction(stop.name);
+    picker.addCancelAction('Abbrechen');
+    const choice = await picker.present();
+    if (choice === -1) return;
+    rememberStop(results[choice]);
+    await notice('Gespeichert', results[choice].name + ' wurde als bekannte Haltestelle gespeichert.');
+  } catch (e) {
+    await notice('Suche fehlgeschlagen', e.message);
+  }
+}
+
+async function manageSavedStops() {
+  while (true) {
+    const stops = savedStops();
+    const a = new Alert();
+    a.title = 'Gespeicherte Haltestellen';
+    a.message = stops.length ? `${stops.length} von maximal 20 gespeichert.` : 'Noch keine Haltestellen gespeichert.';
+    a.addAction('Haltestelle hinzufügen');
+    for (const stop of stops) a.addAction(stop.name);
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) {
+      await addSavedStop();
+      continue;
+    }
+    const index = choice - 1;
+    const stop = stops[index];
+    const detail = new Alert();
+    detail.title = stop.name;
+    detail.message = stop.stopRef;
+    detail.addDestructiveAction('Löschen');
+    detail.addCancelAction('Zurück');
+    if (await detail.present() === 0) {
+      stops.splice(index, 1);
+      writeSavedStops(stops);
+      await notice('Gelöscht', stop.name + ' wurde aus den gespeicherten Haltestellen entfernt.');
+    }
+  }
+}
+
 async function configureFullscreen(cfg) {
   const labels = {
     line: 'Linie',
@@ -200,6 +364,7 @@ async function main() {
     menu.addAction('Abstände');
     menu.addAction('Schriftgrößen');
     menu.addAction('Fullscreen-Ansicht');
+    menu.addAction('Gespeicherte Haltestellen');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -224,11 +389,12 @@ async function main() {
       cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
     }
     if (choice === 8) await configureFullscreen(cfg);
-    if (choice === 9) {
+    if (choice === 9) await manageSavedStops();
+    if (choice === 10) {
       await save(cfg);
       break;
     }
-    if (choice === 10) {
+    if (choice === 11) {
       await reset();
       break;
     }
