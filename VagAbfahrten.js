@@ -349,9 +349,16 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   const c = palette();
   const w = new ListWidget();
   w.backgroundColor = new Color(c.bg);
-  const titleEl = w.addText(title);
+  const header = w.addStack();
+  header.layoutHorizontally();
+  const titleEl = header.addText(title);
   titleEl.font = Font.boldSystemFont(15);
   titleEl.textColor = new Color(c.fg);
+  header.addSpacer();
+  const locationAction = header.addText('⌖');
+  locationAction.font = Font.boldSystemFont(17);
+  locationAction.textColor = new Color(c.dim);
+  locationAction.url = 'scriptable:///run/VagAbfahrten?action=location';
   if (subtitle) {
     const sub = w.addText(subtitle);
     sub.font = Font.mediumSystemFont(11);
@@ -410,9 +417,9 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   const foot = w.addText(footerText);
   foot.font = Font.systemFont(9);
   foot.textColor = new Color(errorText ? c.late : c.dim);
-  // A widget tap is always an explicit foreground action. Start the nearby
-  // flow independently of the widget parameter; the TRIAS key stays in Keychain.
-  w.url = 'scriptable:///run/VagAbfahrten?parameter=nearby';
+  // Normal widget tap refreshes the last saved stop. The location button in
+  // the header owns the interactive GPS/stop-selection action.
+  w.url = 'scriptable:///run/VagAbfahrten?action=refresh';
   return w;
 }
 
@@ -591,6 +598,7 @@ async function setupMode() {
 async function main() {
   const present = !config.runsInWidget;
   const parameter = rawParameter();
+  const action = String(args.queryParameters?.action || '').trim().toLowerCase();
   const wantsSetup = parameter.toLowerCase() === 'setup';
   const hasKeyInKeychain =
     Keychain.contains('TRIAS_REQUESTOR_REF') &&
@@ -634,21 +642,14 @@ async function main() {
     return;
   }
 
-  // Scriptable's "Run Script" interaction starts the script in the foreground
-  // without forwarding the widget parameter. Foreground execution therefore
-  // means an explicit user tap and always starts the nearby/GPS flow.
-  if (present) {
-    const debug = new Alert();
-    debug.title = 'Nearby gestartet';
-    debug.message = 'Foreground erkannt.\n\nAls Nächstes wird Location.current() aufgerufen.';
-    debug.addAction('Standort abfragen');
-    await debug.present();
-
+  if (present && action === 'location') {
     await nearbyFlow(key);
     return;
   }
 
-  // Background/widget refresh keeps showing the fixed Brauerei Ganter stop.
-  await defaultWidget(key, false, parameter);
+  // Widget refreshes and normal taps use the last saved stop. This deliberately
+  // avoids GPS and the stop picker. If no stop was selected yet, the existing
+  // Brauerei Ganter fallback is used.
+  await defaultWidget(key, present, parameter);
 }
 await main();
