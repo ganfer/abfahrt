@@ -4,16 +4,15 @@
 //
 // Setup:
 //   1. Copy this file into Scriptable.
-//   2. Add a Scriptable widget on the Home Screen, pick this script.
-//   3. In the widget settings, set the parameter to your TRIAS requestor key:
-//        <key>            → always shows Brauerei Ganter (both platforms)
-//        <key>|nearby     → tapping the widget opens Scriptable, refreshes
-//                           via GPS: nearest tram stops, pick one, departures
-//   The key stays on the device (widget parameters are not synced via iCloud).
+//   2. Run it once in Scriptable and save the TRIAS requestor key in Keychain.
+//   3. Add one Scriptable widget on the Home Screen and select this script.
+//      Leave the widget parameter empty.
 //
-// Tapping the widget always opens Scriptable briefly (iOS limitation: widget
-// taps open a URL, not an in-widget refresh). The script then refreshes the
-// widget with fresh data — including GPS when "nearby" is set.
+// Usage:
+//   - Home Screen widget: shows departures for the last selected stop.
+//   - Run the script manually in Scriptable: GPS → nearby stops → selection.
+//     The selected stop is saved in Keychain and used by the widget afterwards.
+//
 
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
@@ -412,33 +411,6 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   const foot = w.addText(footerText);
   foot.font = Font.systemFont(9);
   foot.textColor = new Color(errorText ? c.late : c.dim);
-  // The departures widget has one reliable action: refresh the saved stop.
-  w.url = `${URLScheme.forRunningScript()}&action=refresh`;
-  return w;
-}
-
-function buildLocationWidget() {
-  const c = palette();
-  const w = new ListWidget();
-  w.backgroundColor = new Color(c.bg);
-  w.url = `${URLScheme.forRunningScript()}&action=location`;
-
-  w.addSpacer();
-  const icon = w.addText('⌖');
-  icon.font = Font.boldSystemFont(30);
-  icon.textColor = new Color(c.fg);
-  icon.centerAlignText();
-
-  const title = w.addText('Haltestelle');
-  title.font = Font.boldSystemFont(13);
-  title.textColor = new Color(c.fg);
-  title.centerAlignText();
-
-  const sub = w.addText('ändern');
-  sub.font = Font.systemFont(11);
-  sub.textColor = new Color(c.dim);
-  sub.centerAlignText();
-  w.addSpacer();
   return w;
 }
 
@@ -617,9 +589,7 @@ async function setupMode() {
 async function main() {
   const present = !config.runsInWidget;
   const parameter = rawParameter();
-  const action = String(args.queryParameters?.action || '').trim().toLowerCase();
   const wantsSetup = parameter.toLowerCase() === 'setup';
-  const wantsLocationWidget = parameter.toLowerCase() === 'location';
   const hasKeyInKeychain =
     Keychain.contains('TRIAS_REQUESTOR_REF') &&
     Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
@@ -662,20 +632,16 @@ async function main() {
     return;
   }
 
-  if (!present && wantsLocationWidget) {
-    Script.setWidget(buildLocationWidget());
-    Script.complete();
-    return;
-  }
-
-  if (present && (action === 'location' || wantsLocationWidget)) {
+  // Interactive location selection only runs when the script itself is opened
+  // in Scriptable. The Home Screen widget remains passive and never relies on
+  // widget tap URLs.
+  if (present) {
     await nearbyFlow(key);
     return;
   }
 
-  // Widget refreshes and normal taps use the last saved stop. This deliberately
-  // avoids GPS and the stop picker. If no stop was selected yet, the existing
+  // The widget uses the last saved stop. If none was selected yet, the existing
   // Brauerei Ganter fallback is used.
-  await defaultWidget(key, present, parameter);
+  await defaultWidget(key, false, parameter);
 }
 await main();
