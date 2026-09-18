@@ -7,7 +7,9 @@ const REQUEST_TIMEOUT_MS = 12000;
 const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
 const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
-const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy key; pinned stops only
+const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // pinned stops only
+const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
+const RECENT_STOPS_LIMIT = 20
 const NEARBY_RESULTS = 8;
 const DEFAULT_STOPS = ['de:08311:30120:0:1', 'de:08311:30120:0:2'];
 const DISPLAY_CONFIG_DEFAULTS = {
@@ -177,21 +179,39 @@ function savedStops() {
   }
 }
 
+function recentStops() {
+  try {
+    return Keychain.contains(RECENT_STOPS_KEY) ? JSON.parse(Keychain.get(RECENT_STOPS_KEY)) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function normalizeStopName(name) {
+  return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+}
+
+function isSameStop(a, b) {
+  return a.stopRef === b.stopRef || normalizeStopName(a.name) === normalizeStopName(b.name);
+}
+
 function selectStop(stop) {
-  // Selecting a nearby stop changes only the current stop. It must not create
-  // or reorder persistent stop entries.
   Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, stop.name);
+
+  // Keep a small rolling history purely for highlighting nearby choices.
+  // It is deliberately separate from explicitly pinned stops.
+  const recent = recentStops().filter((s) => !isSameStop(s, stop));
+  recent.unshift({ stopRef: stop.stopRef, name: stop.name });
+  Keychain.set(RECENT_STOPS_KEY, JSON.stringify(recent.slice(0, RECENT_STOPS_LIMIT)));
 }
 
 function isPinnedStop(stop, pinned) {
-  const norm = String(stop.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
-  return pinned.some((s) =>
-    s.pinned === true && (
-      s.stopRef === stop.stopRef ||
-      String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE') === norm
-    )
-  );
+  return pinned.some((s) => s.pinned === true && isSameStop(s, stop));
+}
+
+function isRecentStop(stop, recent) {
+  return recent.some((s) => isSameStop(s, stop));
 }
 
 async function chooseLocation(key, cfg) {
@@ -207,6 +227,7 @@ async function chooseLocation(key, cfg) {
   if (!stops.length) throw new Error('Keine Haltestellen in der Nähe gefunden.');
 
   const pinned = savedStops().filter((s) => s.pinned === true);
+  const recent = recentStops();
   if (cfg.location.autoSelectSavedStop) {
     const hit = stops.find((s) => isPinnedStop(s, pinned));
     if (hit) {
@@ -217,8 +238,11 @@ async function chooseLocation(key, cfg) {
 
   const picker = new Alert();
   picker.title = 'Haltestelle wählen';
-  picker.message = pinned.length ? 'Haltestellen in deiner Nähe · 📌 = fixiert' : 'Haltestellen in deiner Nähe';
-  for (const stop of stops) picker.addAction((isPinnedStop(stop, pinned) ? '📌 ' : '') + stop.name);
+  picker.message = 'Haltestellen in deiner Nähe · 📌 fixiert · ★ zuletzt verwendet';
+  for (const stop of stops) {
+    const marker = isPinnedStop(stop, pinned) ? '📌 ' : isRecentStop(stop, recent) ? '★ ' : '';
+    picker.addAction(marker + stop.name);
+  }
   picker.addCancelAction('Abbrechen');
   const choice = await picker.present();
   if (choice === -1) return null;
