@@ -406,8 +406,20 @@ function addDepartureRow(w, r, place, c) {
   destination.font = Font.mediumSystemFont(12);
   destination.textColor = new Color(r.cancelled ? c.dim : c.fg);
   destination.lineLimit = 1;
+  destination.minimumScaleFactor = 0.75;
   if (r.cancelled) destination.textOpacity = 0.65;
-  row.addSpacer();
+
+  row.addSpacer(6);
+
+  // Separate scheduled/realtime departure clock column between destination
+  // and countdown. Use the actual departure time when realtime is available.
+  const clock = row.addText(fmtClock(r.at));
+  clock.font = Font.systemFont(11);
+  clock.textColor = new Color(r.cancelled ? c.dim : c.fg);
+  clock.lineLimit = 1;
+
+  row.addSpacer(10);
+
   let right;
   if (r.cancelled) right = 'entfällt';
   else {
@@ -416,6 +428,7 @@ function addDepartureRow(w, r, place, c) {
   }
   const rightEl = row.addText(right);
   rightEl.font = Font.boldSystemFont(12);
+  rightEl.rightAlignText();
   rightEl.textColor = new Color(r.cancelled ? c.dim : r.delayMin >= DELAY_HEAVY_MIN ? c.late : r.delayMin > 0 ? c.delay : c.ok);
   rightEl.lineLimit = 1;
 }
