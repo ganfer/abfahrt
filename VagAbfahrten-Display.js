@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT_MS = 12000;
 const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
 const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
-const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
+const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy key; pinned stops only
 const NEARBY_RESULTS = 8;
 const DEFAULT_STOPS = ['de:08311:30120:0:1', 'de:08311:30120:0:2'];
 const DISPLAY_CONFIG_DEFAULTS = {
@@ -177,23 +177,21 @@ function savedStops() {
   }
 }
 
-function rememberStop(stop) {
-  const list = savedStops();
-  const norm = stop.name.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
-  const existing = list.find((s) =>
-    s.stopRef === stop.stopRef ||
-    String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE') === norm
-  );
-  const filtered = list.filter((s) =>
-    s.stopRef !== stop.stopRef &&
-    String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE') !== norm
-  );
-  const updated = [{ stopRef: stop.stopRef, name: stop.name, pinned: existing?.pinned === true }, ...filtered];
-  const pinned = updated.filter((s) => s.pinned === true);
-  const recent = updated.filter((s) => s.pinned !== true).slice(0, 20);
-  Keychain.set(SAVED_STOPS_KEY, JSON.stringify([...pinned, ...recent]));
+function selectStop(stop) {
+  // Selecting a nearby stop changes only the current stop. It must not create
+  // or reorder persistent stop entries.
   Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, stop.name);
+}
+
+function isPinnedStop(stop, pinned) {
+  const norm = String(stop.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+  return pinned.some((s) =>
+    s.pinned === true && (
+      s.stopRef === stop.stopRef ||
+      String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE') === norm
+    )
+  );
 }
 
 async function chooseLocation(key, cfg) {
@@ -208,29 +206,24 @@ async function chooseLocation(key, cfg) {
   const stops = nearbyStopsFromXml(raw);
   if (!stops.length) throw new Error('Keine Haltestellen in der Nähe gefunden.');
 
+  const pinned = savedStops().filter((s) => s.pinned === true);
   if (cfg.location.autoSelectSavedStop) {
-    const saved = savedStops();
-    const savedRefs = new Set(saved.map((s) => s.stopRef));
-    const savedNames = new Set(saved.map((s) => String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE')));
-    const hit = stops.find((s) =>
-      savedRefs.has(s.stopRef) ||
-      savedNames.has(s.name.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE'))
-    );
+    const hit = stops.find((s) => isPinnedStop(s, pinned));
     if (hit) {
-      rememberStop(hit);
+      selectStop(hit);
       return hit;
     }
   }
 
   const picker = new Alert();
   picker.title = 'Haltestelle wählen';
-  picker.message = 'Haltestellen in deiner Nähe';
-  for (const stop of stops) picker.addAction(stop.name);
+  picker.message = pinned.length ? 'Haltestellen in deiner Nähe · 📌 = fixiert' : 'Haltestellen in deiner Nähe';
+  for (const stop of stops) picker.addAction((isPinnedStop(stop, pinned) ? '📌 ' : '') + stop.name);
   picker.addCancelAction('Abbrechen');
   const choice = await picker.present();
   if (choice === -1) return null;
   const selected = stops[choice];
-  rememberStop(selected);
+  selectStop(selected);
   return selected;
 }
 
