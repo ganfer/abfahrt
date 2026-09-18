@@ -202,6 +202,13 @@ function isSameStop(a, b) {
   return a.stopRef === b.stopRef || normalizeStopName(a.name) === normalizeStopName(b.name);
 }
 
+function rerunWidgetScript() {
+  // Running the widget script manually used to make Scriptable publish a fresh
+  // Home Screen snapshot. This is intentionally best-effort: Scriptable/iOS
+  // still own the final WidgetKit refresh behavior.
+  Safari.open('scriptable:///run/VagAbfahrten?refresh=1');
+}
+
 function selectStop(stop) {
   Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, stop.name);
@@ -248,6 +255,7 @@ async function chooseLocation(key, cfg) {
       const pinnedMatch = pinnedStopFor(hit, pinned);
       const selected = { ...hit, name: pinnedMatch?.displayName || hit.name };
       selectStop(selected);
+      rerunWidgetScript();
       return selected;
     }
   }
@@ -267,6 +275,7 @@ async function chooseLocation(key, cfg) {
   const pinnedMatch = pinnedStopFor(selected, pinned);
   const chosen = { ...selected, name: pinnedMatch?.displayName || selected.name };
   selectStop(chosen);
+  rerunWidgetScript();
   return chosen;
 }
 
