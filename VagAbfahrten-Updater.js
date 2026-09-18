@@ -1,6 +1,6 @@
 // Variables used by Scriptable: icon-color: blue; icon-glyph: cloud-download-alt;
 //
-// Updates VagAbfahrten.js from the main branch of ganfer/vag-widget.
+// Updates VagAbfahrten.js, the config assistant and this updater from GitHub main.
 //
 // Run this script manually in Scriptable whenever you want to install the
 // current GitHub version. The existing local script is only replaced after
@@ -16,6 +16,11 @@ const FILES = [
     url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Config.js',
     name: 'VagAbfahrten-Config.js',
     marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
+  },
+  {
+    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Updater.js',
+    name: 'VagAbfahrten-Updater.js',
+    marker: 'const FILES = [',
   },
 ];
 
@@ -64,7 +69,7 @@ async function main() {
 
     await show(
       'VAG Widget aktualisiert',
-      'VagAbfahrten.js und VagAbfahrten-Config.js wurden aktualisiert.\n\nDeine VagAbfahrten.config.json bleibt unverändert.',
+      'VagAbfahrten.js, VagAbfahrten-Config.js und der Updater selbst wurden aktualisiert.\n\nDeine VagAbfahrten.config.json bleibt unverändert.',
     );
   } catch (e) {
     await show(
