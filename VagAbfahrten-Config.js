@@ -124,7 +124,11 @@ function savedStops() {
 }
 
 function writeSavedStops(stops) {
-  Keychain.set(SAVED_STOPS_KEY, JSON.stringify(stops.slice(0, 20)));
+  // Keep every pinned stop. The 20-entry cap applies only to the rolling
+  // history of unpinned stops.
+  const pinned = stops.filter((s) => s.pinned === true);
+  const recent = stops.filter((s) => s.pinned !== true).slice(0, 20);
+  Keychain.set(SAVED_STOPS_KEY, JSON.stringify([...pinned, ...recent]));
 }
 
 function normalizeStopName(name) {
@@ -135,7 +139,8 @@ function rememberStop(stop) {
   const list = savedStops();
   const normalized = normalizeStopName(stop.name);
   const filtered = list.filter((s) => s.stopRef !== stop.stopRef && normalizeStopName(s.name) !== normalized);
-  filtered.unshift({ stopRef: stop.stopRef, name: stop.name });
+  const existing = list.find((s) => s.stopRef === stop.stopRef || normalizeStopName(s.name) === normalized);
+  filtered.unshift({ stopRef: stop.stopRef, name: stop.name, pinned: existing?.pinned === true });
   writeSavedStops(filtered);
 }
 
@@ -261,9 +266,13 @@ async function manageSavedStops() {
     const stops = savedStops();
     const a = new Alert();
     a.title = 'Gespeicherte Haltestellen';
-    a.message = stops.length ? `${stops.length} von maximal 20 gespeichert.` : 'Noch keine Haltestellen gespeichert.';
+    const pinnedCount = stops.filter((s) => s.pinned === true).length;
+    const recentCount = stops.length - pinnedCount;
+    a.message = stops.length
+      ? `${pinnedCount} fixiert · ${recentCount} von maximal 20 automatisch verwaltet.`
+      : 'Noch keine Haltestellen gespeichert.';
     a.addAction('Haltestelle hinzufügen');
-    for (const stop of stops) a.addAction(stop.name);
+    for (const stop of stops) a.addAction((stop.pinned === true ? '📌 ' : '') + stop.name);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -275,10 +284,17 @@ async function manageSavedStops() {
     const stop = stops[index];
     const detail = new Alert();
     detail.title = stop.name;
-    detail.message = stop.stopRef;
+    detail.message = stop.stopRef + '\n\n' + (stop.pinned === true ? 'Diese Haltestelle ist fixiert.' : 'Diese Haltestelle gehört zur automatisch verwalteten Historie.');
+    detail.addAction(stop.pinned === true ? 'Fixierung lösen' : '📌 Fixieren');
     detail.addDestructiveAction('Löschen');
     detail.addCancelAction('Zurück');
-    if (await detail.present() === 0) {
+    const action = await detail.present();
+    if (action === 0) {
+      stops[index] = { ...stop, pinned: stop.pinned !== true };
+      writeSavedStops(stops);
+      await notice(stops[index].pinned ? 'Fixiert' : 'Fixierung gelöst', stop.name);
+    }
+    if (action === 1) {
       stops.splice(index, 1);
       writeSavedStops(stops);
       await notice('Gelöscht', stop.name + ' wurde aus den gespeicherten Haltestellen entfernt.');

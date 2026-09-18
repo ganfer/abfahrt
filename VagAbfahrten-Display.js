@@ -180,12 +180,18 @@ function savedStops() {
 function rememberStop(stop) {
   const list = savedStops();
   const norm = stop.name.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+  const existing = list.find((s) =>
+    s.stopRef === stop.stopRef ||
+    String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE') === norm
+  );
   const filtered = list.filter((s) =>
     s.stopRef !== stop.stopRef &&
     String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE') !== norm
   );
-  filtered.unshift({ stopRef: stop.stopRef, name: stop.name });
-  Keychain.set(SAVED_STOPS_KEY, JSON.stringify(filtered.slice(0, 20)));
+  const updated = [{ stopRef: stop.stopRef, name: stop.name, pinned: existing?.pinned === true }, ...filtered];
+  const pinned = updated.filter((s) => s.pinned === true);
+  const recent = updated.filter((s) => s.pinned !== true).slice(0, 20);
+  Keychain.set(SAVED_STOPS_KEY, JSON.stringify([...pinned, ...recent]));
   Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, stop.name);
 }
