@@ -3,7 +3,7 @@
 // Interactive configuration assistant for VagAbfahrten.
 
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
-const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
+const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULTS = {
   rows: 5,
@@ -124,23 +124,19 @@ function savedStops() {
 }
 
 function writeSavedStops(stops) {
-  // Keep every pinned stop. The 20-entry cap applies only to the rolling
-  // history of unpinned stops.
   const pinned = stops.filter((s) => s.pinned === true);
-  const recent = stops.filter((s) => s.pinned !== true).slice(0, 20);
-  Keychain.set(SAVED_STOPS_KEY, JSON.stringify([...pinned, ...recent]));
+  Keychain.set(SAVED_STOPS_KEY, JSON.stringify(pinned));
 }
 
 function normalizeStopName(name) {
   return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
 }
 
-function rememberStop(stop) {
-  const list = savedStops();
+function pinStop(stop) {
+  const list = savedStops().filter((s) => s.pinned === true);
   const normalized = normalizeStopName(stop.name);
   const filtered = list.filter((s) => s.stopRef !== stop.stopRef && normalizeStopName(s.name) !== normalized);
-  const existing = list.find((s) => s.stopRef === stop.stopRef || normalizeStopName(s.name) === normalized);
-  filtered.unshift({ stopRef: stop.stopRef, name: stop.name, pinned: existing?.pinned === true });
+  filtered.unshift({ stopRef: stop.stopRef, name: stop.name, pinned: true });
   writeSavedStops(filtered);
 }
 
@@ -231,10 +227,10 @@ async function searchStops(query) {
   return found;
 }
 
-async function addSavedStop() {
+async function addPinnedStop() {
   const a = new Alert();
-  a.title = 'Haltestelle hinzufügen';
-  a.message = 'Suche nach Haltestellenname, z. B. „Freiburg Hauptbahnhof“.';
+  a.title = 'Haltestelle fixieren';
+  a.message = 'Suche nach einer Haltestelle, die dauerhaft fixiert werden soll.';
   a.addTextField('Haltestelle', '');
   a.addAction('Suchen');
   a.addCancelAction('Abbrechen');
@@ -247,57 +243,56 @@ async function addSavedStop() {
       await notice('Keine Treffer', 'Für diese Suche wurden keine Haltestellen gefunden.');
       return;
     }
+    const pinned = savedStops().filter((s) => s.pinned === true);
+    const refs = new Set(pinned.map((s) => s.stopRef));
+    const names = new Set(pinned.map((s) => normalizeStopName(s.name)));
     const picker = new Alert();
-    picker.title = 'Haltestelle speichern';
-    picker.message = `${results.length} Treffer für „${query}“`;
-    for (const stop of results) picker.addAction(stop.name);
+    picker.title = 'Haltestelle fixieren';
+    picker.message = `${results.length} Treffer für „${query}“ · 📌 = bereits fixiert`;
+    for (const stop of results) {
+      const isPinned = refs.has(stop.stopRef) || names.has(normalizeStopName(stop.name));
+      picker.addAction((isPinned ? '📌 ' : '') + stop.name);
+    }
     picker.addCancelAction('Abbrechen');
     const choice = await picker.present();
     if (choice === -1) return;
-    rememberStop(results[choice]);
-    await notice('Gespeichert', results[choice].name + ' wurde als bekannte Haltestelle gespeichert.');
+    pinStop(results[choice]);
+    await notice('Fixiert', results[choice].name + ' wurde fixiert.');
   } catch (e) {
     await notice('Suche fehlgeschlagen', e.message);
   }
 }
 
-async function manageSavedStops() {
+async function managePinnedStops() {
+  // One-time migration: discard old rolling-history entries and retain pins.
+  const all = savedStops();
+  if (all.some((s) => s.pinned !== true)) writeSavedStops(all);
+
   while (true) {
-    const stops = savedStops();
+    const stops = savedStops().filter((s) => s.pinned === true);
     const a = new Alert();
-    a.title = 'Gespeicherte Haltestellen';
-    const pinnedCount = stops.filter((s) => s.pinned === true).length;
-    const recentCount = stops.length - pinnedCount;
-    a.message = stops.length
-      ? `${pinnedCount} fixiert · ${recentCount} von maximal 20 automatisch verwaltet.`
-      : 'Noch keine Haltestellen gespeichert.';
-    a.addAction('Haltestelle hinzufügen');
-    for (const stop of stops) a.addAction((stop.pinned === true ? '📌 ' : '') + stop.name);
+    a.title = 'Fixierte Haltestellen';
+    a.message = stops.length ? `${stops.length} Haltestelle(n) dauerhaft fixiert.` : 'Noch keine Haltestellen fixiert.';
+    a.addAction('Haltestelle fixieren');
+    for (const stop of stops) a.addAction('📌 ' + stop.name);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
     if (choice === 0) {
-      await addSavedStop();
+      await addPinnedStop();
       continue;
     }
     const index = choice - 1;
     const stop = stops[index];
     const detail = new Alert();
     detail.title = stop.name;
-    detail.message = stop.stopRef + '\n\n' + (stop.pinned === true ? 'Diese Haltestelle ist fixiert.' : 'Diese Haltestelle gehört zur automatisch verwalteten Historie.');
-    detail.addAction(stop.pinned === true ? 'Fixierung lösen' : '📌 Fixieren');
-    detail.addDestructiveAction('Löschen');
+    detail.message = stop.stopRef;
+    detail.addDestructiveAction('Fixierung entfernen');
     detail.addCancelAction('Zurück');
-    const action = await detail.present();
-    if (action === 0) {
-      stops[index] = { ...stop, pinned: stop.pinned !== true };
-      writeSavedStops(stops);
-      await notice(stops[index].pinned ? 'Fixiert' : 'Fixierung gelöst', stop.name);
-    }
-    if (action === 1) {
+    if (await detail.present() === 0) {
       stops.splice(index, 1);
       writeSavedStops(stops);
-      await notice('Gelöscht', stop.name + ' wurde aus den gespeicherten Haltestellen entfernt.');
+      await notice('Fixierung entfernt', stop.name);
     }
   }
 }
@@ -326,7 +321,7 @@ async function configureFullscreen(cfg) {
     a.addAction('Restzeit');
     a.addAction('Schriftgröße');
     a.addAction(`Standort beim Öffnen: ${cfg.fullscreen.location.autoRefreshOnOpen ? 'AN' : 'AUS'}`);
-    a.addAction(`Gespeicherte Haltestelle automatisch: ${cfg.fullscreen.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
+    a.addAction(`Fixierte Haltestelle automatisch: ${cfg.fullscreen.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -454,7 +449,7 @@ async function downloadUpdateFile(file) {
 async function updateScripts() {
   const confirm = new Alert();
   confirm.title = 'Skripte aktualisieren';
-  confirm.message = 'Lädt Widget, Fullscreen und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die gespeicherten Haltestellen bleiben erhalten.';
+  confirm.message = 'Lädt Widget, Fullscreen und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
   confirm.addAction('Update starten');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -472,7 +467,7 @@ async function updateScripts() {
         written.push(`• ${item.file.name} [${target.label}]`);
       }
     }
-    await notice('Update abgeschlossen', written.join('\n') + '\n\nConfig-Datei und gespeicherte Haltestellen wurden nicht verändert.');
+    await notice('Update abgeschlossen', written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
   }
@@ -486,10 +481,10 @@ async function main() {
     const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
     menu.title = 'VAG Widget konfigurieren';
-    menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nHaltestellen: ${stops.length} gespeichert · ${pinned} fixiert`;
+    menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nFixierte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
     menu.addAction('Fullscreen');
-    menu.addAction('Gespeicherte Haltestellen');
+    menu.addAction('Fixierte Haltestellen');
     menu.addAction('Update');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
@@ -499,7 +494,7 @@ async function main() {
     if (choice === -1) break;
     if (choice === 0) await configureWidget(cfg);
     if (choice === 1) await configureFullscreen(cfg);
-    if (choice === 2) await manageSavedStops();
+    if (choice === 2) await managePinnedStops();
     if (choice === 3) {
       await updateScripts();
       break;
