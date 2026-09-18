@@ -482,11 +482,6 @@ const UPDATE_FILES = [
     marker: "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';",
   },
   {
-    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Display.js',
-    name: 'VagAbfahrten-Display.js',
-    marker: 'const DISPLAY_CONFIG_DEFAULTS =',
-  },
-  {
     url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Config.js',
     name: 'VagAbfahrten-Config.js',
     marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
@@ -518,7 +513,7 @@ async function downloadUpdateFile(file) {
 async function updateScripts() {
   const confirm = new Alert();
   confirm.title = 'Skripte aktualisieren';
-  confirm.message = 'Lädt Widget, Fullscreen und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
+  confirm.message = 'Lädt Widget und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
   confirm.addAction('Update starten');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -534,6 +529,15 @@ async function updateScripts() {
         const path = target.fm.joinPath(target.fm.documentsDirectory(), item.file.name);
         target.fm.writeString(path, item.source);
         written.push(`• ${item.file.name} [${target.label}]`);
+      }
+    }
+    // Remove the retired standalone fullscreen script from both Scriptable
+    // stores. Fullscreen rendering now lives in VagAbfahrten.js.
+    for (const store of [FileManager.iCloud(), FileManager.local()]) {
+      const oldDisplay = store.joinPath(store.documentsDirectory(), 'VagAbfahrten-Display.js');
+      if (store.fileExists(oldDisplay)) {
+        store.remove(oldDisplay);
+        written.push('• VagAbfahrten-Display.js entfernt');
       }
     }
     await notice('Update abgeschlossen', written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');

@@ -48,17 +48,13 @@ MIT.
 
 ## Update aus GitHub
 
-Für Updates gibt es `VagAbfahrten-Updater.js`. Das Updater-Skript wird einmalig in Scriptable installiert und danach manuell ausgeführt, wenn die aktuelle Version von `VagAbfahrten.js` aus dem `main`-Branch installiert werden soll.
+Updates werden über `VagAbfahrten-Config.js` → **Update** installiert. Dabei werden `VagAbfahrten.js` und `VagAbfahrten-Config.js` aus dem `main`-Branch aktualisiert.
 
-Der Updater lädt ausschließlich:
-
-`https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten.js`
-
-Vor dem Überschreiben prüft er den HTTP-Status, eine Mindestgröße und charakteristische Bestandteile des VAG-Skripts. Schlägt Download oder Validierung fehl, bleibt die vorhandene lokale Version unverändert.
+Die Downloads werden vor dem Überschreiben validiert. Die Fullscreen-Anzeige ist direkt in `VagAbfahrten.js` integriert; ein separates `VagAbfahrten-Display.js` wird nicht mehr benötigt.
 
 Der TRIAS-Key und die zuletzt ausgewählte Haltestelle liegen im iOS-Keychain und werden durch ein Script-Update nicht verändert.
 
-> **Hinweis:** Der Updater verwendet den iCloud-Dateispeicher von Scriptable. `VagAbfahrten.js` und `VagAbfahrten-Updater.js` sollten deshalb beide im Scriptable-iCloud-Ordner liegen.
+> **Hinweis:** Beim nächsten Update über die Config wird eine eventuell noch vorhandene alte `VagAbfahrten-Display.js` automatisch aus dem Scriptable-Speicher entfernt.
 
 
 ## Widget-Konfiguration
