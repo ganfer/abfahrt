@@ -6,8 +6,18 @@
 // current GitHub version. The existing local script is only replaced after
 // the download has passed basic validation.
 
-const RAW_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten.js';
-const TARGET_NAME = 'VagAbfahrten.js';
+const FILES = [
+  {
+    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten.js',
+    name: 'VagAbfahrten.js',
+    marker: "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';",
+  },
+  {
+    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Config.js',
+    name: 'VagAbfahrten-Config.js',
+    marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
+  },
+];
 
 function targetFileManager() {
   // VagAbfahrten stores its TRIAS key in Keychain, so replacing the script file
@@ -23,46 +33,43 @@ async function show(title, message) {
   await alert.present();
 }
 
+async function downloadSource(file) {
+  const req = new Request(file.url);
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
+  const source = await req.loadString();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200) throw new Error(`${file.name}: GitHub HTTP ${status || '?'}`);
+  if (source.length < 500) throw new Error(`${file.name}: Download ist unerwartet klein.`);
+  if (!source.includes(file.marker) || !source.includes('await main();')) {
+    throw new Error(`${file.name}: Download konnte nicht validiert werden.`);
+  }
+  return source;
+}
+
 async function main() {
   const fm = targetFileManager();
-  const target = fm.joinPath(fm.documentsDirectory(), TARGET_NAME);
 
   try {
-    const req = new Request(RAW_URL);
-    req.timeoutInterval = 15;
-    req.headers = {
-      Accept: 'text/plain',
-      'Cache-Control': 'no-cache',
-    };
-
-    const source = await req.loadString();
-    const status = req.response ? req.response.statusCode : 0;
-
-    if (status !== 200) {
-      throw new Error(`GitHub HTTP ${status || '?'}`);
-    }
-    if (source.length < 1000) {
-      throw new Error('Download ist unerwartet klein.');
-    }
-    if (!source.includes("const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';")) {
-      throw new Error('Download sieht nicht wie VagAbfahrten.js aus.');
-    }
-    if (!source.includes('await main();')) {
-      throw new Error('Download ist unvollständig.');
+    // Download and validate every managed script before replacing any local file.
+    const downloads = [];
+    for (const file of FILES) {
+      downloads.push({ file, source: await downloadSource(file) });
     }
 
-    // Write only after validation. If downloading/validation fails, the current
-    // local script remains untouched.
-    fm.writeString(target, source);
+    for (const item of downloads) {
+      const target = fm.joinPath(fm.documentsDirectory(), item.file.name);
+      fm.writeString(target, item.source);
+    }
 
     await show(
       'VAG Widget aktualisiert',
-      `VagAbfahrten.js wurde von GitHub main aktualisiert.\n\n${source.length} Zeichen geladen.`,
+      'VagAbfahrten.js und VagAbfahrten-Config.js wurden aktualisiert.\n\nDeine VagAbfahrten.config.json bleibt unverändert.',
     );
   } catch (e) {
     await show(
       'Update fehlgeschlagen',
-      `Die vorhandene VagAbfahrten.js wurde nicht verändert.\n\n${e.message}`,
+      `Die vorhandenen Skripte wurden nicht verändert.\n\n${e.message}`,
     );
   }
 
