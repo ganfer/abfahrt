@@ -475,14 +475,13 @@ async function reset() {
 }
 
 
+const UPDATE_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/';
 const UPDATE_FILES = [
   {
-    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten.js',
     name: 'VagAbfahrten.js',
     marker: "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';",
   },
   {
-    url: 'https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Config.js',
     name: 'VagAbfahrten-Config.js',
     marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
   },
@@ -498,7 +497,7 @@ function updateTargets(fileName) {
 }
 
 async function downloadUpdateFile(file) {
-  const req = new Request(file.url);
+  const req = new Request(UPDATE_BASE_URL + file.name + '?t=' + Date.now());
   req.timeoutInterval = 15;
   req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
   const source = await req.loadString();
@@ -519,9 +518,14 @@ async function updateScripts() {
   if (await confirm.present() === -1) return;
 
   try {
-    // Download and validate everything before replacing any installed script.
+    // Bootstrap-safe order: update Config first so future migrations are
+    // governed by the newest updater, then fetch the remaining managed files.
+    const ordered = [
+      UPDATE_FILES.find((f) => f.name === 'VagAbfahrten-Config.js'),
+      ...UPDATE_FILES.filter((f) => f.name !== 'VagAbfahrten-Config.js'),
+    ].filter(Boolean);
     const downloads = [];
-    for (const file of UPDATE_FILES) downloads.push({ file, source: await downloadUpdateFile(file) });
+    for (const file of ordered) downloads.push({ file, source: await downloadUpdateFile(file) });
 
     const written = [];
     for (const item of downloads) {
