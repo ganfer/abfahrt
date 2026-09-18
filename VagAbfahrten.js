@@ -235,6 +235,11 @@ function text(node, ...names) {
   return n ? (n.textContent || '').trim() : '';
 }
 
+function platformFromStopPointRef(stopPointRef) {
+  const parts = String(stopPointRef || '').split(':');
+  return parts.length >= 5 && parts[parts.length - 1] ? parts[parts.length - 1] : '';
+}
+
 function stopEventsFromDoc(doc) {
   const events = [];
   const response =
