@@ -201,6 +201,24 @@ function stopEventsFromDoc(doc) {
   return events;
 }
 
+function countNodes(node, name) {
+  if (!node) return 0;
+  let count = node.name === name ? 1 : 0;
+  for (const c of (node.children || [])) count += countNodes(c, name);
+  return count;
+}
+
+function firstNodePath(node, target, path = []) {
+  if (!node) return null;
+  const here = node.name === '#document' ? path : [...path, node.name];
+  if (node.name === target) return here.join(' > ');
+  for (const c of (node.children || [])) {
+    const found = firstNodePath(c, target, here);
+    if (found) return found;
+  }
+  return null;
+}
+
 function nearbyStopsFromDoc(doc) {
   const response =
     child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
@@ -418,8 +436,21 @@ async function nearbyFlow(key) {
   try {
     const xml = await triasPost(buildNearbyRequest(loc.latitude, loc.longitude, key));
     diagnostics.push('4. TRIAS-Antwort erhalten ✓');
-    stops = nearbyStopsFromDoc(parseXmlTree(xml));
+    const doc = parseXmlTree(xml);
+    stops = nearbyStopsFromDoc(doc);
     diagnostics.push(`5. Haltestellen gefunden: ${stops.length}`);
+    if (!stops.length) {
+      diagnostics.push(`   LocationResult: ${countNodes(doc, 'LocationResult')}`);
+      diagnostics.push(`   Location: ${countNodes(doc, 'Location')}`);
+      diagnostics.push(`   StopPoint: ${countNodes(doc, 'StopPoint')}`);
+      diagnostics.push(`   StopPointRef: ${countNodes(doc, 'StopPointRef')}`);
+      diagnostics.push('   Pfad: ' + (
+        firstNodePath(doc, 'LocationResult') ||
+        firstNodePath(doc, 'StopPoint') ||
+        firstNodePath(doc, 'Location') ||
+        'keiner'
+      ));
+    }
   } catch (e) {
     diagnostics.push('4/5. TRIAS-Ortssuche ✗');
     await showLocationDiagnostics(diagnostics, e.message);
