@@ -7,6 +7,8 @@ const REQUEST_TIMEOUT_MS = 12000;
 const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
 const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
+const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
+const NEARBY_RESULTS = 8;
 const DEFAULT_STOPS = ['de:08311:30120:0:1', 'de:08311:30120:0:2'];
 const DISPLAY_CONFIG_DEFAULTS = {
   rows: 8,
@@ -18,6 +20,10 @@ const DISPLAY_CONFIG_DEFAULTS = {
     countdown: { visible: true, width: 92 },
   },
   fontSize: 16,
+  location: {
+    autoRefreshOnOpen: false,
+    autoSelectSavedStop: true,
+  },
 };
 
 function loadDisplayConfig() {
@@ -34,6 +40,7 @@ function loadDisplayConfig() {
         key,
         { ...DISPLAY_CONFIG_DEFAULTS.columns[key], ...(fs.columns?.[key] || {}) },
       ])),
+      location: { ...DISPLAY_CONFIG_DEFAULTS.location, ...(fs.location || {}) },
     };
   } catch (_) {
     return DISPLAY_CONFIG_DEFAULTS;
@@ -119,6 +126,108 @@ function eventsFromXml(raw) {
   return out;
 }
 
+
+function buildNearbyRequest(lat, lon, key) {
+  const ts = new Date().toISOString();
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Trias version="1.2" language="de" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri">
+<ServiceRequest><siri:RequestTimestamp>${ts}</siri:RequestTimestamp><siri:RequestorRef>${xmlEsc(key)}</siri:RequestorRef>
+<RequestPayload><LocationInformationRequest><InitialInput><GeoPosition><Longitude>${lon}</Longitude><Latitude>${lat}</Latitude></GeoPosition></InitialInput>
+<Restrictions><Type>stop</Type><NumberOfResults>${NEARBY_RESULTS}</NumberOfResults></Restrictions>
+</LocationInformationRequest></RequestPayload></ServiceRequest></Trias>`;
+}
+
+function nearbyStopsFromXml(raw) {
+  const doc = parseXml(raw);
+  const response =
+    child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
+    child(doc, 'Trias', 'LocationInformationResponse') ||
+    child(doc, 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
+    child(doc, 'LocationInformationResponse');
+  const out = [];
+  for (const result of children(response, 'LocationResult')) {
+    const stopRef =
+      text(result, 'Location', 'StopPlace', 'StopPlaceRef') ||
+      text(result, 'Location', 'StopPoint', 'StopPointRef') ||
+      text(result, 'StopPoint', 'StopPointRef') ||
+      text(result, 'Location', 'StopPointRef') ||
+      text(result, 'StopPointRef');
+    const name =
+      text(result, 'Location', 'StopPlace', 'StopPlaceName', 'Text') ||
+      text(result, 'Location', 'LocationName', 'Text') ||
+      text(result, 'Location', 'StopPoint', 'StopPointName', 'Text') ||
+      text(result, 'StopPoint', 'StopPointName', 'Text') ||
+      text(result, 'LocationName', 'Text');
+    if (stopRef && name) out.push({ stopRef, name });
+  }
+  const seen = new Set();
+  return out.filter((s) => {
+    const key = s.name.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function savedStops() {
+  try {
+    return Keychain.contains(SAVED_STOPS_KEY) ? JSON.parse(Keychain.get(SAVED_STOPS_KEY)) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function rememberStop(stop) {
+  const list = savedStops();
+  const norm = stop.name.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+  const filtered = list.filter((s) =>
+    s.stopRef !== stop.stopRef &&
+    String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE') !== norm
+  );
+  filtered.unshift({ stopRef: stop.stopRef, name: stop.name });
+  Keychain.set(SAVED_STOPS_KEY, JSON.stringify(filtered.slice(0, 20)));
+  Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
+  Keychain.set(LAST_STOP_NAME_KEY, stop.name);
+}
+
+async function chooseLocation(key, cfg) {
+  Location.setAccuracyToHundredMeters();
+  const loc = await Location.current();
+  const req = new Request(TRIAS_ENDPOINT);
+  req.method = 'POST';
+  req.headers = { 'Content-Type': 'text/xml; charset=utf-8', Accept: 'text/xml' };
+  req.body = buildNearbyRequest(loc.latitude, loc.longitude, key);
+  req.timeoutInterval = REQUEST_TIMEOUT_MS / 1000;
+  const raw = await req.loadString();
+  const stops = nearbyStopsFromXml(raw);
+  if (!stops.length) throw new Error('Keine Haltestellen in der Nähe gefunden.');
+
+  if (cfg.location.autoSelectSavedStop) {
+    const saved = savedStops();
+    const savedRefs = new Set(saved.map((s) => s.stopRef));
+    const savedNames = new Set(saved.map((s) => String(s.name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE')));
+    const hit = stops.find((s) =>
+      savedRefs.has(s.stopRef) ||
+      savedNames.has(s.name.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE'))
+    );
+    if (hit) {
+      rememberStop(hit);
+      return hit;
+    }
+  }
+
+  const picker = new Alert();
+  picker.title = 'Haltestelle wählen';
+  picker.message = 'Haltestellen in deiner Nähe';
+  for (const stop of stops) picker.addAction(stop.name);
+  picker.addCancelAction('Abbrechen');
+  const choice = await picker.present();
+  if (choice === -1) return null;
+  const selected = stops[choice];
+  rememberStop(selected);
+  return selected;
+}
+
 async function fetchDepartures(refs, key, count) {
   const all = [];
   for (const ref of refs) {
@@ -149,10 +258,18 @@ async function main() {
   }
   const key = Keychain.get('TRIAS_REQUESTOR_REF').trim();
   const cfg = loadDisplayConfig();
-  const refs = Keychain.contains(LAST_STOP_REF_KEY) ? [Keychain.get(LAST_STOP_REF_KEY)] : DEFAULT_STOPS;
-  const title = Keychain.contains(LAST_STOP_NAME_KEY) ? Keychain.get(LAST_STOP_NAME_KEY) : 'Brauerei Ganter';
+  let refs = Keychain.contains(LAST_STOP_REF_KEY) ? [Keychain.get(LAST_STOP_REF_KEY)] : DEFAULT_STOPS;
+  let title = Keychain.contains(LAST_STOP_NAME_KEY) ? Keychain.get(LAST_STOP_NAME_KEY) : 'Brauerei Ganter';
 
   try {
+    const wantsLocation = String(args.queryParameters?.action || '').toLowerCase() === 'location';
+    if (wantsLocation || cfg.location.autoRefreshOnOpen) {
+      const selected = await chooseLocation(key, cfg);
+      if (selected) {
+        refs = [selected.stopRef];
+        title = selected.name;
+      }
+    }
     const now = Date.now();
     const events = (await fetchDepartures(refs, key, Math.max(8, cfg.rows)))
       .map((e) => ({ ...e, at: e.realtimeTime || e.plannedTime }))
@@ -189,7 +306,9 @@ table{width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed}th,t
 th{font-size:12px;color:#999;text-align:left;background:#181818}td{font-size:min(${Number(cfg.fontSize) || 16}px,4vw)}.line{font-weight:700}.platform{text-align:center}.departureTime{text-align:center}.countdown{font-weight:700;text-align:right}
 @media(max-width:430px){body{padding-left:12px;padding-right:12px}h1{font-size:26px}th,td{padding-left:4px;padding-right:4px}th{font-size:11px}}
 </style></head><body><h1>${htmlEsc(title)}</h1><div class="meta">Abfahrten · aktualisiert ${fmtClock(Date.now())}</div>
-<div class="wrap"><table><colgroup>${cols}</colgroup><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table></div></body></html>`;
+<div class="wrap"><table><colgroup>${cols}</colgroup><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table></div>
+<div style="margin-top:18px"><a href="scriptable:///run/VagAbfahrten-Display?action=location" style="display:inline-block;color:#0a84ff;text-decoration:none;font-size:16px;padding:10px 0">⌖ Standort aktualisieren</a></div>
+</body></html>`;
 
     const web = new WebView();
     await web.loadHTML(html);
