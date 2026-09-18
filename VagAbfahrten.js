@@ -88,9 +88,9 @@ function loadWidgetConfig() {
 const WIDGET_CONFIG = loadWidgetConfig();
 
 function widgetOpenUrl() {
-  // Launch a dedicated script instead of trying to re-enter this script with
-  // query parameters. This is more reliable for Home Screen widget taps.
-  return 'scriptable:///run/VagAbfahrten-Display';
+  // A widget tap first runs this script interactively. It performs the nearby
+  // stop selection and only then hands off to the dedicated fullscreen display.
+  return 'scriptable:///run/VagAbfahrten?action=select';
 }
 
 function rawParameter() {
@@ -706,29 +706,11 @@ async function nearbyFlow(key) {
   const chosen = stops[idx];
   Keychain.set(LAST_STOP_REF_KEY, chosen.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, chosen.name);
-  try {
-    let events;
-    try {
-      events = await fetchDepartures([chosen.stopRef], key);
-    } catch (e) {
-      const parent = chosen.stopRef.replace(/:\d+$/, '');
-      events = await fetchDepartures([parent], key);
-    }
-    const rows = withDelay(events, Date.now());
-    const w = buildWidget(
-      chosen.name,
-      `${fmtClock(Date.now())} · GPS`,
-      rows,
-      cancelledCount(events, Date.now()),
-    );
-    w.presentMedium();
-    Script.setWidget(w);
-    Script.complete();
-  } catch (e) {
-    const w = buildWidget(chosen.name, null, [], 0, e.message);
-    w.presentMedium();
-    Script.complete();
-  }
+
+  // Selection is complete. The fullscreen script only renders the saved stop;
+  // it must not ask for a second location selection.
+  Safari.open('scriptable:///run/VagAbfahrten-Display');
+  Script.complete();
 }
 
 function htmlEsc(value) {
