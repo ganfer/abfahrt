@@ -359,10 +359,9 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   const foot = w.addText(footerText);
   foot.font = Font.systemFont(9);
   foot.textColor = new Color(errorText ? c.late : c.dim);
-  const parameter = (tapParameter || '').trim();
-  w.url = parameter
-    ? `scriptable:///run/VagAbfahrten?parameter=${encodeURIComponent(parameter)}`
-    : 'scriptable:///run/VagAbfahrten';
+  // A widget tap is always an explicit foreground action. Start the nearby
+  // flow independently of the widget parameter; the TRIAS key stays in Keychain.
+  w.url = 'scriptable:///run/VagAbfahrten?parameter=nearby';
   return w;
 }
 
