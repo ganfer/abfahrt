@@ -356,11 +356,13 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, tapParameter)
   titleEl.textColor = new Color(c.fg);
   header.addSpacer();
   const locationButton = header.addStack();
-  locationButton.setPadding(0, 8, 0, 8);
+  locationButton.size = new Size(52, 36);
+  locationButton.centerAlignContent();
+  locationButton.setPadding(5, 14, 5, 14);
   locationButton.url = 'scriptable:///run/VagAbfahrten?action=location';
   const locationAction = locationButton.addText('⌖');
-  locationAction.font = Font.boldSystemFont(17);
-  locationAction.textColor = new Color(c.dim);
+  locationAction.font = Font.boldSystemFont(23);
+  locationAction.textColor = new Color(c.fg);
   if (subtitle) {
     const sub = w.addText(subtitle);
     sub.font = Font.mediumSystemFont(11);
