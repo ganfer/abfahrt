@@ -350,6 +350,42 @@ async function configureFullscreen(cfg) {
   }
 }
 
+async function configureWidget(cfg) {
+  while (true) {
+    const a = new Alert();
+    a.title = 'Widget konfigurieren';
+    a.message = `${cfg.rows} Abfahrten · kompakte Home-Screen-Ansicht`;
+    a.addAction('Anzahl Abfahrten');
+    a.addAction('Linie');
+    a.addAction('Richtung');
+    a.addAction('Gleis');
+    a.addAction('Abfahrtszeit');
+    a.addAction('Restzeit');
+    a.addAction('Abstände');
+    a.addAction('Schriftgrößen');
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) cfg.rows = await askNumber('Anzahl Abfahrten', 'Wie viele Abfahrten sollen angezeigt werden?', cfg.rows, 1, 8);
+    if (choice === 1) await configureColumn(cfg, 'line', 'Linie');
+    if (choice === 2) await configureColumn(cfg, 'destination', 'Richtung');
+    if (choice === 3) await configureColumn(cfg, 'platform', 'Gleis');
+    if (choice === 4) await configureColumn(cfg, 'departureTime', 'Abfahrtszeit');
+    if (choice === 5) await configureColumn(cfg, 'countdown', 'Restzeit');
+    if (choice === 6) {
+      cfg.spacing.columns = await askNumber('Spaltenabstand', 'Abstand zwischen sichtbaren Spalten.', cfg.spacing.columns, 0, 20);
+      cfg.spacing.rows = await askNumber('Zeilenabstand', 'Abstand zwischen den Abfahrten.', cfg.spacing.rows, 0, 12);
+    }
+    if (choice === 7) {
+      cfg.fontSize.line = await askNumber('Linie – Schriftgröße', '', cfg.fontSize.line, 8, 18);
+      cfg.fontSize.destination = await askNumber('Richtung – Schriftgröße', '', cfg.fontSize.destination, 8, 18);
+      cfg.fontSize.platform = await askNumber('Gleis – Schriftgröße', '', cfg.fontSize.platform, 8, 18);
+      cfg.fontSize.departureTime = await askNumber('Abfahrtszeit – Schriftgröße', '', cfg.fontSize.departureTime, 8, 18);
+      cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
+    }
+  }
+}
+
 function summary(cfg) {
   const names = {
     line: 'Linie',
@@ -378,18 +414,13 @@ async function main() {
   const cfg = loadConfig();
 
   while (true) {
+    const stops = savedStops();
+    const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
     menu.title = 'VAG Widget konfigurieren';
-    menu.message = summary(cfg);
-    menu.addAction('Anzahl Abfahrten');
-    menu.addAction('Linie');
-    menu.addAction('Richtung');
-    menu.addAction('Gleis');
-    menu.addAction('Abfahrtszeit');
-    menu.addAction('Restzeit');
-    menu.addAction('Abstände');
-    menu.addAction('Schriftgrößen');
-    menu.addAction('Fullscreen-Ansicht');
+    menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nHaltestellen: ${stops.length} gespeichert · ${pinned} fixiert`;
+    menu.addAction('Widget');
+    menu.addAction('Fullscreen');
     menu.addAction('Gespeicherte Haltestellen');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
@@ -397,30 +428,14 @@ async function main() {
     const choice = await menu.present();
 
     if (choice === -1) break;
-    if (choice === 0) cfg.rows = await askNumber('Anzahl Abfahrten', 'Wie viele Abfahrten sollen angezeigt werden?', cfg.rows, 1, 8);
-    if (choice === 1) await configureColumn(cfg, 'line', 'Linie');
-    if (choice === 2) await configureColumn(cfg, 'destination', 'Richtung');
-    if (choice === 3) await configureColumn(cfg, 'platform', 'Gleis');
-    if (choice === 4) await configureColumn(cfg, 'departureTime', 'Abfahrtszeit');
-    if (choice === 5) await configureColumn(cfg, 'countdown', 'Restzeit');
-    if (choice === 6) {
-      cfg.spacing.columns = await askNumber('Spaltenabstand', 'Abstand zwischen sichtbaren Spalten.', cfg.spacing.columns, 0, 20);
-      cfg.spacing.rows = await askNumber('Zeilenabstand', 'Abstand zwischen den Abfahrten.', cfg.spacing.rows, 0, 12);
-    }
-    if (choice === 7) {
-      cfg.fontSize.line = await askNumber('Linie – Schriftgröße', '', cfg.fontSize.line, 8, 18);
-      cfg.fontSize.destination = await askNumber('Richtung – Schriftgröße', '', cfg.fontSize.destination, 8, 18);
-      cfg.fontSize.platform = await askNumber('Gleis – Schriftgröße', '', cfg.fontSize.platform, 8, 18);
-      cfg.fontSize.departureTime = await askNumber('Abfahrtszeit – Schriftgröße', '', cfg.fontSize.departureTime, 8, 18);
-      cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
-    }
-    if (choice === 8) await configureFullscreen(cfg);
-    if (choice === 9) await manageSavedStops();
-    if (choice === 10) {
+    if (choice === 0) await configureWidget(cfg);
+    if (choice === 1) await configureFullscreen(cfg);
+    if (choice === 2) await manageSavedStops();
+    if (choice === 3) {
       await save(cfg);
       break;
     }
-    if (choice === 11) {
+    if (choice === 4) {
       await reset();
       break;
     }
@@ -428,5 +443,4 @@ async function main() {
 
   Script.complete();
 }
-
 await main();
