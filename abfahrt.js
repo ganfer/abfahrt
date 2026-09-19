@@ -696,10 +696,15 @@ function addColumnSpacer(row, hasPreviousColumn) {
   if (hasPreviousColumn) row.addSpacer(Math.max(0, WIDGET_CONFIG.spacing.columns));
 }
 
-function addDepartureRow(w, r, place, c) {
+function addDepartureRow(w, r, place, c, options = {}) {
   const row = w.addStack();
   row.layoutHorizontally();
   row.centerAlignContent();
+  if (options.highlight) {
+    row.backgroundColor = new Color('#18181b');
+    row.cornerRadius = 9;
+    row.setPadding(3, 5, 3, 5);
+  }
   let hasColumn = false;
   const columns = WIDGET_CONFIG.columns;
   const height = Math.max(16, WIDGET_CONFIG.badgeHeight);
@@ -752,7 +757,7 @@ function addDepartureRow(w, r, place, c) {
     const column = row.addStack();
     column.size = new Size(Math.max(1, columns.departureTime.width), height);
     column.centerAlignContent();
-    const clock = column.addText(fmtClock(r.at) + (r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'));
+    const clock = column.addText(fmtClock(r.at));
     clock.font = Font.systemFont(WIDGET_CONFIG.fontSize.departureTime);
     clock.textColor = new Color(r.cancelled ? c.dim : c.fg);
     clock.lineLimit = 1;
@@ -790,47 +795,150 @@ function friendlyError(error) {
   return message || 'Abfahrten konnten nicht geladen werden';
 }
 
-function buildWidget(title, subtitle, rows, cancelledN, errorText) {
+function addWidgetChip(parent, text, options = {}) {
+  const chip = parent.addStack();
+  chip.layoutHorizontally();
+  chip.centerAlignContent();
+  chip.cornerRadius = 8;
+  chip.backgroundColor = new Color(options.background || '#232326');
+  chip.setPadding(2, 6, 2, 6);
+  if (options.dotColor) {
+    const dot = chip.addText('●');
+    dot.font = Font.systemFont(6);
+    dot.textColor = new Color(options.dotColor);
+    chip.addSpacer(4);
+  }
+  const label = chip.addText(text);
+  label.font = Font.mediumSystemFont(options.fontSize || 8);
+  label.textColor = new Color(options.textColor || '#d1d1d6');
+  label.lineLimit = 1;
+  return chip;
+}
+
+function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {}) {
   const c = palette();
   const w = new ListWidget();
   w.backgroundColor = new Color(c.bg);
-  w.setPadding(13, 14, 10, 14);
+  w.setPadding(11, 12, 9, 12);
   w.url = widgetOpenUrl();
+
   const stop = splitStopName(title);
-  const titleEl = w.addText(stop.stop || title);
-  titleEl.font = Font.boldSystemFont(16);
+  const realtimeAvailable = rows.some((r) => Boolean(r.realtimeTime));
+  const platforms = [...new Set(rows.map((r) => String(r.platform || '').trim()).filter(Boolean))];
+  const activePin = options.activePin || null;
+
+  const header = w.addStack();
+  header.layoutHorizontally();
+  header.centerAlignContent();
+
+  const badge = header.addStack();
+  badge.size = new Size(30, 30);
+  badge.cornerRadius = 15;
+  badge.backgroundColor = new Color('#123822');
+  badge.centerAlignContent();
+  badge.addSpacer();
+  const badgeText = badge.addText('H');
+  badgeText.font = Font.boldSystemFont(17);
+  badgeText.textColor = new Color('#ffd60a');
+  badge.addSpacer();
+
+  header.addSpacer(8);
+
+  const titleStack = header.addStack();
+  titleStack.layoutVertically();
+  const titleEl = titleStack.addText(stop.stop || title);
+  titleEl.font = Font.boldSystemFont(15);
   titleEl.textColor = new Color(c.fg);
   titleEl.lineLimit = 1;
-  titleEl.minimumScaleFactor = 0.75;
-  if (stop.place || subtitle) {
-    const sub = w.addText(stop.place || subtitle);
-    sub.font = Font.mediumSystemFont(10);
-    sub.textColor = new Color(c.dim);
-    sub.lineLimit = 1;
-  }
-  w.addSpacer(7);
-  if (errorText) {
-    const err = w.addText(errorText);
-    err.font = Font.systemFont(11);
-    err.textColor = new Color(c.late);
-  } else if (!rows.length) {
-    const none = w.addText('Keine Abfahrten');
-    none.font = Font.systemFont(12);
-    none.textColor = new Color(c.dim);
-  } else {
-    for (const r of rows.slice(0, Math.max(1, WIDGET_CONFIG.rows))) {
-      addDepartureRow(w, r, stop.place, c);
-      w.addSpacer(Math.max(0, WIDGET_CONFIG.spacing.rows));
+  titleEl.minimumScaleFactor = 0.72;
+
+  const metaParts = [];
+  if (stop.place) metaParts.push(stop.place);
+  else if (subtitle) metaParts.push(subtitle);
+  metaParts.push('akt. ' + fmtClock(Date.now()));
+
+  const sub = titleStack.addText(metaParts.join(' · '));
+  sub.font = Font.mediumSystemFont(8);
+  sub.textColor = new Color(c.dim);
+  sub.lineLimit = 1;
+  sub.minimumScaleFactor = 0.75;
+
+  header.addSpacer();
+
+  const rightHeader = header.addStack();
+  rightHeader.layoutHorizontally();
+  rightHeader.centerAlignContent();
+
+  if (!errorText && rows.length) {
+    addWidgetChip(
+      rightHeader,
+      realtimeAvailable ? 'Live' : 'Plan',
+      realtimeAvailable
+        ? { background: '#123b24', textColor: '#79e697', dotColor: '#30d158' }
+        : { background: '#262629', textColor: c.dim, dotColor: '#8e8e93' },
+    );
+    if (platforms.length) {
+      rightHeader.addSpacer(4);
+      addWidgetChip(rightHeader, platforms.length === 1 ? '1 Steig' : platforms.length + ' Steige');
     }
   }
+
+  if (activePin) {
+    rightHeader.addSpacer(5);
+    const pin = rightHeader.addText(activePin.home === true ? '🏠' : '★');
+    pin.font = Font.systemFont(12);
+    pin.textColor = new Color(activePin.home === true ? c.fg : '#ffd60a');
+  }
+
+  w.addSpacer(7);
+
+  if (errorText) {
+    const errorCard = w.addStack();
+    errorCard.backgroundColor = new Color('#26191a');
+    errorCard.cornerRadius = 8;
+    errorCard.setPadding(6, 7, 6, 7);
+    const err = errorCard.addText(errorText);
+    err.font = Font.systemFont(10);
+    err.textColor = new Color(c.late);
+    err.lineLimit = 2;
+  } else if (!rows.length) {
+    const emptyCard = w.addStack();
+    emptyCard.backgroundColor = new Color('#18181b');
+    emptyCard.cornerRadius = 8;
+    emptyCard.setPadding(6, 7, 6, 7);
+    const none = emptyCard.addText('Keine Abfahrten');
+    none.font = Font.systemFont(11);
+    none.textColor = new Color(c.dim);
+  } else {
+    const visibleRows = rows.slice(0, Math.max(1, WIDGET_CONFIG.rows));
+    visibleRows.forEach((r, index) => {
+      addDepartureRow(w, r, stop.place, c, { highlight: index === 0 });
+      if (index < visibleRows.length - 1) {
+        w.addSpacer(Math.max(1, WIDGET_CONFIG.spacing.rows));
+      }
+    });
+  }
+
   w.addSpacer();
+
   const footer = w.addStack();
   footer.layoutHorizontally();
+  const status = footer.addText(
+    errorText
+      ? 'Fehler · ' + fmtClock(Date.now())
+      : cancelledN
+        ? cancelledN + ' entfällt'
+        : realtimeAvailable
+          ? '● Echtzeit'
+          : '° Fahrplan',
+  );
+  status.font = Font.systemFont(7);
+  status.textColor = new Color(errorText ? c.late : realtimeAvailable ? c.ok : c.dim);
   footer.addSpacer();
-  const footerText = errorText ? 'Fehler · ' + fmtClock(Date.now()) : 'aktualisiert ' + fmtClock(Date.now()) + (cancelledN ? ' · ' + cancelledN + ' entfällt' : '');
-  const foot = footer.addText(footerText);
-  foot.font = Font.systemFont(8);
-  foot.textColor = new Color(errorText ? c.late : c.dim);
+  const hint = footer.addText('Tippen für Details');
+  hint.font = Font.systemFont(7);
+  hint.textColor = new Color(c.dim);
+
   return w;
 }
 
@@ -853,12 +961,19 @@ async function defaultWidget(key, present) {
     const sub = filteredEvents.length
       ? `${filteredEvents.length} Ereignisse gelesen`
       : 'API antwortete ohne Events';
-    const w = buildWidget(title, rows.length ? null : sub, rows, cancelledCount(filteredEvents, Date.now()));
+    const w = buildWidget(
+      title,
+      rows.length ? null : sub,
+      rows,
+      cancelledCount(filteredEvents, Date.now()),
+      null,
+      { activePin },
+    );
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
   } catch (e) {
-    const w = buildWidget(title, null, [], 0, friendlyError(e));
+    const w = buildWidget(title, null, [], 0, friendlyError(e), { activePin });
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
