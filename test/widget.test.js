@@ -188,10 +188,10 @@ test('config supports one Home stop and three fallback modes', () => {
 test('updater compares remote and installed versions before installing', () => {
   const source = read('VagAbfahrten-Config.js');
   assert.ok(source.includes('compareVersions(remoteVersion, APP_VERSION)'));
-  assert.ok(source.includes('comparison <= 0'));
+  assert.ok(source.includes("!development && compareVersions(remoteVersion, APP_VERSION) <= 0"));
   assert.ok(source.includes("'Kein Update verfügbar'"));
   assert.ok(source.includes('confirm.title = `Update v${remoteVersion} verfügbar`'));
-  assert.ok(source.includes('downloadedVersions.some((version) => version !== remoteVersion)'));
+  assert.ok(source.includes("!development && downloadedVersions[0] !== remoteVersion"));
 });
 
 
@@ -209,7 +209,8 @@ test('updater resolves the latest GitHub Release and downloads that exact tag', 
   const source = read('VagAbfahrten-Config.js');
   assert.ok(source.includes("https://api.github.com/repos/ganfer/vag-widget/releases/latest"));
   assert.ok(source.includes("https://raw.githubusercontent.com/ganfer/vag-widget/"));
-  assert.ok(source.includes("release = await latestRelease()"));
-  assert.ok(source.includes("downloadUpdateFile(file, release.tag)"));
+  assert.ok(source.includes("source = development ? await latestDevelopment() : await latestRelease()"));
+  assert.ok(source.includes("const ref = development ? source.ref : source.tag"));
+  assert.ok(source.includes("downloadUpdateFile(file, ref)"));
   assert.ok(!source.includes("raw.githubusercontent.com/ganfer/vag-widget/main/"));
 });
