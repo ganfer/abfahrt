@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -14,6 +14,9 @@ const DEFAULTS = {
     autoSelectSavedStop: true,
     savedStopRadiusMeters: 200,
     fallbackMode: 'last',
+  },
+  updates: {
+    channel: 'stable',
   },
   columns: {
     line: { visible: true, width: 34 },
@@ -65,6 +68,7 @@ async function loadConfig() {
       refreshAfterLocationChange: typeof saved.refreshAfterLocationChange === 'boolean'
         ? saved.refreshAfterLocationChange
         : DEFAULTS.refreshAfterLocationChange,
+      updates: { ...DEFAULTS.updates, ...(saved.updates || {}) },
       location: {
         ...DEFAULTS.location,
         ...(saved.fullscreen?.location || {}),
@@ -539,7 +543,9 @@ async function reset() {
 }
 
 
-const UPDATE_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/';
+const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/releases/latest';
+const RELEASE_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/';
+const MAIN_COMMIT_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/commits/main';
 const UPDATE_FILES = [
   {
     name: 'VagAbfahrten.js',
@@ -576,14 +582,31 @@ function compareVersions(a, b) {
   return 0;
 }
 
-async function latestVersion() {
-  const mainFile = UPDATE_FILES[0];
-  const source = await downloadUpdateFile(mainFile);
-  return versionFromSource(source);
+async function latestRelease() {
+  const req = new Request(RELEASE_API_URL + '?t=' + Date.now());
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'application/vnd.github+json', 'Cache-Control': 'no-cache' };
+  const release = await req.loadJSON();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200) throw new Error(`GitHub Releases HTTP ${status || '?'}`);
+  const tag = String(release?.tag_name || '');
+  const match = tag.match(/^v(\d+\.\d+\.\d+)$/);
+  if (!match) throw new Error('Das neueste GitHub Release hat keine gültige vX.Y.Z-Version.');
+  return { version: match[1], tag };
 }
 
-async function downloadUpdateFile(file) {
-  const req = new Request(UPDATE_BASE_URL + file.name + '?t=' + Date.now());
+async function latestDevelopment() {
+  const req = new Request(MAIN_COMMIT_API_URL + '?t=' + Date.now());
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'application/vnd.github+json', 'Cache-Control': 'no-cache' };
+  const commit = await req.loadJSON();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200 || !/^[0-9a-f]{40}$/i.test(String(commit?.sha || ''))) throw new Error(`GitHub main commit konnte nicht ermittelt werden (HTTP ${status || '?'}).`);
+  return { ref: commit.sha, label: commit.sha.slice(0, 7) };
+}
+
+async function downloadUpdateFile(file, releaseTag) {
+  const req = new Request(RELEASE_RAW_BASE_URL + encodeURIComponent(releaseTag) + '/' + file.name + '?t=' + Date.now());
   req.timeoutInterval = 15;
   req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
   const source = await req.loadString();
@@ -596,13 +619,14 @@ async function downloadUpdateFile(file) {
 }
 
 async function updateScripts() {
-  let remoteVersion;
+  let release;
   try {
-    remoteVersion = await latestVersion();
+    release = await latestRelease();
   } catch (e) {
-    await notice('Update-Prüfung fehlgeschlagen', 'Die aktuelle Version auf GitHub konnte nicht ermittelt werden.\n\n' + e.message);
+    await notice('Update-Prüfung fehlgeschlagen', 'Das neueste GitHub Release konnte nicht ermittelt werden.\n\n' + e.message);
     return;
   }
+  const remoteVersion = release.version;
 
   const comparison = compareVersions(remoteVersion, APP_VERSION);
   if (comparison <= 0) {
@@ -615,7 +639,7 @@ async function updateScripts() {
 
   const confirm = new Alert();
   confirm.title = `Update v${remoteVersion} verfügbar`;
-  confirm.message = `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem main-Branch aktualisiert. Deine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
+  confirm.message = `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem veröffentlichten GitHub Release ${release.tag} aktualisiert. Deine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
   confirm.addAction('Update installieren');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -625,7 +649,7 @@ async function updateScripts() {
     // checked with explicit markers instead of an arbitrary minimum size.
     const downloads = [];
     for (const file of UPDATE_FILES) {
-      downloads.push({ file, source: await downloadUpdateFile(file) });
+      downloads.push({ file, source: await downloadUpdateFile(file, release.tag) });
     }
 
     const downloadedVersions = downloads
@@ -676,6 +700,7 @@ async function main() {
     menu.addAction('Fullscreen');
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
+    menu.addAction(`Update-Kanal · ${cfg.updates.channel === 'development' ? '🧪 Development' : '🛡 Stable'}`);
     menu.addAction('Auf Updates prüfen');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
@@ -687,15 +712,17 @@ async function main() {
     if (choice === 1) await configureFullscreen(cfg);
     if (choice === 2) await configureLocation(cfg);
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) {
-      await updateScripts();
-      break;
-    }
+    if (choice === 4) await configureUpdateChannel(cfg);
     if (choice === 5) {
       await save(cfg);
+      await updateScripts(cfg);
       break;
     }
     if (choice === 6) {
+      await save(cfg);
+      break;
+    }
+    if (choice === 7) {
       await reset();
       break;
     }

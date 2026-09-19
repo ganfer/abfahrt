@@ -1,6 +1,6 @@
 # vag-widget
 
-**Current version: v1.0.3**
+**Current version: v1.0.4**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API.
 
@@ -30,6 +30,8 @@ The installed scripts are:
 - **`VagAbfahrten-Config.js`** — personal settings, pinned stops and integrated updater.
 
 The TRIAS requestor key can be stored once in the iOS Keychain. It does not need to be kept in the widget parameter.
+
+Updates are resolved from the latest published GitHub Release. The updater downloads the runtime and Config from that exact `vX.Y.Z` tag rather than directly from `main`, so an installed release is reproducible and unreleased `main` changes are never delivered as an update.
 
 ## Configuration
 
@@ -104,3 +106,8 @@ The suite checks important source contracts around TRIAS request construction/pa
 ## License
 
 MIT.
+
+
+### Update channels
+
+The Config offers two update channels. **Stable** (default) installs only the latest manually published GitHub Release. **Development** follows the current `main` branch. Development first resolves the current `main` commit SHA and then downloads all managed files from that exact commit, avoiding mixed revisions while `main` changes. Stable releases are intentionally published manually through the Release workflow; merging to `main` no longer publishes a Stable release automatically.
