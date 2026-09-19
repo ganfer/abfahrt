@@ -1,6 +1,6 @@
 # VAG Widget for Scriptable
 
-**Development version: v1.1.9**  
+**Development version: v1.1.10**  
 **Stable version: v1.1.2**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API, with realtime information, pinned stops, GPS selection and an offline GTFS timetable fallback.
