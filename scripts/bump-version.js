@@ -25,7 +25,10 @@ if (!changed.some((file) => UPDATE_RELEVANT.includes(file))) {
 
 const baseSource = execFileSync('git', ['show', `origin/${baseRef}:VagAbfahrten.js`], { encoding: 'utf8' });
 const base = version(baseSource, `origin/${baseRef}:VagAbfahrten.js`);
-const next = `${base.major}.${base.minor}.${base.patch + 1}`;
+const current = version(fs.readFileSync('VagAbfahrten.js', 'utf8'), 'VagAbfahrten.js');
+const automatic = `${base.major}.${base.minor}.${base.patch + 1}`;
+const manuallyBumped = current.major > base.major || current.minor > base.minor || (current.major === base.major && current.minor === base.minor && current.patch > base.patch);
+const next = manuallyBumped ? `${current.major}.${current.minor}.${current.patch}` : automatic;
 
 for (const file of VERSION_FILES) {
   const source = fs.readFileSync(file, 'utf8');
@@ -43,4 +46,4 @@ if (readmeVersion[1] !== next) {
   fs.writeFileSync('README.md', readme.replace(currentLine, updatedLine));
 }
 
-console.log(`Automatischer Versions-Bump: v${base.major}.${base.minor}.${base.patch} -> v${next}`);
+console.log(manuallyBumped ? `Manueller Versions-Bump beibehalten: v${base.major}.${base.minor}.${base.patch} -> v${next}` : `Automatischer Versions-Bump: v${base.major}.${base.minor}.${base.patch} -> v${next}`);
