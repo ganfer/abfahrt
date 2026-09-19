@@ -68,7 +68,7 @@ jobs:
           fs.writeFileSync('release-manifest.json', JSON.stringify(manifest, null, 2) + '\n');
           NODE
 
-      - name: Update Stable version in README
+      - name: Stabile Version im README aktualisieren
         if: steps.existing.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -81,7 +81,7 @@ jobs:
           const source = fs.readFileSync(path, 'utf8');
           const pattern = /^(\*\*Stable version: v)\d+\.\d+\.\d+(\*\*)$/m;
           if (!pattern.test(source)) {
-            console.error('README Stable version line could not be found.');
+            console.error('README-Zeile für die stabile Version wurde nicht gefunden.');
             process.exit(1);
           }
           fs.writeFileSync(path, source.replace(pattern, `$1${version}$2`));
