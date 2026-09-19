@@ -27,7 +27,8 @@ vm.createContext(sandbox);
 vm.runInContext(
   extractFunction('compareVersions') +
   '\n' + extractFunction('versionFromSource') +
-  '\nglobalThis.__test = { compareVersions, versionFromSource };',
+  '\n' + extractFunction('sha256Hex') +
+  '\nglobalThis.__test = { compareVersions, versionFromSource, sha256Hex };',
   sandbox,
 );
 const T = sandbox.__test;
@@ -45,6 +46,13 @@ test('version extraction reads managed script versions and rejects unrelated sou
   assert.equal(T.versionFromSource('const OTHER = 1;'), null);
 });
 
+test('release checksum helper produces standard SHA-256', () => {
+  assert.equal(
+    T.sha256Hex('abc'),
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+  );
+});
+
 test('Development updater persists and compares exact commit provenance', () => {
   assert.match(source, /const DEVELOPMENT_REF_KEY = 'VAG_DEVELOPMENT_REF'/);
   assert.match(source, /installedDevelopmentRef === source\.ref/);
@@ -52,10 +60,12 @@ test('Development updater persists and compares exact commit provenance', () => 
   assert.match(source, /Keychain\.remove\(DEVELOPMENT_REF_KEY\)/);
 });
 
-test('Stable updater requires both version and complete managed installation', () => {
+test('Stable updater requires version, manifest validation and complete managed installation', () => {
   assert.match(source, /compareVersions\(remoteVersion, APP_VERSION\) <= 0 && stableInstallComplete/);
   assert.match(source, /managedInstallMatches\(remoteVersion\)/);
-  assert.match(source, /downloadedVersions\[0\] !== remoteVersion/);
+  assert.match(source, /downloadReleaseManifest\(source\.tag, remoteVersion\)/);
+  assert.match(source, /downloadManagedFiles\(ref, development \? null : remoteVersion, manifest\)/);
+  assert.match(source, /SHA-256-Prüfung/);
 });
 
 test('successful update relaunches Config so newly written code becomes active', () => {
@@ -67,6 +77,13 @@ test('successful update relaunches Config so newly written code becomes active',
 test('Recovery bypasses channel selection and resolves exact main commit', () => {
   assert.match(source, /async function recoverFromMain\(\)/);
   assert.match(source, /const source = await latestDevelopment\(\)/);
-  assert.match(source, /downloadUpdateFile\(file, source\.ref\)/);
+  assert.match(source, /downloadManagedFiles\(source\.ref\)/);
   assert.match(source, /Recovery · Installation reparieren/);
+});
+
+test('pending bootstrap installation is completed by Config', () => {
+  assert.match(source, /async function completePendingInstall\(\)/);
+  assert.match(source, /PENDING_INSTALL_REF_KEY/);
+  assert.match(source, /removeInstallerFiles\(\)/);
+  assert.match(source, /clearPendingInstallState\(\)/);
 });

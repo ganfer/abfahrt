@@ -31,7 +31,44 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Check whether release already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists; nothing to publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate release manifest
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const version = process.env.VERSION;
+          const files = ['VagAbfahrten.js', 'VagAbfahrten-Config.js'];
+          const manifest = {
+            schemaVersion: 1,
+            version,
+            files: files.map((name) => ({
+              name,
+              sha256: crypto.createHash('sha256').update(fs.readFileSync(name)).digest('hex'),
+            })),
+          };
+          fs.writeFileSync('release-manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+          NODE
+
       - name: Update Stable version in README
+        if: steps.existing.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
@@ -49,38 +86,32 @@ jobs:
           fs.writeFileSync(path, source.replace(pattern, `$1${version}$2`));
           NODE
 
-      - name: Commit Stable version
+      - name: Commit Stable metadata
+        if: steps.existing.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          if git diff --quiet -- README.md; then
-            echo "README Stable version is already v$VERSION."
+          if [ -z "$(git status --porcelain -- README.md release-manifest.json)" ]; then
+            echo "Stable metadata is already v$VERSION."
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add README.md
+            git add README.md release-manifest.json
             git commit -m "docs: mark v$VERSION as Stable"
             git push origin HEAD:main
           fi
 
-      - name: Check whether release already exists
-        id: existing
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
+      - name: Resolve release target
+        if: steps.existing.outputs.exists == 'false'
+        id: target
         shell: bash
-        run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release $TAG already exists; nothing to publish."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create tag and GitHub Release
         if: steps.existing.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-        run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          TARGET: ${{ steps.target.outputs.sha }}
+        run: gh release create "$TAG" --target "$TARGET" --title "$TAG" --generate-notes

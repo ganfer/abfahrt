@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
-const VERSION_FILES = ['VagAbfahrten.js', 'VagAbfahrten-Config.js', 'VagAbfahrten-Init.js'];
+const VERSION_FILES = ['VagAbfahrten.js', 'VagAbfahrten-Config.js'];
 const UPDATE_RELEVANT = VERSION_FILES;
 
 function version(source, label) {
