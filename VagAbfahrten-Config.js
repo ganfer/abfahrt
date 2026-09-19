@@ -532,9 +532,11 @@ function summary(cfg) {
   return `${cfg.rows} Widget-Abfahrten\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nFullscreen: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
 }
 
-async function save(cfg) {
+async function save(cfg, showNotice = true) {
   fm.writeString(configPath, JSON.stringify(cfg, null, 2));
-  await notice('Gespeichert', 'Die persönliche Widget-Konfiguration wurde gespeichert. Das Home-Screen-Widget verwendet sie beim nächsten Refresh.');
+  if (showNotice) {
+    await notice('Gespeichert', 'Die persönliche Widget-Konfiguration wurde gespeichert. Das Home-Screen-Widget verwendet sie beim nächsten Refresh.');
+  }
 }
 
 async function reset() {
@@ -911,23 +913,30 @@ async function main() {
     menu.addAction('Fixierte Haltestellen');
     menu.addAction('Updates');
     menu.addAction('Diagnose');
-    menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
     const choice = await menu.present();
 
     if (choice === -1) break;
-    if (choice === 0) await configureWidget(cfg);
-    if (choice === 1) await configureFullscreen(cfg);
-    if (choice === 2) await configureLocation(cfg);
+    if (choice === 0) {
+      await configureWidget(cfg);
+      await save(cfg, false);
+    }
+    if (choice === 1) {
+      await configureFullscreen(cfg);
+      await save(cfg, false);
+    }
+    if (choice === 2) {
+      await configureLocation(cfg);
+      await save(cfg, false);
+    }
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) await configureUpdates(cfg);
+    if (choice === 4) {
+      await configureUpdates(cfg);
+      await save(cfg, false);
+    }
     if (choice === 5) await configureDiagnostics(cfg);
     if (choice === 6) {
-      await save(cfg);
-      break;
-    }
-    if (choice === 7) {
       await reset();
       break;
     }
