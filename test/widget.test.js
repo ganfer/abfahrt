@@ -173,7 +173,7 @@ test('large widget families derive more rows without changing the medium prefere
 test('large widget layout adds column headers and family-aware row height', () => {
   const source = read('abfahrt.js');
   assert.match(source, /function addWidgetColumnHeader\(w, c\)/);
-  assert.match(source, /Linie:[\s\S]*Richtung:[\s\S]*Gleis:[\s\S]*Abfahrt:[\s\S]*Restzeit:/);
+  assert.match(source, /line: 'Linie'[\s\S]*destination: 'Richtung'[\s\S]*platform: 'Gleis'[\s\S]*departureTime: 'Abfahrt'[\s\S]*countdown: 'Restzeit'/);
   assert.match(source, /familyHeightBonus = family === 'extraLarge' \? 4 : family === 'large' \? 2 : 0/);
   assert.match(source, /if \(profile\.showColumnHeader\)/);
 });
