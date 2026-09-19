@@ -29,6 +29,12 @@ This keeps first installation consistent with the default **Stable** update chan
 
 The TRIAS requestor key is stored in the iOS Keychain and does not need to be kept in the widget parameter.
 
+## Offline timetable groundwork
+
+The repository includes a daily pipeline for preparing statewide MobiData BW/NVBW GTFS schedule data for a future offline fallback. Generated data is published separately on the `gtfs-data` branch; the application will later download only the shards needed by pinned stops.
+
+See [docs/GTFS.md](docs/GTFS.md) for the data format, mapping strategy, source and attribution.
+
 ## Configuration
 
 Run **`VagAbfahrten-Config`** in Scriptable. Changes are saved automatically when returning from a configuration submenu.
