@@ -112,6 +112,7 @@ const DEFAULT_FULLSCREEN_CONFIG = {
   fontSize: 16,
   destinationWrap: true,
   destinationLines: 2,
+  sortBy: 'departureTime',
 };
 
 const DEFAULT_FILTER_CONFIG = { widget: true, fullscreen: true };
@@ -757,6 +758,23 @@ function fmtClock(ms) {
   return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
+function compareSortText(a, b) {
+  const left = String(a || '').trim();
+  const right = String(b || '').trim();
+  if (!left && !right) return 0;
+  if (!left) return 1;
+  if (!right) return -1;
+  return left.localeCompare(right, 'de-DE', { numeric: true, sensitivity: 'base' });
+}
+
+function compareFullscreenRows(a, b, sortBy = 'departureTime') {
+  let primary = 0;
+  if (sortBy === 'platform') primary = compareSortText(a.platform, b.platform);
+  if (sortBy === 'destination') primary = compareSortText(a.destination, b.destination);
+  if (sortBy === 'line') primary = compareSortText(a.line, b.line);
+  return primary || (a.at - b.at);
+}
+
 function palette() {
   // Keep the widget consistently dark, independent of the iOS appearance.
   return { bg: '#101010', fg: '#f0f0f0', dim: '#9a9a9a', ok: '#66bb6a', late: '#ef5350', delay: '#ff9800' };
@@ -1398,7 +1416,7 @@ async function presentDeparturesTable(key, context = null) {
           delayMin: rawDelayMin !== null && rawDelayMin >= 0 && rawDelayMin <= 90 ? rawDelayMin : null,
         };
       })
-      .sort((a, b) => a.at - b.at)
+      .sort((a, b) => compareFullscreenRows(a, b, WIDGET_CONFIG.fullscreen.sortBy))
       .slice(0, WIDGET_CONFIG.fullscreen.rows);
 
     const fs = WIDGET_CONFIG.fullscreen;

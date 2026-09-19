@@ -83,7 +83,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   src.replace(
     'await main();',
-    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef, widgetLayoutProfile, withDelay, mergeWidgetConfig };',
+    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef, widgetLayoutProfile, withDelay, mergeWidgetConfig, compareFullscreenRows };',
   ),
   sandbox,
 );
@@ -534,6 +534,49 @@ test('user-facing pinned-stop terminology is consistent', () => {
   assert.doesNotMatch(runtime, /Fixierte Haltestellen/);
 });
 
+
+test('fullscreen sorting supports time, platform, destination and line', () => {
+  const config = read('abfahrt-config.js');
+  const runtime = read('abfahrt.js');
+
+  assert.match(runtime, /sortBy: 'departureTime'/);
+  assert.match(runtime, /compareFullscreenRows\(a, b, WIDGET_CONFIG\.fullscreen\.sortBy\)/);
+  assert.match(config, /Sortierung:/);
+  assert.match(config, /b\.addAction\('Abfahrtszeit'\)/);
+  assert.match(config, /b\.addAction\('Gleis'\)/);
+  assert.match(config, /b\.addAction\('Richtung'\)/);
+  assert.match(config, /b\.addAction\('Linie'\)/);
+
+  const rows = [
+    { line: '10', destination: 'Zoo', platform: '2', at: 2000 },
+    { line: '2', destination: 'Altstadt', platform: '1', at: 3000 },
+    { line: '2', destination: 'Altstadt', platform: '1', at: 1000 },
+    { line: '1', destination: 'Bahnhof', platform: '', at: 500 },
+  ];
+
+  assert.deepEqual(
+    rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'departureTime')).map((r) => r.at),
+    [500, 1000, 2000, 3000],
+  );
+  assert.deepEqual(
+    rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'platform')).map((r) => r.platform),
+    ['1', '1', '2', ''],
+  );
+  assert.deepEqual(
+    rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'destination')).map((r) => r.destination),
+    ['Altstadt', 'Altstadt', 'Bahnhof', 'Zoo'],
+  );
+  assert.deepEqual(
+    rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'line')).map((r) => r.line),
+    ['1', '2', '2', '10'],
+  );
+  assert.deepEqual(
+    rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'platform'))
+      .filter((r) => r.platform === '1')
+      .map((r) => r.at),
+    [1000, 3000],
+  );
+});
 
 test('fullscreen uses dynamic status cards and keeps departure times fully visible', () => {
   const runtime = read('abfahrt.js');
