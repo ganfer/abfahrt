@@ -71,6 +71,7 @@ const DEFAULT_FULLSCREEN_CONFIG = {
 const DEFAULT_LOCATION_CONFIG = {
   autoSelectSavedStop: true,
   savedStopRadiusMeters: 200,
+  fallbackToLastStop: true,
 };
 
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
@@ -743,6 +744,25 @@ function rememberStop(stop) {
   Keychain.set(RECENT_STOPS_KEY, JSON.stringify(recent.slice(0, RECENT_STOPS_LIMIT)));
 }
 
+async function fallbackToLastStop(key, diagnostics, reason) {
+  const hasLastStop =
+    Keychain.contains(LAST_STOP_REF_KEY) &&
+    Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
+  if (!WIDGET_CONFIG.location.fallbackToLastStop || !hasLastStop) return false;
+
+  diagnostics.push('Fallback: zuletzt verwendete Haltestelle ✓');
+  const title = Keychain.contains(LAST_STOP_NAME_KEY)
+    ? Keychain.get(LAST_STOP_NAME_KEY)
+    : 'Letzte Haltestelle';
+  const a = new Alert();
+  a.title = 'Standort nicht verfügbar';
+  a.message = reason + '\n\nStattdessen wird „' + title + '“ verwendet.';
+  a.addAction('Weiter');
+  await a.present();
+  await presentDeparturesTable(key);
+  return true;
+}
+
 async function nearbyFlow(key) {
   const diagnostics = [
     '1. nearby-Modus aktiv ✓',
@@ -756,6 +776,7 @@ async function nearbyFlow(key) {
     diagnostics.push(`   ±${Math.round(loc.horizontalAccuracy || 0)} m`);
   } catch (e) {
     diagnostics.push('3. GPS erhalten ✗');
+    if (await fallbackToLastStop(key, diagnostics, 'GPS ist nicht verfügbar.')) return;
     await showLocationDiagnostics(diagnostics, e.message);
     const w = buildWidget('Standort', null, [], 0, 'GPS nicht verfügbar: ' + e.message);
     w.presentMedium();
@@ -786,6 +807,7 @@ async function nearbyFlow(key) {
     }
   } catch (e) {
     diagnostics.push('4/5. TRIAS-Ortssuche ✗');
+    if (await fallbackToLastStop(key, diagnostics, 'Die Haltestellensuche konnte nicht geladen werden.')) return;
     await showLocationDiagnostics(diagnostics, e.message);
     const w = buildWidget('Nähe', null, [], 0, 'Ortsuche fehlgeschlagen: ' + e.message);
     w.presentMedium();
@@ -794,6 +816,7 @@ async function nearbyFlow(key) {
   }
 
   if (!stops.length) {
+    if (await fallbackToLastStop(key, diagnostics, 'In der Nähe wurden keine Haltestellen gefunden.')) return;
     await showLocationDiagnostics(diagnostics, 'TRIAS lieferte keine auswertbaren Haltestellen.');
     const w = buildWidget('Nähe', null, [], 0, 'Keine Haltestellen gefunden');
     w.presentMedium();
