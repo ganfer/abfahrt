@@ -2,15 +2,16 @@
 
 VagAbfahrten prepares scheduled public-transport data from the statewide
 MobiData BW/NVBW `bwgesamt` GTFS feed. The generated snapshot is intended as
-an offline fallback for **pinned stops only**.
+an offline fallback for the configured **pinned stops and/or recent-stop history**.
 
 ## Architecture
 
 The scheduled GitHub Actions workflow `.github/workflows/gtfs-data.yml` checks
-the upstream GTFS import timestamp once per day. If the source changed, it
-downloads the `bwgesamt` feed without shapes, runs `scripts/build-gtfs.py`,
-validates the result and force-publishes a fresh snapshot to the dedicated
-`gtfs-data` branch.
+the upstream GTFS import timestamp once per day. It also rebuilds when the
+builder changes or when the published schema does not match the current
+builder. When a rebuild is required it downloads the `bwgesamt` feed without
+shapes, runs `scripts/build-gtfs.py`, validates the result and force-publishes
+a fresh snapshot to the dedicated `gtfs-data` branch.
 
 The data branch intentionally has no growing history. Application source code
 and generated timetable data remain separate.
@@ -22,9 +23,12 @@ Generated files:
 - `00.json` … `ff.json`: timetable shards. Only shards that contain stops are emitted.
 
 A TRIAS platform reference such as `de:08311:30100:0:1` is normalized to the
-logical IFOPT stop `de:08311:30100`. GTFS `parent_station` is preferred when
-available. This allows one pinned stop with multiple platform references to use
-one offline timetable.
+logical IFOPT stop `de:08311:30100`. The builder keeps the canonical GTFS
+`stop_id` as the timetable identity and exposes `parent_station` as an
+additional alias instead of replacing the stop identity. Scriptable can also
+resolve an unambiguous station-name alias when TRIAS and GTFS use different
+logical IDs for the same named stop. This allows one pinned stop with multiple
+platform references to use one offline timetable.
 
 Each departure is stored compactly as:
 
@@ -44,6 +48,8 @@ Attribution: **Datenpaket: MobiData BW; NVBW**
 
 License: Datenlizenz Deutschland – Namensnennung – Version 2.0.
 
-The application integration is intentionally separate from this pipeline. A
-later change will let Scriptable download only the shard(s) required by the
-currently pinned stops and use them when TRIAS is unavailable.
+Scriptable downloads only the shard(s) required by the selected pinned stops
+and/or recent-stop history. TRIAS remains the primary source. The local GTFS
+cache is used only when the online departure request fails, is refreshed
+best-effort, and records both requested and unavailable stop references so an
+upstream-unmapped stop does not trigger a download on every widget run.

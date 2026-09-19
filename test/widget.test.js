@@ -161,8 +161,8 @@ test('README describes the current two-script architecture', () => {
 
 test('GPS picker exposes pinned stops and shares the selection flow', () => {
   const source = read('VagAbfahrten.js');
-  assert.match(source, /picker\.addAction\('📌 Fixierte Haltestellen'\)/);
-  assert.match(source, /pinnedPicker\.title = 'Fixierte Haltestellen'/);
+  assert.match(source, /picker\.addAction\('📌 Angepinnte Haltestellen'\)/);
+  assert.match(source, /pinnedPicker\.title = 'Angepinnte Haltestellen'/);
   assert.ok(source.includes('selectedPin = orderedPinned[pinnedIdx]'));
   assert.match(source, /rememberStop\(\{ \.\.\.selected, name: selectedPin\?\.displayName \|\| selected\.name \}\)/);
   assert.match(source, /requestWidgetRefresh\(\);[\s\S]*await presentDeparturesTable\(key\);/);
@@ -299,4 +299,50 @@ test('config can cache pinned stops and recent history independently', () => {
   assert.match(source, /recentStops\(\)\.slice\(0, 20\)/);
   assert.match(source, /Offline-Daten aktualisieren/);
   assert.match(source, /Offline-Daten löschen/);
+});
+
+
+test('German UI consistently calls pinned stops angepinnt', () => {
+  const runtime = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+  assert.ok(runtime.includes('📌 Angepinnte Haltestellen'));
+  assert.ok(config.includes('Angepinnte Haltestellen'));
+  assert.ok(config.includes('Haltestelle anpinnen'));
+  assert.doesNotMatch(runtime, /Fixierte Haltestellen|fixierte Haltestelle|📌 fixiert/);
+  assert.doesNotMatch(config, /Fixierte Haltestellen|fixierte Haltestelle|fixierten Haltestellen/);
+});
+
+test('offline cache records requested refs and does not retry missing refs every run', () => {
+  const runtime = read('VagAbfahrten.js');
+  assert.match(runtime, /requestedStopRefs/);
+  assert.match(runtime, /missingStopRefs/);
+  assert.match(runtime, /Array\.isArray\(manifest\.requestedStopRefs\)/);
+  assert.doesNotMatch(runtime, /wanted\.some\(\(ref\) => !index\.stops\[ref\]\)/);
+});
+
+test('offline GTFS includes previous service day for after-midnight trips', () => {
+  const runtime = read('VagAbfahrten.js');
+  assert.match(runtime, /const yesterday = new Date\(/);
+  assert.match(runtime, /const serviceDates = \[today, yesterday\]/);
+  assert.match(runtime, /for \(const serviceDate of serviceDates\)/);
+});
+
+test('config manual offline sync is timestamped and uninstall clears runtime cache', () => {
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(config, /localSyncedAt: new Date\(\)\.toISOString\(\)/);
+  assert.match(config, /requestedStopRefs: \[\.\.\.wanted\]\.sort\(\)/);
+  assert.match(config, /'VAG_LAST_STOP_REF'/);
+  assert.match(config, /'VAG_LAST_STOP_NAME'/);
+  assert.match(config, /await deleteOfflineData\(false\)/);
+  assert.match(config, /offline: \{ \.\.\.DEFAULTS\.offline, \.\.\.\(backup\.config\.offline \|\| \{\}\) \}/);
+});
+
+test('GTFS alias fallback can map differing TRIAS and GTFS station IDs by name', () => {
+  const runtime = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(runtime, /function resolveGtfsIndexRef\(/);
+  assert.match(runtime, /sourceRef: resolveGtfsIndexRef/);
+  assert.match(runtime, /const sourceRef = entry\.sourceRef \|\| logicalRef/);
+  assert.match(config, /function resolveGtfsIndexRef\(/);
+  assert.match(config, /sourceRef: resolveGtfsIndexRef/);
 });

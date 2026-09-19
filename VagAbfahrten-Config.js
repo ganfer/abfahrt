@@ -274,7 +274,7 @@ async function searchStops(query) {
 async function addPinnedStop() {
   const history = recentStops();
   const menu = new Alert();
-  menu.title = 'Haltestelle fixieren';
+  menu.title = 'Haltestelle anpinnen';
   menu.message = history.length
     ? 'Wähle eine zuletzt verwendete Haltestelle oder suche nach einer anderen.'
     : 'Noch keine Historie vorhanden. Suche nach einer Haltestelle.';
@@ -287,8 +287,8 @@ async function addPinnedStop() {
   if (history.length && source === 0) {
     const pinned = savedStops().filter((s) => s.pinned === true);
     const picker = new Alert();
-    picker.title = 'Aus Historie fixieren';
-    picker.message = 'Zuletzt verwendete Haltestellen · 📌 = bereits fixiert';
+    picker.title = 'Aus Historie anpinnen';
+    picker.message = 'Zuletzt verwendete Haltestellen · 📌 = bereits angepinnt';
     for (const stop of history) {
       const isPinned = pinned.some((s) =>
         s.stopRef === stop.stopRef || normalizeStopName(s.name) === normalizeStopName(stop.name)
@@ -299,13 +299,13 @@ async function addPinnedStop() {
     const choice = await picker.present();
     if (choice === -1) return;
     pinStop(history[choice]);
-    await notice('Fixiert', history[choice].name + ' wurde fixiert.');
+    await notice('Angepinnt', history[choice].name + ' wurde angepinnt.');
     return;
   }
 
   const a = new Alert();
   a.title = 'Haltestelle suchen';
-  a.message = 'Suche nach einer Haltestelle, die dauerhaft fixiert werden soll.';
+  a.message = 'Suche nach einer Haltestelle, die dauerhaft angepinnt werden soll.';
   a.addTextField('Haltestelle', '');
   a.addAction('Suchen');
   a.addCancelAction('Abbrechen');
@@ -322,8 +322,8 @@ async function addPinnedStop() {
     const refs = new Set(pinned.map((s) => s.stopRef));
     const names = new Set(pinned.map((s) => normalizeStopName(s.name)));
     const picker = new Alert();
-    picker.title = 'Haltestelle fixieren';
-    picker.message = `${results.length} Treffer für „${query}“ · 📌 = bereits fixiert`;
+    picker.title = 'Haltestelle anpinnen';
+    picker.message = `${results.length} Treffer für „${query}“ · 📌 = bereits angepinnt`;
     for (const stop of results) {
       const isPinned = refs.has(stop.stopRef) || names.has(normalizeStopName(stop.name));
       picker.addAction((isPinned ? '📌 ' : '') + stop.name);
@@ -332,7 +332,7 @@ async function addPinnedStop() {
     const choice = await picker.present();
     if (choice === -1) return;
     pinStop(results[choice]);
-    await notice('Fixiert', results[choice].name + ' wurde fixiert.');
+    await notice('Angepinnt', results[choice].name + ' wurde angepinnt.');
   } catch (e) {
     await notice('Suche fehlgeschlagen', e.message);
   }
@@ -354,9 +354,11 @@ async function managePinnedStops() {
   while (true) {
     const stops = savedStops().filter((s) => s.pinned === true);
     const a = new Alert();
-    a.title = 'Fixierte Haltestellen';
-    a.message = stops.length ? `${stops.length} Haltestelle(n) dauerhaft fixiert.` : 'Noch keine Haltestellen fixiert.';
-    a.addAction('Haltestelle fixieren');
+    a.title = 'Angepinnte Haltestellen';
+    a.message = stops.length
+      ? `${stops.length} dauerhaft angepinnte Haltestelle${stops.length === 1 ? '' : 'n'}.`
+      : 'Noch keine Haltestellen angepinnt.';
+    a.addAction('Haltestelle anpinnen');
     const orderedStops = [...stops].sort((a, b) => Number(b.home === true) - Number(a.home === true));
     for (const stop of orderedStops) a.addAction(stopMenuLabel(stop));
     a.addCancelAction('Zurück');
@@ -375,7 +377,7 @@ async function managePinnedStops() {
     detail.addAction('Rolle ändern');
     detail.addAction('Haltestellengruppe');
     detail.addAction('Filter');
-    detail.addDestructiveAction('Fixierung entfernen');
+    detail.addDestructiveAction('Anpinnen aufheben');
     detail.addCancelAction('Zurück');
     const action = await detail.present();
     if (action === 0) {
@@ -402,7 +404,7 @@ async function managePinnedStops() {
     if (action === 1) await configureStopRole(stops, index);
     if (action === 2) await configureStopGroup(stops, index);
     if (action === 3) await configureStopFilter(stops, index);
-    if (action === 4) { stops.splice(index, 1); writeSavedStops(stops); await notice('Fixierung entfernt', stop.displayName || stop.name); }
+    if (action === 4) { stops.splice(index, 1); writeSavedStops(stops); await notice('Anpinnen aufgehoben', stop.displayName || stop.name); }
   }
 }
 
@@ -420,7 +422,7 @@ async function configureFullscreen(cfg) {
     a.title = 'Fullscreen konfigurieren';
     a.message = `${cfg.fullscreen.rows} Abfahrten · Schrift ${cfg.fullscreen.fontSize} pt\n` +
       Object.keys(labels).map((key) =>
-        `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? cfg.fullscreen.columns[key].width + ' px' : 'aus'}`
+        `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? cfg.fullscreen.columns[key].width + ' pt' : 'aus'}`
       ).join('\n');
     a.addAction('Anzahl Abfahrten');
     a.addAction('Linie');
@@ -439,7 +441,7 @@ async function configureFullscreen(cfg) {
       const col = cfg.fullscreen.columns[key];
       const b = new Alert();
       b.title = labels[key];
-      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} px`;
+      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} pt`;
       b.addAction(col.visible ? 'Spalte ausblenden' : 'Spalte einblenden');
       b.addAction('Breite ändern');
       b.addCancelAction('Zurück');
@@ -499,7 +501,7 @@ async function configureLocation(cfg) {
     const a = new Alert();
     a.title = 'Standort konfigurieren';
     a.message = `Automatische Auswahl: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}\nEntfernung: ${cfg.location.savedStopRadiusMeters} m\nFallback: ${fallback}`;
-    a.addAction(`Fixierte Haltestelle automatisch: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
+    a.addAction(`Angepinnte Haltestelle automatisch: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
     if (cfg.location.autoSelectSavedStop) a.addAction(`Entfernung: ${cfg.location.savedStopRadiusMeters} m`);
     a.addAction('Fallback: ' + fallback);
     a.addCancelAction('Zurück');
@@ -508,7 +510,7 @@ async function configureLocation(cfg) {
     if (choice === 0) cfg.location.autoSelectSavedStop = !cfg.location.autoSelectSavedStop;
     if (cfg.location.autoSelectSavedStop && choice === 1) cfg.location.savedStopRadiusMeters = await askNumber(
       'Automatische Haltestelle – Entfernung',
-      'Maximale Entfernung in Metern, in der eine fixierte Haltestelle automatisch übernommen wird.',
+      'Maximale Entfernung in Metern, in der eine angepinnte Haltestelle automatisch übernommen wird.',
       cfg.location.savedStopRadiusMeters,
       25,
       5000,
@@ -579,20 +581,39 @@ async function downloadJson(url) {
   if (status < 200 || status >= 300) throw new Error('HTTP ' + (status || '?'));
   return { raw, value: JSON.parse(raw) };
 }
-function offlineWantedStopEntries(cfg) {
+function offlineWantedStopGroups(cfg) {
   const all = [];
   if (cfg.offline?.pinned) all.push(...savedStops().filter((stop) => stop.pinned === true));
   if (cfg.offline?.history) all.push(...recentStops().slice(0, 20));
-  const entries = new Map();
+  const groups = new Map();
   for (const stop of all) {
-    const stopRefs = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
-    for (const rawRef of stopRefs) {
-      if (!rawRef) continue;
-      const ref = canonicalGtfsStopRef(rawRef);
-      if (!entries.has(ref)) entries.set(ref, {
-        ref,
-        name: stop.displayName || stop.name || 'Unbenannte Haltestelle',
-      });
+    const refs = [...new Set(
+      (Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef])
+        .filter(Boolean)
+        .map(canonicalGtfsStopRef)
+    )];
+    if (!refs.length) continue;
+    const normalizedName = normalizeStopName(stop.name || stop.displayName);
+    const existingKey = [...groups.entries()].find(([, group]) =>
+      group.refs.some((ref) => refs.includes(ref)) ||
+      (normalizedName && normalizeStopName(group.sourceName) === normalizedName)
+    )?.[0];
+    const key = existingKey || normalizedName || canonicalGtfsStopRef(stop.stopRef);
+    if (!groups.has(key)) groups.set(key, {
+      name: stop.displayName || stop.name || 'Unbenannte Haltestelle',
+      sourceName: stop.name || stop.displayName || '',
+      refs: [],
+    });
+    const group = groups.get(key);
+    group.refs = [...new Set([...group.refs, ...refs])];
+  }
+  return [...groups.values()];
+}
+function offlineWantedStopEntries(cfg) {
+  const entries = new Map();
+  for (const group of offlineWantedStopGroups(cfg)) {
+    for (const ref of group.refs) {
+      if (!entries.has(ref)) entries.set(ref, { ref, name: group.name, sourceName: group.sourceName });
     }
   }
   return [...entries.values()];
@@ -600,10 +621,29 @@ function offlineWantedStopEntries(cfg) {
 function offlineWantedStops(cfg) {
   return offlineWantedStopEntries(cfg).map((item) => item.ref);
 }
+function normalizeGtfsLookupName(value) {
+  return normalizeStopName(String(value || '')
+    .replace(/\b(?:bstg|bahnsteig|steig|gleis)\b.*$/i, '')
+    .replace(/[\s,;:\-]+$/g, ''));
+}
+function resolveGtfsIndexRef(entry, stops) {
+  if (stops?.[entry.ref]) return entry.ref;
+  const target = normalizeGtfsLookupName(entry.sourceName || entry.name);
+  if (!target) return null;
+  const matches = Object.entries(stops || {})
+    .filter(([, value]) => normalizeGtfsLookupName(value?.name) === target);
+  const preferred = matches.filter(([ref]) => !/_parent$/i.test(ref) && !/^gen:/i.test(ref));
+  const candidates = preferred.length ? preferred : matches;
+  return candidates.length === 1 ? candidates[0][0] : null;
+}
 function formatOfflineTimestamp(value) {
   if (!value || value === 'keine Daten' || value === 'unbekannt') return value || 'keine Daten';
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return String(value);
+  let normalized = String(value).trim();
+  if (normalized.startsWith('"') && normalized.endsWith('"')) {
+    try { normalized = JSON.parse(normalized); } catch (_) {}
+  }
+  const date = new Date(normalized);
+  if (!Number.isFinite(date.getTime())) return normalized;
   return date.toLocaleString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -614,38 +654,55 @@ async function syncOfflineData(cfg) {
     await notice('Offline-Fahrplan ist aus', 'Aktiviere den Offline-Fahrplan zuerst.');
     return;
   }
+  const groups = offlineWantedStopGroups(cfg);
   const wantedEntries = offlineWantedStopEntries(cfg);
   const wanted = wantedEntries.map((item) => item.ref);
   if (!wanted.length) {
-    await notice('Keine Haltestellen', 'Es gibt keine ausgewählten fixierten oder zuletzt verwendeten Haltestellen.');
+    await notice('Keine Haltestellen', 'Es gibt keine ausgewählten angepinnten oder zuletzt verwendeten Haltestellen.');
     return;
   }
   try {
     const manifest = await downloadJson(GTFS_RAW_BASE_URL + 'manifest.json');
     const index = await downloadJson(GTFS_RAW_BASE_URL + 'index.json');
-    const found = wanted.filter((ref) => index.value.stops?.[ref]);
-    const missing = wantedEntries.filter((item) => !index.value.stops?.[item.ref]);
-    const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
+    const resolved = wantedEntries.map((item) => ({
+      ...item,
+      sourceRef: resolveGtfsIndexRef(item, index.value.stops),
+    }));
+    const found = resolved.filter((item) => item.sourceRef);
+    const missing = resolved.filter((item) => !item.sourceRef);
+    const shards = [...new Set(found.map((item) => index.value.stops[item.sourceRef].shard))];
+    const downloads = [];
+    for (const shard of shards) downloads.push([shard, await downloadJson(GTFS_RAW_BASE_URL + shard + '.json')]);
+
+    // Download all required files before replacing the usable local cache.
     const manager = offlineManager();
     ensureOfflineDir();
-    manager.writeString(offlineFile('manifest.json'), manifest.raw);
+    const localManifest = {
+      ...manifest.value,
+      localSyncedAt: new Date().toISOString(),
+      requestedStopRefs: [...wanted].sort(),
+      missingStopRefs: missing.map((item) => item.ref).sort(),
+    };
+    manager.writeString(offlineFile('manifest.json'), JSON.stringify(localManifest));
     manager.writeString(offlineFile('index.json'), JSON.stringify({
       schemaVersion: index.value.schemaVersion,
-      stops: Object.fromEntries(found.map((ref) => [ref, index.value.stops[ref]])),
+      stops: Object.fromEntries(found.map((item) => [item.ref, { ...index.value.stops[item.sourceRef], sourceRef: item.sourceRef }])),
     }));
-    for (const shard of shards) {
-      const data = await downloadJson(GTFS_RAW_BASE_URL + shard + '.json');
-      manager.writeString(offlineFile(shard + '.json'), data.raw);
-    }
-    const keep = new Set(['manifest.json', 'index.json', ...shards.map((s) => s + '.json')]);
+    for (const [shard, data] of downloads) manager.writeString(offlineFile(shard + '.json'), data.raw);
+    const keep = new Set(['manifest.json', 'index.json', ...shards.map((value) => value + '.json')]);
     for (const name of manager.listContents(offlineDir())) {
       if (!keep.has(name)) manager.remove(manager.joinPath(offlineDir(), name));
     }
+
+    const foundSet = new Set(found.map((item) => item.ref));
+    const availableGroups = groups.filter((group) => group.refs.some((ref) => foundSet.has(ref)));
+    const missingGroups = groups.filter((group) => !group.refs.some((ref) => foundSet.has(ref)));
     const stamp = formatOfflineTimestamp(manifest.value.sourceImportedAt || manifest.value.generatedAt || 'unbekannt');
-    const missingText = missing.length
-      ? '\n\nNicht zugeordnet (' + missing.length + '):\n' + missing.map((item) => '• ' + item.name + ' [' + item.ref + ']').join('\n')
+    const missingText = missingGroups.length
+      ? '\n\nNicht zugeordnet (' + missingGroups.length + '):\n' +
+        missingGroups.map((group) => '• ' + group.name + ' [' + group.refs.join(', ') + ']').join('\n')
       : '';
-    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} gespeicherte Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
+    await notice('Offline-Daten aktualisiert', `${availableGroups.length}/${groups.length} Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
   } catch (e) {
     await notice('Offline-Update fehlgeschlagen', 'Die bisherigen Offline-Daten bleiben erhalten.\n\n' + e.message);
   }
@@ -658,19 +715,19 @@ async function deleteOfflineData(showNotice = true) {
 function offlineStatus(cfg) {
   const manifest = readOfflineJson('manifest.json');
   const index = readOfflineJson('index.json');
-  const wanted = offlineWantedStops(cfg);
-  const available = wanted.filter((ref) => index?.stops?.[ref]).length;
+  const groups = offlineWantedStopGroups(cfg);
+  const available = groups.filter((group) => group.refs.some((ref) => index?.stops?.[ref])).length;
   const stamp = formatOfflineTimestamp(manifest?.sourceImportedAt || manifest?.generatedAt || 'keine Daten');
-  return { wanted: wanted.length, available, stamp };
+  return { wanted: groups.length, available, stamp };
 }
 async function configureOffline(cfg) {
   while (true) {
     const status = offlineStatus(cfg);
     const a = new Alert();
     a.title = 'Offline-Fahrplan';
-    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nFixierte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nHistorie (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
+    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nHistorie (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
     a.addAction(`Offline-Fahrplan ${cfg.offline.enabled ? 'ausschalten' : 'einschalten'}`);
-    a.addAction(`Fixierte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
+    a.addAction(`Angepinnte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
     a.addAction(`Historie: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
     a.addAction(`Automatische Aktualisierung: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}`);
     a.addAction('Offline-Daten aktualisieren');
@@ -706,13 +763,13 @@ async function exportConfig(cfg) {
   };
   const text = JSON.stringify(backup, null, 2);
   Pasteboard.copyString(text);
-  await notice('Backup kopiert', 'Konfiguration und fixierte Haltestellen wurden als JSON in die Zwischenablage kopiert. TRIAS-Key, letzte Haltestelle, Verlauf und Development-Status sind nicht enthalten.');
+  await notice('Backup kopiert', 'Konfiguration und angepinnte Haltestellen wurden als JSON in die Zwischenablage kopiert. TRIAS-Key, letzte Haltestelle, Verlauf und Development-Status sind nicht enthalten.');
 }
 
 async function importConfig() {
   const a = new Alert();
   a.title = 'Backup importieren';
-  a.message = 'Füge hier ein zuvor exportiertes VAG-Widget-Backup ein. Die aktuelle Konfiguration und die fixierten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
+  a.message = 'Füge hier ein zuvor exportiertes VAG-Widget-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
   a.addTextField('Backup JSON', Pasteboard.pasteString() || '');
   a.addAction('Importieren');
   a.addCancelAction('Abbrechen');
@@ -735,6 +792,7 @@ async function importConfig() {
     ...backup.config,
     updates: { ...DEFAULTS.updates, ...(backup.config.updates || {}) },
     filters: { ...DEFAULTS.filters, ...(backup.config.filters || {}) },
+    offline: { ...DEFAULTS.offline, ...(backup.config.offline || {}) },
     location: { ...DEFAULTS.location, ...(backup.config.location || {}) },
     columns: Object.fromEntries(Object.entries(DEFAULTS.columns).map(([key, value]) => [key, { ...value, ...(backup.config.columns?.[key] || {}) }])),
     spacing: { ...DEFAULTS.spacing, ...(backup.config.spacing || {}) },
@@ -747,14 +805,14 @@ async function importConfig() {
   };
   await save(imported, false);
   writeSavedStops(backup.pinnedStops.map((stop) => ({ ...stop, pinned: true })));
-  await notice('Backup importiert', 'Konfiguration und fixierte Haltestellen wurden wiederhergestellt. Der TRIAS-Key und andere lokale Laufzeitdaten wurden nicht verändert.');
+  await notice('Backup importiert', 'Konfiguration und angepinnte Haltestellen wurden wiederhergestellt. Der TRIAS-Key und andere lokale Laufzeitdaten wurden nicht verändert.');
   return imported;
 }
 
 async function configureBackup(cfg) {
   const a = new Alert();
   a.title = 'Backup & Wiederherstellung';
-  a.message = 'Sichert persönliche Einstellungen und fixierte Haltestellen als JSON. Geheimnisse und Laufzeitdaten werden nicht exportiert.';
+  a.message = 'Sichert persönliche Einstellungen und angepinnte Haltestellen als JSON. Geheimnisse und Laufzeitdaten werden nicht exportiert.';
   a.addAction('Backup exportieren');
   a.addAction('Backup importieren');
   a.addCancelAction('Zurück');
@@ -954,7 +1012,7 @@ async function updateScripts(cfg) {
     if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
     if (development) Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
     else if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
-    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nDie Config wird jetzt neu gestartet, damit der aktualisierte Code aktiv ist. Persönliche Config-Datei und fixierte Haltestellen wurden nicht verändert.');
+    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nDie Config wird jetzt neu gestartet, damit der aktualisierte Code aktiv ist. Persönliche Config-Datei und angepinnte Haltestellen wurden nicht verändert.');
     if (!development && source.notes) await notice(`Was ist neu? · ${source.tag}`, formatReleaseNotes(source.notes));
     relaunchConfig();
     return;
@@ -1023,6 +1081,8 @@ function diagnosticSnapshot(cfg) {
     lastStop: Keychain.contains('VAG_LAST_STOP_REF') && Keychain.get('VAG_LAST_STOP_REF').trim() !== '' ? 'vorhanden' : 'nicht gesetzt',
     pinned: pinned.length,
     home: pinned.some((stop) => stop.home === true) ? 'gesetzt' : 'nicht gesetzt',
+    offline: cfg.offline?.enabled ? 'Ein' : 'Aus',
+    offlineAuto: cfg.offline?.autoUpdate === false ? 'Aus' : 'Ein',
   };
 }
 
@@ -1066,6 +1126,7 @@ function storageDiagnosticLines() {
 
 async function buildDiagnostics(cfg) {
   const d = diagnosticSnapshot(cfg);
+  const offline = offlineStatus(cfg);
   const github = await probeEndpoint(RELEASE_API_URL, { Accept: 'application/vnd.github+json' });
   const trias = await probeEndpoint(TRIAS_ENDPOINT);
   return [
@@ -1076,8 +1137,12 @@ async function buildDiagnostics(cfg) {
     `TRIAS-Endpunkt: ${trias}`,
     `GitHub/Updater: ${github}`,
     `Letzte Haltestelle: ${d.lastStop}`,
-    `Fixierte Haltestellen: ${d.pinned}`,
+    `Angepinnte Haltestellen: ${d.pinned}`,
     `Home: ${d.home}`,
+    `Offline-Fahrplan: ${d.offline}`,
+    `Offline automatisch: ${d.offlineAuto}`,
+    `Offline verfügbar: ${offline.available}/${offline.wanted}`,
+    `Offline-Datenstand: ${offline.stamp}`,
   ].join('\n');
 }
 
@@ -1098,7 +1163,7 @@ async function configureDiagnostics(cfg) {
 async function recoverFromMain() {
   const confirm = new Alert();
   confirm.title = 'Installation reparieren';
-  confirm.message = 'Widget und Config werden direkt aus dem aktuellen GitHub-main wiederhergestellt. Persönliche Konfiguration und fixierte Haltestellen bleiben erhalten.\n\nDiese Funktion umgeht die normale Stable-/Development-Updateprüfung.';
+  confirm.message = 'Widget und Config werden direkt aus dem aktuellen GitHub-main wiederhergestellt. Persönliche Konfiguration und angepinnte Haltestellen bleiben erhalten.\n\nDiese Funktion umgeht die normale Stable-/Development-Updateprüfung.';
   confirm.addDestructiveAction('Recovery starten');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -1147,14 +1212,22 @@ async function recoverFromMain() {
 async function uninstall() {
   const confirm = new Alert();
   confirm.title = 'VAG Widget deinstallieren?';
-  confirm.message = 'Löscht die Konfiguration, fixierte und zuletzt verwendete Haltestellen, Verlauf, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
+  confirm.message = 'Löscht die Konfiguration, angepinnte und zuletzt verwendete Haltestellen, Historie, Offline-Daten, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
   confirm.addDestructiveAction('Alles löschen');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() !== 0) return false;
 
-  const keychainKeys = ['TRIAS_REQUESTOR_REF', SAVED_STOPS_KEY, RECENT_STOPS_KEY, DEVELOPMENT_REF_KEY];
+  const keychainKeys = [
+    'TRIAS_REQUESTOR_REF',
+    'VAG_LAST_STOP_REF',
+    'VAG_LAST_STOP_NAME',
+    SAVED_STOPS_KEY,
+    RECENT_STOPS_KEY,
+    DEVELOPMENT_REF_KEY,
+  ];
   for (const key of keychainKeys) if (Keychain.contains(key)) Keychain.remove(key);
   if (fm.fileExists(configPath)) fm.remove(configPath);
+  await deleteOfflineData(false);
 
   for (const manager of [FileManager.iCloud(), FileManager.local()]) {
     for (const file of ['VagAbfahrten.js', 'VagAbfahrten-Config.js', 'VagAbfahrten-Init.js']) {
@@ -1195,7 +1268,7 @@ async function main() {
     const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
     menu.title = `VAG Widget · v${APP_VERSION}`;
-    menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nFixierte Haltestellen: ${pinned}`;
+    menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nAngepinnte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
     menu.addAction('Fullscreen');
     menu.addAction('Standort');

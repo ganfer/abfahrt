@@ -29,9 +29,9 @@ This keeps first installation consistent with the default **Stable** update chan
 
 The TRIAS requestor key is stored in the iOS Keychain and does not need to be kept in the widget parameter.
 
-## Offline timetable groundwork
+## Offline timetable fallback
 
-The repository includes a daily pipeline for preparing statewide MobiData BW/NVBW GTFS schedule data for a future offline fallback. Generated data is published separately on the `gtfs-data` branch; the application will later download only the shards needed by pinned stops.
+The repository includes a daily pipeline for preparing statewide MobiData BW/NVBW GTFS schedule data for the optional offline fallback. Generated data is published separately on the `gtfs-data` branch. Scriptable caches only the shards needed by the configured pinned stops and/or recent-stop history, keeps TRIAS as the primary source and uses GTFS only when the online departure request fails.
 
 See [docs/GTFS.md](docs/GTFS.md) for the data format, mapping strategy, source and attribution.
 
@@ -109,6 +109,10 @@ Stable releases are created manually through the Release workflow. Merging to `m
 | Immediate widget refresh | On |
 | Widget filters | On |
 | Fullscreen filters | On |
+| Offline timetable | On |
+| Offline pinned stops | On |
+| Offline recent history | On (max. 20) |
+| Automatic offline refresh | On |
 | Update channel | Stable |
 
 TRIAS departure requests are sized to the configured view and clamped to **1–30** results.
