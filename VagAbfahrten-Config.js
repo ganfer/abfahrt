@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -557,13 +557,23 @@ const UPDATE_FILES = [
   },
 ];
 
-function updateTargets(fileName) {
+function currentScriptFileManager() {
   const cloud = FileManager.iCloud();
   const local = FileManager.local();
-  const targets = [{ label: 'iCloud', fm: cloud }];
-  const localPath = local.joinPath(local.documentsDirectory(), fileName);
-  if (local.fileExists(localPath)) targets.push({ label: 'Lokal', fm: local });
-  return targets;
+  const scriptName = Script.name() + '.js';
+  const cloudPath = cloud.joinPath(cloud.documentsDirectory(), scriptName);
+  const localPath = local.joinPath(local.documentsDirectory(), scriptName);
+
+  // Prefer the storage that contains the currently named Config script.
+  // If both copies exist, Scriptable's iCloud script is the normal source.
+  if (cloud.fileExists(cloudPath)) return { label: 'iCloud', fm: cloud };
+  if (local.fileExists(localPath)) return { label: 'Lokal', fm: local };
+  return { label: 'iCloud', fm: cloud };
+}
+
+function updateTargets(fileName) {
+  const current = currentScriptFileManager();
+  return [{ label: current.label, fm: current.fm }];
 }
 
 function versionFromSource(source) {
