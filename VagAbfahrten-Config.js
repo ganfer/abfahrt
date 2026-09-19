@@ -548,6 +548,8 @@ async function reset() {
 const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/releases/latest';
 const RELEASE_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/';
 const MAIN_COMMIT_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/commits/main';
+const DEVELOPMENT_REF_KEY = 'VAG_DEVELOPMENT_REF';
+
 const UPDATE_FILES = [
   {
     name: 'VagAbfahrten.js',
@@ -729,6 +731,11 @@ async function updateScripts(cfg) {
     return;
   }
   const remoteVersion = development ? null : source.version;
+  const installedDevelopmentRef = Keychain.contains(DEVELOPMENT_REF_KEY) ? Keychain.get(DEVELOPMENT_REF_KEY) : '';
+  if (development && installedDevelopmentRef === source.ref) {
+    await notice('Kein Update verfügbar', `Development ${source.label} ist bereits installiert.\n\nInstalliert: v${APP_VERSION} · ${source.label}`);
+    return;
+  }
   const stableInstallComplete = development ? false : managedInstallMatches(remoteVersion);
   if (!development && compareVersions(remoteVersion, APP_VERSION) <= 0 && stableInstallComplete) {
     await notice('Kein Update verfügbar', `Verfügbar: v${remoteVersion}\nKanal: 🛡 Stable\n\nAlle verwalteten Skripte entsprechen bereits dem aktuellen Stable Release.\n\n${installedVersionSummary()}`);
@@ -758,6 +765,8 @@ async function updateScripts(cfg) {
       }
     }
     if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
+    if (development) Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
+    else if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
     await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
     if (!development && source.notes) await notice(`Was ist neu? · ${source.tag}`, formatReleaseNotes(source.notes));
   } catch (e) {
