@@ -20,7 +20,6 @@ const DEFAULT_STOPS = [
   'de:08311:30120:0:2',
 ];
 const REQUEST_TIMEOUT_MS = 12000;
-const RESULTS_LIMIT = 8;
 const NEARBY_RESULTS = 5;
 const DELAY_HEAVY_MIN = 5;
 const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
@@ -110,12 +109,12 @@ function mergeWidgetConfig(saved) {
   };
 }
 
-function loadWidgetConfig() {
+async function loadWidgetConfig() {
   const fm = FileManager.iCloud();
   const path = fm.joinPath(fm.documentsDirectory(), CONFIG_FILE_NAME);
   if (!fm.fileExists(path)) return mergeWidgetConfig(null);
   try {
-    if (!fm.isFileDownloaded(path)) fm.downloadFileFromiCloud(path);
+    if (!fm.isFileDownloaded(path)) await fm.downloadFileFromiCloud(path);
     return mergeWidgetConfig(JSON.parse(fm.readString(path)));
   } catch (_) {
     // A broken/missing personal config must never break the departures widget.
@@ -123,7 +122,7 @@ function loadWidgetConfig() {
   }
 }
 
-const WIDGET_CONFIG = loadWidgetConfig();
+let WIDGET_CONFIG = mergeWidgetConfig(null);
 
 function widgetOpenUrl() {
   // A widget tap first runs this script interactively. It performs the nearby
@@ -161,7 +160,7 @@ function xmlEsc(v) {
   }[ch]));
 }
 
-function buildStopEventRequest(stopRef, key) {
+function buildStopEventRequest(stopRef, key, resultLimit = 8) {
   const ts = new Date().toISOString();
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -179,7 +178,7 @@ function buildStopEventRequest(stopRef, key) {
     '        </Location>',
     '        <Params>',
     '          <Language>de</Language>',
-    `          <NumberOfResults>${RESULTS_LIMIT}</NumberOfResults>`,
+    `          <NumberOfResults>${Math.max(1, Math.min(30, Math.round(Number(resultLimit) || 8)))}</NumberOfResults>`,
     '          <IncludeRealtimeData>true</IncludeRealtimeData>',
     '          <StopEventPolicy>DEPARTURE</StopEventPolicy>',
     '        </Params>',
@@ -452,13 +451,13 @@ async function triasPost(body) {
   return text;
 }
 
-async function fetchDepartures(stopRefs, key) {
+async function fetchDepartures(stopRefs, key, resultLimit = 8) {
   const all = [];
   const errors = [];
   await Promise.all(
     stopRefs.map(async (ref) => {
       try {
-        const xml = await triasPost(buildStopEventRequest(ref, key));
+        const xml = await triasPost(buildStopEventRequest(ref, key, resultLimit));
         all.push(...stopEventsFromDoc(parseXmlTree(xml)));
       } catch (e) {
         errors.push(e.message);
@@ -485,7 +484,7 @@ function withDelay(events, now) {
       return { ...e, at, delayMin };
     })
     .sort((a, b) => a.at - b.at)
-    .slice(0, 5);
+    .slice(0, Math.max(1, Math.min(8, Number(WIDGET_CONFIG.rows) || 5)));
 }
 
 function cancelledCount(events, now) {
@@ -661,7 +660,7 @@ async function defaultWidget(key, present, tapParameter) {
       : 'Brauerei Ganter';
 
   try {
-    const events = await fetchDepartures(stopRefs, key);
+    const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.rows) || 5));
     const rows = withDelay(events, Date.now());
     const sub = events.length
       ? `${events.length} Ereignisse gelesen`
@@ -887,7 +886,7 @@ async function presentDeparturesTable(key, context = null) {
       : 'Brauerei Ganter';
 
   try {
-    const events = await fetchDepartures(stopRefs, key);
+    const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
     const now = Date.now();
     const rows = events
       .filter((e) => (e.realtimeTime || e.plannedTime) >= now)
@@ -1025,6 +1024,7 @@ async function setupMode() {
 }
 
 async function main() {
+  WIDGET_CONFIG = await loadWidgetConfig();
   const present = !config.runsInWidget;
   const parameter = rawParameter();
   const wantsSetup = parameter.toLowerCase() === 'setup';
