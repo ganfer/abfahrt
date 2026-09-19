@@ -59,6 +59,7 @@ const sandbox = {
     addText(t) { const el = { text: t }; this.texts.push(t); return el; }
     addStack() { return { layoutHorizontally() {}, addSpacer() {}, addText(t) { return { text: t }; } }; }
     addSpacer() {}
+    setPadding() {}
     set backgroundColor(v) { this.bg = v; }
     set url(v) { this.urlValue = v; }
     presentMedium() {}
