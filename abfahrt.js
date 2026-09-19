@@ -36,8 +36,8 @@ const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
 
 // User-facing widget layout configuration. Widths are points inside the
-// medium Scriptable widget. Hide columns you do not need and give the freed
-// space to another visible column.
+// Scriptable widget. The configured row count is the Medium baseline; Large
+// and Extra Large automatically use the additional height for more departures.
 const DEFAULT_WIDGET_CONFIG = {
   rows: 5,
   refreshAfterLocationChange: true,
