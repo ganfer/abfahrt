@@ -813,16 +813,13 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
   const statusLabel = realtimeAvailable ? 'Live' : 'Plan';
 
   const header = w.addStack();
-  header.layoutVertically();
+  header.layoutHorizontally();
+  header.centerAlignContent();
   header.backgroundColor = new Color('#17171a');
   header.cornerRadius = 12;
   header.setPadding(6, 8, 6, 8);
 
-  const topLine = header.addStack();
-  topLine.layoutHorizontally();
-  topLine.centerAlignContent();
-
-  const badge = topLine.addStack();
+  const badge = header.addStack();
   badge.size = new Size(28, 28);
   badge.cornerRadius = 14;
   badge.backgroundColor = new Color('#123822');
@@ -833,52 +830,72 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
   badgeText.textColor = new Color('#ffd60a');
   badge.addSpacer();
 
-  topLine.addSpacer(7);
+  header.addSpacer(7);
 
-  const titleEl = topLine.addText(stop.stop || title);
+  const titleEl = header.addText(stop.stop || title);
   titleEl.font = Font.boldSystemFont(15);
   titleEl.textColor = new Color(c.fg);
   titleEl.lineLimit = 1;
   titleEl.minimumScaleFactor = 0.68;
 
-  topLine.addSpacer();
+  header.addSpacer(10);
+
+  const statusStack = header.addStack();
+  statusStack.layoutHorizontally();
+  statusStack.centerAlignContent();
+
+  if (!errorText && rows.length) {
+    const dot = statusStack.addText('●');
+    dot.font = Font.systemFont(6);
+    dot.textColor = new Color(realtimeAvailable ? '#30d158' : '#8e8e93');
+    statusStack.addSpacer(3);
+
+    const live = statusStack.addText(statusLabel);
+    live.font = Font.mediumSystemFont(8);
+    live.textColor = new Color(c.dim);
+    live.lineLimit = 1;
+
+    if (platformSummary) {
+      statusStack.addSpacer(4);
+      const sep = statusStack.addText('·');
+      sep.font = Font.mediumSystemFont(8);
+      sep.textColor = new Color(c.dim);
+      statusStack.addSpacer(4);
+
+      const platform = statusStack.addText(platformSummary);
+      platform.font = Font.mediumSystemFont(8);
+      platform.textColor = new Color(c.dim);
+      platform.lineLimit = 1;
+    }
+
+    statusStack.addSpacer(4);
+    const timeSep = statusStack.addText('·');
+    timeSep.font = Font.mediumSystemFont(8);
+    timeSep.textColor = new Color(c.dim);
+    statusStack.addSpacer(4);
+  }
+
+  const updated = statusStack.addText('akt. ' + fmtClock(Date.now()));
+  updated.font = Font.boldSystemFont(8);
+  updated.textColor = new Color(errorText ? c.late : '#d8d8dc');
+  updated.lineLimit = 1;
+
+  if (cancelledN) {
+    statusStack.addSpacer(4);
+    const cancelled = statusStack.addText('· ' + cancelledN + ' entfällt');
+    cancelled.font = Font.mediumSystemFont(8);
+    cancelled.textColor = new Color(c.dim);
+    cancelled.lineLimit = 1;
+  }
+
+  header.addSpacer();
 
   if (activePin) {
-    const pin = topLine.addText(activePin.home === true ? '🏠' : '★');
+    const pin = header.addText(activePin.home === true ? '🏠' : '★');
     pin.font = Font.systemFont(12);
     pin.textColor = new Color(activePin.home === true ? c.fg : '#ffd60a');
     pin.lineLimit = 1;
   }
-
-  header.addSpacer(2);
-
-  const metaLine = header.addStack();
-  metaLine.layoutHorizontally();
-  metaLine.centerAlignContent();
-  metaLine.addSpacer(35);
-
-  if (!errorText && rows.length) {
-    const dot = metaLine.addText('●');
-    dot.font = Font.systemFont(6);
-    dot.textColor = new Color(realtimeAvailable ? '#30d158' : '#8e8e93');
-    metaLine.addSpacer(3);
-  }
-
-  const metaParts = [];
-  if (stop.place) metaParts.push(stop.place);
-  else if (subtitle) metaParts.push(subtitle);
-  if (!errorText && rows.length) {
-    metaParts.push(statusLabel);
-    if (platformSummary) metaParts.push(platformSummary);
-  }
-  metaParts.push('akt. ' + fmtClock(Date.now()));
-  if (cancelledN) metaParts.push(cancelledN + ' entfällt');
-
-  const meta = metaLine.addText(metaParts.join(' · '));
-  meta.font = Font.mediumSystemFont(8);
-  meta.textColor = new Color(errorText ? c.late : c.dim);
-  meta.lineLimit = 1;
-  meta.minimumScaleFactor = 0.65;
 
   w.addSpacer(7);
 
