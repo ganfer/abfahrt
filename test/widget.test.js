@@ -70,7 +70,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   src.replace(
     'await main();',
-    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest };',
+    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel };',
   ),
   sandbox,
 );
@@ -213,4 +213,31 @@ test('updater resolves the latest GitHub Release and downloads that exact tag', 
   assert.ok(source.includes("const ref = development ? source.ref : source.tag"));
   assert.ok(source.includes("downloadUpdateFile(file, ref)"));
   assert.ok(!source.includes("raw.githubusercontent.com/ganfer/vag-widget/main/"));
+});
+
+
+test('stop matching uses either exact ref or normalized name', () => {
+  assert.equal(T.sameStop({ stopRef: 'A', name: 'Bertoldsbrunnen' }, { stopRef: 'A', name: 'Other' }), true);
+  assert.equal(T.sameStop({ stopRef: 'A', name: ' Bertoldsbrunnen ' }, { stopRef: 'B', name: 'bertoldsbrunnen' }), true);
+  assert.equal(T.sameStop({ stopRef: 'A', name: 'Bertoldsbrunnen' }, { stopRef: 'B', name: 'Hauptbahnhof' }), false);
+});
+
+test('distance calculation returns realistic meters and rejects missing coordinates', () => {
+  const meters = T.distanceMeters(47.995, 7.85, 47.996, 7.85);
+  assert.ok(meters > 100 && meters < 120);
+  assert.equal(T.stopDistanceMeters({ latitude: NaN, longitude: 7.85 }, { latitude: 47.995, longitude: 7.85 }), null);
+  assert.equal(T.stopDistanceMeters({ latitude: 47.995, longitude: 7.85 }, {}), null);
+});
+
+test('pinned and Home selection respect pin state and matching rules', () => {
+  const pinned = [
+    { stopRef: 'A', name: 'Alpha', pinned: false, home: true },
+    { stopRef: 'B', name: 'Beta', displayName: 'Zuhause', pinned: true, home: true },
+    { stopRef: 'C', name: 'Gamma', pinned: true },
+  ];
+  assert.equal(T.pinnedStopFor({ stopRef: 'B', name: 'Other' }, pinned).displayName, 'Zuhause');
+  assert.equal(T.pinnedStopFor({ stopRef: 'X', name: 'gamma' }, pinned).stopRef, 'C');
+  assert.equal(T.homeStop(pinned).stopRef, 'B');
+  assert.equal(T.pinnedLabel(pinned[1]), '🏠 Zuhause');
+  assert.equal(T.pinnedLabel(pinned[2]), '📌 Gamma');
 });
