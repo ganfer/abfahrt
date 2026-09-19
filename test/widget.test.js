@@ -293,7 +293,7 @@ test('offline GTFS respects service calendars and exceptions', () => {
 
 test('config can cache pinned stops and recent history independently', () => {
   const source = read('VagAbfahrten-Config.js');
-  assert.match(source, /offline: \{ enabled: true, pinned: true, history: true \}/);
+  assert.match(source, /offline: \\\{ enabled: true, pinned: true, history: true, autoUpdate: true \\\}/);
   assert.match(source, /if \(cfg\.offline\?\.pinned\)/);
   assert.match(source, /if \(cfg\.offline\?\.history\)/);
   assert.match(source, /recentStops\(\)\.slice\(0, 20\)/);
