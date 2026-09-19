@@ -2,15 +2,15 @@
 
 VagAbfahrten prepares scheduled public-transport data from the statewide
 MobiData BW/NVBW `bwgesamt` GTFS feed. The generated snapshot is intended as
-an offline fallback for **pinned stops only**.
+an offline fallback for the configured **angepinnte stops and recently used stops**.
 
 ## Architecture
 
 The scheduled GitHub Actions workflow `.github/workflows/gtfs-data.yml` checks
-the upstream GTFS import timestamp once per day. If the source changed, it
-downloads the `bwgesamt` feed without shapes, runs `scripts/build-gtfs.py`,
-validates the result and force-publishes a fresh snapshot to the dedicated
-`gtfs-data` branch.
+the upstream GTFS import timestamp once per day and also compares the published
+schema with the builder schema. If the source or schema changed, it downloads
+the `bwgesamt` feed without shapes, runs `scripts/build-gtfs.py`, validates the
+result and force-publishes a fresh snapshot to the dedicated `gtfs-data` branch.
 
 The data branch intentionally has no growing history. Application source code
 and generated timetable data remain separate.
@@ -22,9 +22,10 @@ Generated files:
 - `00.json` … `ff.json`: timetable shards. Only shards that contain stops are emitted.
 
 A TRIAS platform reference such as `de:08311:30100:0:1` is normalized to the
-logical IFOPT stop `de:08311:30100`. GTFS `parent_station` is preferred when
-available. This allows one pinned stop with multiple platform references to use
-one offline timetable.
+logical IFOPT stop `de:08311:30100`. The GTFS `stop_id` is the canonical
+identity; `parent_station` is retained as an additional alias instead of
+replacing that identity. This keeps TRIAS-compatible IFOPT/DHID references
+usable even when the feed uses a synthetic parent ID.
 
 Each departure is stored compactly as:
 
@@ -44,6 +45,7 @@ Attribution: **Datenpaket: MobiData BW; NVBW**
 
 License: Datenlizenz Deutschland – Namensnennung – Version 2.0.
 
-The application integration is intentionally separate from this pipeline. A
-later change will let Scriptable download only the shard(s) required by the
-currently pinned stops and use them when TRIAS is unavailable.
+Scriptable downloads only the shard(s) required by the currently configured
+angepinnte and recently used stops. TRIAS remains primary; the local GTFS cache
+is used only when the TRIAS departure request fails. Automatic refresh is
+best-effort and keeps an existing cache intact if a download fails.

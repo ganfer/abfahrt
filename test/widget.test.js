@@ -161,8 +161,8 @@ test('README describes the current two-script architecture', () => {
 
 test('GPS picker exposes pinned stops and shares the selection flow', () => {
   const source = read('VagAbfahrten.js');
-  assert.match(source, /picker\.addAction\('📌 Fixierte Haltestellen'\)/);
-  assert.match(source, /pinnedPicker\.title = 'Fixierte Haltestellen'/);
+  assert.match(source, /picker\.addAction\('📌 Angepinnte Haltestellen'\)/);
+  assert.match(source, /pinnedPicker\.title = 'Angepinnte Haltestellen'/);
   assert.ok(source.includes('selectedPin = orderedPinned[pinnedIdx]'));
   assert.match(source, /rememberStop\(\{ \.\.\.selected, name: selectedPin\?\.displayName \|\| selected\.name \}\)/);
   assert.match(source, /requestWidgetRefresh\(\);[\s\S]*await presentDeparturesTable\(key\);/);
@@ -299,4 +299,43 @@ test('config can cache pinned stops and recent history independently', () => {
   assert.match(source, /recentStops\(\)\.slice\(0, 20\)/);
   assert.match(source, /Offline-Daten aktualisieren/);
   assert.match(source, /Offline-Daten löschen/);
+});
+
+
+test('offline auto refresh remembers the requested stop set instead of retrying unmapped IDs every run', () => {
+  const runtime = read('VagAbfahrten.js');
+  assert.match(runtime, /localRequestedStops: \[\.\.\.wanted\]/);
+  assert.match(runtime, /Array\.isArray\(manifest\.localRequestedStops\)/);
+  assert.doesNotMatch(runtime, /wanted\.some\(\(ref\) => !index\.stops\[ref\]\)/);
+});
+
+test('manual offline refresh records sync metadata and downloads shards before replacing cache', () => {
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(config, /localSyncedAt: new Date\(\)\.toISOString\(\)/);
+  assert.match(config, /localRequestedStops: \[\.\.\.wanted\]/);
+  const downloadPos = config.indexOf("for (const shard of shards) downloads.push");
+  const writePos = config.indexOf("manager.writeString(offlineFile('manifest.json')");
+  assert.ok(downloadPos >= 0 && writePos > downloadPos);
+});
+
+test('uninstall removes last-stop state and the offline cache', () => {
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(config, /'VAG_LAST_STOP_REF'/);
+  assert.match(config, /'VAG_LAST_STOP_NAME'/);
+  assert.match(config, /await deleteOfflineData\(false\);/);
+});
+
+test('GTFS fallback checks the previous service day for after-midnight trips', () => {
+  const runtime = read('VagAbfahrten.js');
+  assert.match(runtime, /yesterday\.setDate\(yesterday\.getDate\(\) - 1\)/);
+  assert.match(runtime, /const serviceDates = \[today, yesterday\]/);
+});
+
+test('user-facing pinned-stop terminology is consistent', () => {
+  const runtime = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(config, /Angepinnte Haltestellen/);
+  assert.match(runtime, /📌 Angepinnte Haltestellen/);
+  assert.doesNotMatch(config, /Fixierte Haltestellen/);
+  assert.doesNotMatch(runtime, /Fixierte Haltestellen/);
 });

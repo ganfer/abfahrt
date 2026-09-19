@@ -36,10 +36,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VALUE="$(curl --fail --silent --show-error --retry 3 \
+          RAW="$(curl --fail --silent --show-error --retry 3 \
             -H 'User-Agent: vag-widget GitHub Actions' \
             "$GTFS_IMPORT_STATUS_URL" || true)"
-          VALUE="$(printf '%s' "$VALUE" | tr -d '\n\r')"
+          VALUE="$(printf '%s' "$RAW" | tr -d '\n\r' | sed 's/^"//;s/"$//')"
           echo "value=$VALUE" >> "$GITHUB_OUTPUT"
 
       - name: Read published data timestamp
@@ -62,7 +62,7 @@ jobs:
           SCHEMA="$(git show origin/gtfs-data:data/gtfs/manifest.json 2>/dev/null \
             | python3 -c 'import json,sys; print(json.load(sys.stdin).get("schemaVersion",""))' \
             || true)"
-          EXPECTED_SCHEMA="$(python3 -c 'import re,pathlib; text=pathlib.Path("scripts/build-gtfs.py").read_text(); match=re.search(r"^SCHEMA_VERSION\\s*=\\s*(\\d+)", text, re.MULTILINE); print(match.group(1) if match else "")')"
+          EXPECTED_SCHEMA="$(python3 -c 'import re,pathlib; text=pathlib.Path("scripts/build-gtfs.py").read_text(); match=re.search(r"^SCHEMA_VERSION\s*=\s*(\d+)", text, re.MULTILINE); print(match.group(1) if match else "")')"
           if [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ] && [ -n "$EXPECTED_SCHEMA" ] && [ "$SCHEMA" = "$EXPECTED_SCHEMA" ]; then
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "Published GTFS snapshot already matches upstream import and schema $EXPECTED_SCHEMA."
