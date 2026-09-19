@@ -1216,7 +1216,7 @@ async function presentDeparturesTable(key, context = null) {
       { key: 'line', label: 'Linie', value: (r) => r.line || '–', cls: 'line' },
       { key: 'destination', label: 'Richtung', value: (r) => r.destination || '–', cls: 'destination' },
       { key: 'platform', label: 'Gleis', value: (r) => r.platform || '–', cls: 'platform' },
-      { key: 'departureTime', label: 'abfahrt', value: (r) => fmtClock(r.at) + (r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'), cls: 'time' },
+      { key: 'departureTime', label: 'Abfahrt', value: (r) => fmtClock(r.at) + (r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'), cls: 'time' },
       {
         key: 'countdown',
         label: 'Restzeit',
