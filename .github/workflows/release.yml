@@ -92,7 +92,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          if git diff --quiet -- README.md release-manifest.json; then
+          if [ -z "$(git status --porcelain -- README.md release-manifest.json)" ]; then
             echo "Stable metadata is already v$VERSION."
           else
             git config user.name "github-actions[bot]"
