@@ -342,50 +342,6 @@ function stopEventsFromDoc(doc) {
   return events;
 }
 
-function countNodes(node, name) {
-  if (!node) return 0;
-  let count = node.name === name ? 1 : 0;
-  for (const c of (node.children || [])) count += countNodes(c, name);
-  return count;
-}
-
-function firstNodePath(node, target, path = []) {
-  if (!node) return null;
-  const here = node.name === '#document' ? path : [...path, node.name];
-  if (node.name === target) return here.join(' > ');
-  for (const c of (node.children || [])) {
-    const found = firstNodePath(c, target, here);
-    if (found) return found;
-  }
-  return null;
-}
-
-function firstLocationResultShape(doc) {
-  function find(node) {
-    if (!node) return null;
-    if (node.name === 'LocationResult') return node;
-    for (const c of (node.children || [])) {
-      const hit = find(c);
-      if (hit) return hit;
-    }
-    return null;
-  }
-  const result = find(doc);
-  if (!result) return 'kein LocationResult';
-  const describe = (node) => {
-    const kids = (node.children || []).map((c) => c.name);
-    return node.name + (kids.length ? ' [' + kids.join(', ') + ']' : '');
-  };
-  const lines = [describe(result)];
-  for (const childNode of (result.children || []).slice(0, 8)) {
-    lines.push('↳ ' + describe(childNode));
-    for (const grand of (childNode.children || []).slice(0, 8)) {
-      lines.push('  ↳ ' + describe(grand));
-    }
-  }
-  return lines.join('\n');
-}
-
 function nearbyStopsFromDoc(doc) {
   const response =
     child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
@@ -1077,7 +1033,6 @@ async function nearbyFlow(key) {
     return;
   }
 
-  diagnostics.push('6. Auswahl wird geöffnet ✓');
   const pinned = savedStops().filter((s) => s.pinned === true);
   const recent = recentStops();
 
