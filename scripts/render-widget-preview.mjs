@@ -128,45 +128,46 @@ const html = `<!doctype html>
   }
   .widget-header {
     min-height: 46px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 8px;
+    padding: 6px 8px;
     border-radius: 12px;
     background: radial-gradient(circle at 10% 15%, rgba(48,209,88,.14), transparent 38%), #17171a;
   }
+  .widget-topline {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 28px;
+  }
   .stop-badge {
-    width: 30px;
-    height: 30px;
-    flex: 0 0 30px;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
     display: grid;
     place-items: center;
     border-radius: 50%;
     background: #123822;
     color: #ffd60a;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 800;
   }
-  .widget-copy { min-width: 0; flex: 1; }
-  .widget-title { font-size: 15px; line-height: 18px; font-weight: 750; color: ${palette.fg}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .widget-subtitle { margin-top: 1px; font-size: 8px; line-height: 11px; font-weight: 500; color: ${palette.dim}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .widget-status { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-  .chip {
-    height: 22px;
-    display: inline-flex;
+  .widget-title { min-width: 0; flex: 1; font-size: 15px; line-height: 18px; font-weight: 750; color: ${palette.fg}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pin { color: #ffd60a; font-size: 14px; line-height: 1; }
+  .widget-meta {
+    margin-top: 2px;
+    padding-left: 35px;
+    display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0 7px;
-    border-radius: 8px;
-    background: #232326;
-    color: #d1d1d6;
+    min-width: 0;
     font-size: 8px;
-    font-weight: 600;
+    line-height: 10px;
+    font-weight: 500;
+    color: ${palette.dim};
     white-space: nowrap;
+    overflow: hidden;
   }
-  .chip.live { background: #123b24; color: #79e697; }
-  .chip-dot { font-size: 6px; color: #30d158; }
-  .pin { margin-left: 1px; color: #ffd60a; font-size: 14px; line-height: 1; }
+  .live-dot { flex: 0 0 auto; font-size: 6px; color: #30d158; }
+  .meta-text { overflow: hidden; text-overflow: ellipsis; }
   .rows { margin-top: 7px; display: flex; flex-direction: column; gap: ${rowGap}px; }
   .departure-row {
     display: grid;
@@ -177,7 +178,7 @@ const html = `<!doctype html>
     padding: 0;
     border-radius: 9px;
   }
-  .departure-row.featured { padding: 3px 5px; background: #18181b; }
+  .departure-row.featured { background: #151517; }
   .departure-row > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .line-badge {
     height: ${badgeHeight}px;
@@ -198,8 +199,6 @@ const html = `<!doctype html>
   .countdown.delay { color: ${palette.delay}; }
   .countdown.late { color: ${palette.late}; }
   .countdown.cancelled, .cancelled-text { color: ${palette.dim}; opacity: .72; }
-  .footer { margin-top: 5px; display: flex; justify-content: space-between; font-size: 7px; color: ${palette.dim}; }
-  .footer .realtime { color: ${palette.ok}; }
   .dock {
     position: absolute;
     left: 24px;
@@ -221,19 +220,14 @@ const html = `<!doctype html>
     <div class="city">Freiburg</div>
     <section class="widget" aria-label="public transport departures widget preview">
       <div class="widget-header">
-        <div class="stop-badge">H</div>
-        <div class="widget-copy">
+        <div class="widget-topline">
+          <div class="stop-badge">H</div>
           <div class="widget-title">Bertoldsbrunnen</div>
-          <div class="widget-subtitle">Freiburg · akt. 12:42</div>
-        </div>
-        <div class="widget-status">
-          <div class="chip live"><span class="chip-dot">●</span>Live</div>
-          <div class="chip">4 Steige</div>
           <div class="pin">★</div>
         </div>
+        <div class="widget-meta"><span class="live-dot">●</span><span class="meta-text">Freiburg · Live · 4 Steige · akt. 12:42</span></div>
       </div>
       <div class="rows">${rowHtml}</div>
-      <div class="footer"><span class="realtime">● Echtzeit</span><span>Tippen für Details</span></div>
     </section>
     <div class="dock"><div class="app"></div><div class="app"></div><div class="app"></div><div class="app"></div></div>
     <div class="home-indicator"></div>
