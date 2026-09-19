@@ -76,7 +76,7 @@ Developer options contain:
 - **Backup & Wiederherstellung** — exports/imports personal configuration and pinned stops; secrets and transient runtime state are excluded.
 - **Alle Einstellungen zurücksetzen** — restores configuration defaults while retaining pinned stops, history and the TRIAS key.
 - **Recovery · Installation reparieren** — bypasses normal channel checks and restores runtime and Config from the exact current main commit while preserving personal data.
-- **Deinstallieren · Alles löschen** — after explicit confirmation removes configuration, pinned/recent stop data, update provenance, the TRIAS key and the managed scripts from Scriptable iCloud/local storage.
+- **Deinstallieren · Alles löschen** — after explicit confirmation removes configuration, pinned/recent/last-stop state, the local GTFS cache, update provenance, the TRIAS key and the managed scripts from Scriptable iCloud/local storage.
 
 Personal settings are stored in **`VagAbfahrten.config.json`**. Pinned/recent stops and runtime state use Keychain entries.
 
