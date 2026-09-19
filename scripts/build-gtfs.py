@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build compact GTFS timetable shards for VagAbfahrten.
+"""Build compact GTFS timetable shards for Abfahrt.
 
 The source is the MobiData BW/NVBW bwgesamt GTFS feed without shapes. The
 output is intentionally optimized for Scriptable: a deterministic manifest,
@@ -71,7 +71,7 @@ def feed_info(zf):
 
 def build(zip_path: Path, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
-    db_file = tempfile.NamedTemporaryFile(prefix="vag-gtfs-", suffix=".sqlite", delete=False)
+    db_file = tempfile.NamedTemporaryFile(prefix="abfahrt-gtfs-", suffix=".sqlite", delete=False)
     db_file.close()
     db = sqlite3.connect(db_file.name)
     try:

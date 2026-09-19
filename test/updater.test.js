@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'VagAbfahrten-Config.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'Abfahrt-Config.js'), 'utf8');
 
 function extractFunction(name) {
   const marker = 'function ' + name + '(';
@@ -54,7 +54,7 @@ test('release checksum helper produces standard SHA-256', () => {
 });
 
 test('Development updater persists and compares exact commit provenance', () => {
-  assert.match(source, /const DEVELOPMENT_REF_KEY = 'VAG_DEVELOPMENT_REF'/);
+  assert.match(source, /const DEVELOPMENT_REF_KEY = 'ABFAHRT_DEVELOPMENT_REF'/);
   assert.match(source, /installedDevelopmentRef === source\.ref/);
   assert.match(source, /Keychain\.set\(DEVELOPMENT_REF_KEY, source\.ref\)/);
   assert.match(source, /Keychain\.remove\(DEVELOPMENT_REF_KEY\)/);

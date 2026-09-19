@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           RAW="$(curl --fail --silent --show-error --retry 3 \
-            -H 'User-Agent: vag-widget GitHub Actions' \
+            -H 'User-Agent: abfahrt GitHub Actions' \
             "$GTFS_IMPORT_STATUS_URL" || true)"
           VALUE="$(printf '%s' "$RAW" | tr -d '\n\r' | sed 's/^"//;s/"$//')"
           echo "value=$VALUE" >> "$GITHUB_OUTPUT"
@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           curl --fail --location --retry 3 --show-error \
-            -H 'User-Agent: vag-widget GitHub Actions' \
+            -H 'User-Agent: abfahrt GitHub Actions' \
             "$GTFS_URL" -o /tmp/bwgesamt.zip
 
       - name: Build offline shards
@@ -111,9 +111,9 @@ jobs:
           mkdir -p data/gtfs
           cp -R /tmp/gtfs-data/. data/gtfs/
           cat > README.md <<'EOF'
-          # VagAbfahrten GTFS data
+          # Abfahrt GTFS data
 
-          Machine-generated offline timetable data for VagAbfahrten.
+          Machine-generated offline timetable data for Abfahrt.
 
           Source: MobiData BW / NVBW, Baden-Württemberg scheduled public transport data.
           License: Datenlizenz Deutschland – Namensnennung – Version 2.0.

@@ -1,14 +1,14 @@
 // Variables used by Scriptable: icon-color: purple; icon-glyph: sliders-h;
 //
-// Interactive configuration assistant for VagAbfahrten.
+// Interactive configuration assistant for Abfahrt.
 
-const APP_VERSION = '1.1.11';
-const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
-const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
-const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
+const APP_VERSION = '2.0.0';
+const CONFIG_FILE_NAME = 'Abfahrt.config.json';
+const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS'; // contains pinned stops
+const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
-const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/gtfs-data/data/gtfs/';
-const GTFS_CACHE_DIR = 'VagAbfahrten-GTFS';
+const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/gtfs-data/data/gtfs/';
+const GTFS_CACHE_DIR = 'Abfahrt-GTFS';
 const DEFAULTS = {
   rows: 5,
   refreshAfterLocationChange: true,
@@ -222,8 +222,8 @@ function children(node, name) { return node ? (node.children || []).filter((c) =
 function text(node, ...names) { const n = child(node, ...names); return n ? (n.textContent || '').trim() : ''; }
 
 async function searchStops(query) {
-  if (!Keychain.contains('TRIAS_REQUESTOR_REF')) throw new Error('Kein TRIAS-Key im Keychain.');
-  const key = Keychain.get('TRIAS_REQUESTOR_REF').trim();
+  if (!Keychain.contains('ABFAHRT_TRIAS_REQUESTOR_REF')) throw new Error('Kein TRIAS-Key im Keychain.');
+  const key = Keychain.get('ABFAHRT_TRIAS_REQUESTOR_REF').trim();
   const ts = new Date().toISOString();
   // LocationName in InitialInput is a plain string in the TRIAS 1.2
   // LocationInformationRequest. LocationName/Text belongs to returned
@@ -582,7 +582,7 @@ function readOfflineJson(name) {
 async function downloadJson(url) {
   const req = new Request(url + '?t=' + Date.now());
   req.timeoutInterval = 30;
-  req.headers = { 'User-Agent': 'vag-widget/' + APP_VERSION, Accept: 'application/json' };
+  req.headers = { 'User-Agent': 'abfahrt/' + APP_VERSION, Accept: 'application/json' };
   const raw = await req.loadString();
   const status = req.response ? req.response.statusCode : 0;
   if (status === 404 && url.startsWith(GTFS_RAW_BASE_URL)) {
@@ -744,7 +744,7 @@ async function save(cfg, showNotice = true) {
 
 async function exportConfig(cfg) {
   const backup = {
-    format: 'vag-widget-backup',
+    format: 'abfahrt-backup',
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
     appVersion: APP_VERSION,
@@ -759,7 +759,7 @@ async function exportConfig(cfg) {
 async function importConfig() {
   const a = new Alert();
   a.title = 'Backup importieren';
-  a.message = 'Füge hier ein zuvor exportiertes VAG-Widget-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
+  a.message = 'Füge hier ein zuvor exportiertes Abfahrt-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
   a.addTextField('Backup JSON', Pasteboard.pasteString() || '');
   a.addAction('Importieren');
   a.addCancelAction('Abbrechen');
@@ -772,7 +772,7 @@ async function importConfig() {
     await notice('Import fehlgeschlagen', 'Das Backup ist kein gültiges JSON.');
     return null;
   }
-  if (backup?.format !== 'vag-widget-backup' || backup?.formatVersion !== 1 || !backup.config || !Array.isArray(backup.pinnedStops)) {
+  if (backup?.format !== 'abfahrt-backup' || backup?.formatVersion !== 1 || !backup.config || !Array.isArray(backup.pinnedStops)) {
     await notice('Import fehlgeschlagen', 'Das Backup-Format wird nicht unterstützt oder ist unvollständig.');
     return null;
   }
@@ -819,29 +819,29 @@ async function reset() {
 }
 
 
-const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/releases/latest';
-const RELEASE_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/';
-const MAIN_COMMIT_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/commits/main';
-const DEVELOPMENT_REF_KEY = 'VAG_DEVELOPMENT_REF';
-const PENDING_INSTALL_REF_KEY = 'VAG_PENDING_INSTALL_REF';
-const PENDING_INSTALL_VERSION_KEY = 'VAG_PENDING_INSTALL_VERSION';
-const PENDING_INSTALLER_NAME_KEY = 'VAG_PENDING_INSTALLER_NAME';
+const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/abfahrt/releases/latest';
+const RELEASE_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/';
+const MAIN_COMMIT_API_URL = 'https://api.github.com/repos/ganfer/abfahrt/commits/main';
+const DEVELOPMENT_REF_KEY = 'ABFAHRT_DEVELOPMENT_REF';
+const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF';
+const PENDING_INSTALL_VERSION_KEY = 'ABFAHRT_PENDING_INSTALL_VERSION';
+const PENDING_INSTALLER_NAME_KEY = 'ABFAHRT_PENDING_INSTALLER_NAME';
 
-const INSTALLER_FILE_NAMES = ['VagAbfahrten-Install.js', 'VagAbfahrten-Init.js'];
+const INSTALLER_FILE_NAMES = ['Abfahrt-Install.js'];
 const MANAGED_FILES = [
   {
-    name: 'VagAbfahrten.js',
+    name: 'Abfahrt.js',
     markers: ["const APP_VERSION = '", "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();'],
   },
   {
-    name: 'VagAbfahrten-Config.js',
-    markers: ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();'],
+    name: 'Abfahrt-Config.js',
+    markers: ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'Abfahrt.config.json';", 'await main();'],
   },
 ];
 const MANAGED_KEYCHAIN_KEYS = [
-  'TRIAS_REQUESTOR_REF',
-  'VAG_LAST_STOP_REF',
-  'VAG_LAST_STOP_NAME',
+  'ABFAHRT_TRIAS_REQUESTOR_REF',
+  'ABFAHRT_LAST_STOP_REF',
+  'ABFAHRT_LAST_STOP_NAME',
   SAVED_STOPS_KEY,
   RECENT_STOPS_KEY,
   DEVELOPMENT_REF_KEY,
@@ -1093,11 +1093,11 @@ async function completePendingInstall() {
     if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
     await notice(
       'Installation abgeschlossen',
-      `VAG Widget Stable v${expectedVersion} wurde aus ${ref} installiert und verifiziert.
+      `Abfahrt Stable v${expectedVersion} wurde aus ${ref} installiert und verifiziert.
 
 ${result.written.join('\n')}
 
-Starte jetzt VagAbfahrten einmalig, um den TRIAS-Key einzurichten.`,
+Starte jetzt Abfahrt einmalig, um den TRIAS-Key einzurichten.`,
     );
   } catch (e) {
     await notice(
@@ -1261,8 +1261,8 @@ function diagnosticSnapshot(cfg) {
   const offline = offlineStatus(cfg);
   return {
     channel: cfg.updates.channel === 'development' ? 'Development' : 'Stable',
-    key: Keychain.contains('TRIAS_REQUESTOR_REF') && Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '' ? 'vorhanden' : 'fehlt',
-    lastStop: Keychain.contains('VAG_LAST_STOP_REF') && Keychain.get('VAG_LAST_STOP_REF').trim() !== '' ? 'vorhanden' : 'nicht gesetzt',
+    key: Keychain.contains('ABFAHRT_TRIAS_REQUESTOR_REF') && Keychain.get('ABFAHRT_TRIAS_REQUESTOR_REF').trim() !== '' ? 'vorhanden' : 'fehlt',
+    lastStop: Keychain.contains('ABFAHRT_LAST_STOP_REF') && Keychain.get('ABFAHRT_LAST_STOP_REF').trim() !== '' ? 'vorhanden' : 'nicht gesetzt',
     pinned: pinned.length,
     recent: recentStops().length,
     home: pinned.some((stop) => stop.home === true) ? 'gesetzt' : 'nicht gesetzt',
@@ -1302,12 +1302,12 @@ function storageDiagnosticLines() {
   return [
     `Laufender Code: v${APP_VERSION}`,
     `Script.name(): ${Script.name()}`,
-    'VagAbfahrten-Config.js',
-    inspect('  iCloud', cloud, 'VagAbfahrten-Config.js'),
-    inspect('  Lokal', local, 'VagAbfahrten-Config.js'),
-    'VagAbfahrten.js',
-    inspect('  iCloud', cloud, 'VagAbfahrten.js'),
-    inspect('  Lokal', local, 'VagAbfahrten.js'),
+    'Abfahrt-Config.js',
+    inspect('  iCloud', cloud, 'Abfahrt-Config.js'),
+    inspect('  Lokal', local, 'Abfahrt-Config.js'),
+    'Abfahrt.js',
+    inspect('  iCloud', cloud, 'Abfahrt.js'),
+    inspect('  Lokal', local, 'Abfahrt.js'),
   ];
 }
 
@@ -1316,7 +1316,7 @@ async function buildDiagnostics(cfg) {
   const github = await probeEndpoint(RELEASE_API_URL, { Accept: 'application/vnd.github+json' });
   const trias = await probeEndpoint(TRIAS_ENDPOINT);
   return [
-    'VAG Widget Diagnose',
+    'Abfahrt Diagnose',
     ...storageDiagnosticLines(),
     `Update-Kanal: ${d.channel}`,
     `TRIAS-Key: ${d.key}`,
@@ -1370,7 +1370,7 @@ async function recoverFromMain() {
 
 async function uninstall() {
   const confirm = new Alert();
-  confirm.title = 'VAG Widget deinstallieren?';
+  confirm.title = 'Abfahrt deinstallieren?';
   confirm.message = 'Löscht die Konfiguration, angepinnte und zuletzt verwendete Haltestellen, Offline-Daten, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
   confirm.addDestructiveAction('Alles löschen');
   confirm.addCancelAction('Abbrechen');
@@ -1387,7 +1387,7 @@ async function uninstall() {
       if (manager.fileExists(path)) manager.remove(path);
     }
   }
-  await notice('Deinstalliert', 'Alle bekannten VAG-Widget-Daten einschließlich TRIAS-Key und Script-Dateien wurden gelöscht.');
+  await notice('Deinstalliert', 'Alle bekannten Abfahrt-Daten einschließlich TRIAS-Key und Script-Dateien wurden gelöscht.');
   return true;
 }
 
@@ -1424,7 +1424,7 @@ async function main() {
     const stops = savedStops();
     const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
-    menu.title = `VAG Widget · v${APP_VERSION}`;
+    menu.title = `Abfahrt · v${APP_VERSION}`;
     menu.message = `Widget: ${cfg.rows} Abfahrten\nVollbild: ${cfg.fullscreen.rows} Abfahrten\nAngepinnte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
     menu.addAction('Vollbild');

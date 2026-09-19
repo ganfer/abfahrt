@@ -1,6 +1,6 @@
 # Offline GTFS data
 
-VagAbfahrten prepares scheduled public-transport data from the statewide
+Abfahrt prepares scheduled public-transport data from the statewide
 MobiData BW/NVBW `bwgesamt` GTFS feed. The generated snapshot is intended as
 an offline fallback for the configured **pinned stops and recently used stops**.
 
