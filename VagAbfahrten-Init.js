@@ -4,7 +4,7 @@
 // Copy this script to Scriptable and run it once. After a successful install
 // it removes itself from the Scriptable storage it was launched from.
 
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.9';
 
 const FILES = [
   ['VagAbfahrten.js', ["const APP_VERSION = '", "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();']],
