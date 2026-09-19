@@ -29,20 +29,73 @@ Home Screen widget
 
 Realtime departures, delays and cancellations are shown when available. Timetable-only departures remain distinguishable from realtime data.
 
-## Installation
+## Schnellinstallation (empfohlen)
 
-A new installation needs only one bootstrap file:
+Du brauchst keine Dateien manuell von GitHub herunterzuladen. Für die Installation reicht **eine einzige Zeile in Scriptable**.
 
-1. copy **`VagAbfahrten-Install.js`** to Scriptable,
-2. run it once,
-3. the bootstrap resolves the **latest Stable GitHub Release** and loads the released Config,
-4. `VagAbfahrten-Config.js` installs and verifies the managed `VagAbfahrten.js` + `VagAbfahrten-Config.js` files from that exact release tag and removes the bootstrap installer.
+**Voraussetzung:** [Scriptable aus dem App Store installieren](https://apps.apple.com/app/scriptable/id1405459188).
 
-The bootstrap itself is deliberately **versionless**. It is not part of `APP_VERSION`; Stable always means the latest deliberately published GitHub Release, never the current `main` branch.
+### 1. Neues Script anlegen
 
-For compatibility, the bootstrap contains a small fallback for Stable releases from before the Config-owned installation lifecycle existed. Once a current release is installed, installation, updates, repair and uninstall are all managed centrally by Config.
+Öffne Scriptable und tippe oben rechts auf **+**.
 
-Then run **`VagAbfahrten`** once and save the TRIAS requestor key when prompted. Add a medium Scriptable widget to the Home Screen and select `VagAbfahrten`; the widget parameter can stay empty.
+<p align="center">
+  <img src="docs/assets/install/scriptable-01-new-script.svg" alt="Scriptable: neues Script über das Plus anlegen" width="280">
+</p>
+
+### 2. Diese eine Zeile einfügen
+
+Kopiere die folgende Zeile vollständig in das neue Script:
+
+```js
+await eval(await new Request("https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Install.js").loadString())
+```
+
+<p align="center">
+  <img src="docs/assets/install/scriptable-02-paste.svg" alt="Scriptable: Installationszeile in den Editor einfügen" width="280">
+</p>
+
+### 3. Installation starten
+
+Tippe in Scriptable auf **▶︎**. Der kleine Bootstrap-Installer ermittelt automatisch das **aktuelle Stable Release** und installiert die benötigten Dateien.
+
+<p align="center">
+  <img src="docs/assets/install/scriptable-03-run.svg" alt="Scriptable: Script über den Run-Button starten" width="280">
+</p>
+
+### 4. Fertig
+
+Nach erfolgreicher Installation findest du in Scriptable:
+
+- `VagAbfahrten`
+- `VagAbfahrten-Config`
+
+Das temporäre Installationsscript wird automatisch entfernt.
+
+<p align="center">
+  <img src="docs/assets/install/scriptable-04-finished.svg" alt="Scriptable: VagAbfahrten und VagAbfahrten-Config nach der Installation" width="280">
+</p>
+
+Starte anschließend **`VagAbfahrten` einmal direkt in Scriptable** und hinterlege deinen TRIAS-Requestor-Key, wenn du danach gefragt wirst. Danach kannst du auf dem iPhone ein **mittleres Scriptable-Widget** hinzufügen und als Script `VagAbfahrten` auswählen. Das Widget-Parameterfeld kann leer bleiben.
+
+> Die gezeigten Scriptable-Ansichten sind vereinfachte Beispielbilder. Je nach iOS- und Scriptable-Version können Positionen oder Symbole leicht abweichen.
+
+### Was macht diese eine Zeile?
+
+Die Zeile lädt nur den kleinen, versionslosen `VagAbfahrten-Install.js`-Bootstrapper aus `main`. Dieser installiert **nicht automatisch Development-Code aus `main`**, sondern ermittelt über GitHub Releases das aktuelle **Stable Release**. Runtime und Config werden anschließend aus genau diesem Release installiert und verifiziert.
+
+## Manuelle Installation / technische Details
+
+Falls du den Bootstrapper lieber selbst als Datei übernehmen möchtest, kannst du **`VagAbfahrten-Install.js`** manuell nach Scriptable kopieren und einmal ausführen.
+
+Der Bootstrapper:
+
+1. ermittelt das **latest Stable GitHub Release**,
+2. lädt die veröffentlichte `VagAbfahrten-Config.js`,
+3. lässt die Config die verwalteten Dateien `VagAbfahrten.js` und `VagAbfahrten-Config.js` aus genau diesem Release installieren und verifizieren,
+4. entfernt sich nach erfolgreicher Installation selbst.
+
+Der Bootstrapper ist bewusst **versionslos** und gehört nicht zu `APP_VERSION`. Stable bedeutet immer das zuletzt bewusst veröffentlichte GitHub Release.
 
 The TRIAS requestor key is stored in the iOS Keychain and does not need to be kept in the widget parameter.
 

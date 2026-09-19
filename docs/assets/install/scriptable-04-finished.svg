@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" rx="36" fill="#111"/>
+<rect x="14" y="14" width="362" height="816" rx="30" fill="#1c1c1e"/>
+<text x="32" y="74" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="26" font-weight="700">Scriptable</text>
+<rect x="26" y="110" width="338" height="64" rx="14" fill="#2c2c2e"/>
+<circle cx="54" cy="142" r="16" fill="#0a84ff"/><text x="82" y="149" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="17">VagAbfahrten</text>
+<rect x="26" y="184" width="338" height="64" rx="14" fill="#2c2c2e"/>
+<circle cx="54" cy="216" r="16" fill="#bf5af2"/><text x="82" y="223" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="17">VagAbfahrten-Config</text>
+<circle cx="195" cy="340" r="46" fill="#30d158"/><path d="M174 341 l14 14 l29 -31" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="38" y="430" fill="#ffd60a" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="18" font-weight="700">4. Fertig</text>
+<text x="38" y="460" fill="#d1d1d6" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="15">Danach findest du VagAbfahrten und</text>
+<text x="38" y="482" fill="#d1d1d6" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="15">VagAbfahrten-Config in Scriptable.</text>
+<text x="38" y="524" fill="#d1d1d6" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="15">Öffne VagAbfahrten einmal und hinterlege</text>
+<text x="38" y="546" fill="#d1d1d6" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="15">deinen TRIAS-Key.</text>
+<text x="38" y="792" fill="#8e8e93" font-family="-apple-system,BlinkMacSystemFont,Arial" font-size="12">Beispielansicht – die Oberfläche kann je nach Version leicht abweichen.</text>
+</svg>
