@@ -68,6 +68,7 @@ const DEFAULT_FULLSCREEN_CONFIG = {
   fontSize: 16,
   location: {
     autoSelectSavedStop: true,
+    savedStopRadiusMeters: 200,
   },
 };
 
@@ -381,7 +382,22 @@ function nearbyStopsFromDoc(doc) {
       text(result, 'Location', 'StopPoint', 'StopPointName', 'Text') ||
       text(result, 'StopPoint', 'StopPointName', 'Text') ||
       text(result, 'LocationName', 'Text');
-    if (stopRef && name) out.push({ stopRef, name });
+    const latitude = Number(
+      text(result, 'Location', 'GeoPosition', 'Latitude') ||
+      text(result, 'Location', 'StopPlace', 'GeoPosition', 'Latitude') ||
+      text(result, 'Location', 'StopPoint', 'GeoPosition', 'Latitude')
+    );
+    const longitude = Number(
+      text(result, 'Location', 'GeoPosition', 'Longitude') ||
+      text(result, 'Location', 'StopPlace', 'GeoPosition', 'Longitude') ||
+      text(result, 'Location', 'StopPoint', 'GeoPosition', 'Longitude')
+    );
+    if (stopRef && name) out.push({
+      stopRef,
+      name,
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null,
+    });
   }
 
   // EFA-BW may return the same physical stop multiple times with different
@@ -685,6 +701,20 @@ function sameStop(a, b) {
   return a.stopRef === b.stopRef || normalizeStopName(a.name) === normalizeStopName(b.name);
 }
 
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => value * Math.PI / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function stopDistanceMeters(stop, location) {
+  if (!Number.isFinite(stop.latitude) || !Number.isFinite(stop.longitude)) return null;
+  return distanceMeters(location.latitude, location.longitude, stop.latitude, stop.longitude);
+}
+
 function pinnedStopFor(stop, pinned) {
   return pinned.find((s) => s.pinned === true && sameStop(s, stop)) || null;
 }
@@ -766,9 +796,13 @@ async function nearbyFlow(key) {
   const recent = recentStops();
 
   if (WIDGET_CONFIG.fullscreen.location.autoSelectSavedStop) {
-    const hit = stops.find((s) => pinnedStopFor(s, pinned));
-    if (hit) {
-      const pin = pinnedStopFor(hit, pinned);
+    const radius = Math.max(0, Number(WIDGET_CONFIG.fullscreen.location.savedStopRadiusMeters) || 200);
+    const candidates = stops
+      .map((stop) => ({ stop, pin: pinnedStopFor(stop, pinned), distance: stopDistanceMeters(stop, loc) }))
+      .filter((item) => item.pin && item.distance !== null && item.distance <= radius)
+      .sort((a, b) => a.distance - b.distance);
+    if (candidates.length) {
+      const { stop: hit, pin } = candidates[0];
       rememberStop({ ...hit, name: pin.displayName || hit.name });
       requestWidgetRefresh();
       await presentDeparturesTable(key);

@@ -30,6 +30,7 @@ const DEFAULTS = {
     fontSize: 16,
     location: {
       autoSelectSavedStop: true,
+      savedStopRadiusMeters: 200,
     },
   },
 };
@@ -389,6 +390,7 @@ async function configureFullscreen(cfg) {
     a.addAction('Restzeit');
     a.addAction('Schriftgröße');
     a.addAction(`Fixierte Haltestelle automatisch: ${cfg.fullscreen.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
+    a.addAction(`Entfernung: ${cfg.fullscreen.location.savedStopRadiusMeters} m`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -408,6 +410,7 @@ async function configureFullscreen(cfg) {
     }
     if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Fullscreen – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
     if (choice === 7) cfg.fullscreen.location.autoSelectSavedStop = !cfg.fullscreen.location.autoSelectSavedStop;
+    if (choice === 8) cfg.fullscreen.location.savedStopRadiusMeters = await askNumber('Automatische Haltestelle – Entfernung', 'Maximale Entfernung in Metern, in der eine fixierte Haltestelle automatisch übernommen wird.', cfg.fullscreen.location.savedStopRadiusMeters, 25, 5000);
   }
 }
 
