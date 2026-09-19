@@ -134,3 +134,23 @@ test('fullscreen failure shows last attempt time', () => {
   assert.match(source, /Abfahrten nicht verfügbar/);
   assert.match(source, /Letzter Versuch:/);
 });
+
+
+test('widget tap uses the integrated foreground flow', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /return 'scriptable:\/\/\/run\/VagAbfahrten';/);
+  assert.doesNotMatch(source, /VagAbfahrten\?action=select/);
+});
+
+test('location distance requires valid stop and device coordinates', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /if \(!Number\.isFinite\(stop\.latitude\) \|\| !Number\.isFinite\(stop\.longitude\)\) return null;/);
+  assert.match(source, /if \(!Number\.isFinite\(location\?\.latitude\) \|\| !Number\.isFinite\(location\?\.longitude\)\) return null;/);
+});
+
+test('README describes the current two-script architecture', () => {
+  const source = read('README.md');
+  assert.match(source, /VagAbfahrten\.js.*Home Screen widget/);
+  assert.match(source, /VagAbfahrten-Config\.js.*personal settings/);
+  assert.match(source, /Retired helper scripts/);
+});
