@@ -1,6 +1,11 @@
 name: GTFS Offline Data
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gtfs-data.yml'
+      - 'scripts/build-gtfs.py'
   schedule:
     - cron: '25 3 * * *'
   workflow_dispatch:
