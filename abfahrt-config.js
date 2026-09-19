@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for abfahrt.
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 const CONFIG_FILE_NAME = 'abfahrt.config.json';
 const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS'; // contains pinned stops
 const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
