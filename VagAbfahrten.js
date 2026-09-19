@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -77,7 +77,7 @@ const DEFAULT_FULLSCREEN_CONFIG = {
 const DEFAULT_LOCATION_CONFIG = {
   autoSelectSavedStop: true,
   savedStopRadiusMeters: 200,
-  fallbackToLastStop: true,
+  fallbackMode: 'last',
 };
 
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
@@ -104,6 +104,10 @@ function mergeWidgetConfig(saved) {
       ...DEFAULT_LOCATION_CONFIG,
       ...(s.fullscreen?.location || {}),
       ...(s.location || {}),
+      fallbackMode: s.location?.fallbackMode ||
+        (typeof s.location?.fallbackToLastStop === 'boolean'
+          ? (s.location.fallbackToLastStop ? 'last' : 'none')
+          : DEFAULT_LOCATION_CONFIG.fallbackMode),
     },
     fullscreen: {
       ...DEFAULT_FULLSCREEN_CONFIG,
@@ -744,6 +748,14 @@ function pinnedStopFor(stop, pinned) {
   return pinned.find((s) => s.pinned === true && sameStop(s, stop)) || null;
 }
 
+function homeStop(pinned = savedStops()) {
+  return pinned.find((s) => s.pinned === true && s.home === true) || null;
+}
+
+function pinnedLabel(stop) {
+  return (stop.home === true ? '🏠 ' : '📌 ') + (stop.home === true ? 'Home' : (stop.displayName || stop.name));
+}
+
 function requestWidgetRefresh() {
   if (!WIDGET_CONFIG.refreshAfterLocationChange) return;
   // Start a second, explicitly non-interactive run of this script. The
@@ -764,8 +776,27 @@ async function fallbackToLastStop(key, diagnostics, reason) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
     Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
-  if (!WIDGET_CONFIG.location.fallbackToLastStop || !hasLastStop) return false;
+  const mode = WIDGET_CONFIG.location.fallbackMode || 'last';
+  if (mode === 'none') return false;
 
+  if (mode === 'home') {
+    const home = homeStop();
+    if (home) {
+      diagnostics.push('Fallback: Home ✓');
+      rememberStop({ stopRef: home.stopRef, name: 'Home' });
+      requestWidgetRefresh();
+      const a = new Alert();
+      a.title = 'Standort nicht verfügbar';
+      a.message = reason + '\n\nStattdessen wird 🏠 Home verwendet.';
+      a.addAction('Weiter');
+      await a.present();
+      await presentDeparturesTable(key);
+      return true;
+    }
+    diagnostics.push('Fallback: Home nicht gesetzt – letzte Haltestelle wird versucht');
+  }
+
+  if (!hasLastStop) return false;
   diagnostics.push('Fallback: zuletzt verwendete Haltestelle ✓');
   const title = Keychain.contains(LAST_STOP_NAME_KEY)
     ? Keychain.get(LAST_STOP_NAME_KEY)
@@ -867,7 +898,7 @@ async function nearbyFlow(key) {
     const isRecent = recent.some((s) => sameStop(s, stop));
     const distance = stopDistanceMeters(stop, loc);
     const distanceLabel = distance === null ? '' : ` · ${Math.round(distance)} m`;
-    picker.addAction((pin ? '📌 ' : isRecent ? '★ ' : '') + (pin?.displayName || stop.name) + distanceLabel);
+    picker.addAction((pin ? (pin.home === true ? '🏠 ' : '📌 ') : isRecent ? '★ ' : '') + (pin?.home === true ? 'Home' : (pin?.displayName || stop.name)) + distanceLabel);
   }
   const pinnedMenuIndex = stops.length;
   if (pinned.length) picker.addAction('📌 Fixierte Haltestellen');
@@ -884,8 +915,9 @@ async function nearbyFlow(key) {
     const pinnedPicker = new Alert();
     pinnedPicker.title = 'Fixierte Haltestellen';
     pinnedPicker.message = 'Wähle eine fixierte Haltestelle.';
-    for (const stop of pinned) {
-      pinnedPicker.addAction(stop.displayName || stop.name);
+    const orderedPinned = [...pinned].sort((a, b) => Number(b.home === true) - Number(a.home === true));
+    for (const stop of orderedPinned) {
+      pinnedPicker.addAction(pinnedLabel(stop));
     }
     pinnedPicker.addCancelAction('Zurück');
     const pinnedIdx = await pinnedPicker.present();
@@ -893,10 +925,10 @@ async function nearbyFlow(key) {
       Script.complete();
       return;
     }
-    selectedPin = pinned[pinnedIdx];
+    selectedPin = orderedPinned[pinnedIdx];
     selected = {
       stopRef: selectedPin.stopRef,
-      name: selectedPin.displayName || selectedPin.name,
+      name: selectedPin.home === true ? 'Home' : (selectedPin.displayName || selectedPin.name),
     };
   } else {
     selected = stops[idx];
