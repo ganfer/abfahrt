@@ -336,7 +336,7 @@ async function managePinnedStops() {
     a.message = stops.length ? `${stops.length} Haltestelle(n) dauerhaft fixiert.` : 'Noch keine Haltestellen fixiert.';
     a.addAction('Haltestelle fixieren');
     const orderedStops = [...stops].sort((a, b) => Number(b.home === true) - Number(a.home === true));
-    for (const stop of orderedStops) a.addAction((stop.home === true ? '🏠 Home' : '📌 ' + (stop.displayName || stop.name)));
+    for (const stop of orderedStops) a.addAction((stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name));
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
