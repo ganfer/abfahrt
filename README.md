@@ -74,3 +74,8 @@ Konfigurierbar sind:
 Die Einstellungen werden separat als `VagAbfahrten.config.json` im Scriptable-iCloud-Ordner gespeichert. `VagAbfahrten.js` lädt diese Datei automatisch; fehlt sie oder ist sie ungültig, werden die eingebauten Standardwerte verwendet.
 
 Der GitHub-Updater aktualisiert `VagAbfahrten.js` und `VagAbfahrten-Config.js`, **nicht** aber `VagAbfahrten.config.json`. Persönliche Einstellungen bleiben bei Updates daher erhalten.
+
+
+### Standort-Fallback
+
+Unter **Config → Standort** kann der Fallback auf die zuletzt verwendete Haltestelle aktiviert oder deaktiviert werden (Standard: **AN**). Wenn GPS nicht verfügbar ist, die TRIAS-Ortssuche fehlschlägt oder keine auswertbare Haltestelle liefert, kann die Fullscreen-Ansicht mit der zuletzt verwendeten Haltestelle fortfahren. Existiert noch keine zuletzt verwendete Haltestelle, bleibt die normale Fehlerdiagnose erhalten.
