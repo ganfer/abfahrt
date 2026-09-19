@@ -39,11 +39,7 @@ jobs:
           RAW="$(curl --fail --silent --show-error --retry 3 \
             -H 'User-Agent: vag-widget GitHub Actions' \
             "$GTFS_IMPORT_STATUS_URL" || true)"
-          VALUE="$(printf '%s' "$RAW" | python3 -c 'import json,sys; raw=sys.stdin.read().strip();
-try:
-    value=json.loads(raw); print(value if isinstance(value,str) else raw)
-except Exception:
-    print(raw)' | tr -d '\n\r')"
+          VALUE="$(printf '%s' "$RAW" | tr -d '\n\r' | sed 's/^"//;s/"$//')"
           echo "value=$VALUE" >> "$GITHUB_OUTPUT"
 
       - name: Read published data timestamp
