@@ -415,6 +415,20 @@ test('user-facing pinned-stop terminology is consistent', () => {
 });
 
 
+test('fullscreen uses dynamic status cards and keeps departure times fully visible', () => {
+  const runtime = read('abfahrt.js');
+
+  assert.match(runtime, /const realtimeAvailable = rows\.some/);
+  assert.match(runtime, /const statusLabel = realtimeAvailable \? 'Live' : 'Fahrplan'/);
+  assert.match(runtime, /platformValues\.length \+ ' Steige'/);
+  assert.match(runtime, /const pinGlyph = activePin \? '★' : '☆'/);
+  assert.ok(runtime.includes("value: (r) => fmtClock(r.at), cls: 'time'"));
+  assert.match(runtime, /\.time \{[\s\S]*min-width: 68px/);
+  assert.match(runtime, /class="line-badge"/);
+  assert.match(runtime, /class="stop-card"/);
+  assert.match(runtime, /@keyframes livePulse/);
+});
+
 test('fullscreen keeps destinations readable and honors configurable column proportions', () => {
   const runtime = read('abfahrt.js');
   const config = read('abfahrt-config.js');
