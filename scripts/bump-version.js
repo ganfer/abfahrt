@@ -43,10 +43,10 @@ for (const file of VERSION_FILES) {
 }
 
 const readme = fs.readFileSync('README.md', 'utf8');
-const developmentLine = readme.split('\n').find((line) => line.includes('Development version:'));
-if (!developmentLine) throw new Error('README Development version konnte nicht gefunden werden.');
+const developmentLine = readme.split('\n').find((line) => line.includes('Entwicklungsversion:'));
+if (!developmentLine) throw new Error('README-Entwicklungsversion konnte nicht gefunden werden.');
 const readmeVersion = developmentLine.match(/v(\d+\.\d+\.\d+)/);
-if (!readmeVersion) throw new Error('README Development version konnte nicht gelesen werden.');
+if (!readmeVersion) throw new Error('README-Entwicklungsversion konnte nicht gelesen werden.');
 if (readmeVersion[1] !== next) {
   const updatedLine = developmentLine.replace(`v${readmeVersion[1]}`, `v${next}`);
   fs.writeFileSync('README.md', readme.replace(developmentLine, updatedLine));
