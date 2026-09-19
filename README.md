@@ -1,6 +1,6 @@
 # abfahrt
 
-**Development version: v2.0.8**  
+**Development version: v2.0.9**  
 **Stable version: v2.0.0**
 
 Scriptable iOS widget for **public transport departures** using the EFA-BW TRIAS API, with realtime information, pinned stops, GPS selection and an offline GTFS timetable fallback.
@@ -115,7 +115,7 @@ Widget settings are split into **Allgemein, Small, Medium, Large and Extra Large
 
 ### Vollbild
 
-Configure departure count, visible columns, relative column widths, font size and whether per-stop filters are applied to the Vollbild view. Destination text wraps to up to two lines by default; wrapping and the maximum line count can be changed in Config.
+Configure departure count, visible columns, relative column widths, font size, sorting and whether per-stop filters are applied to the Vollbild view. Sorting can use **departure time (default), platform, destination or line**; platform/destination/line use departure time as the secondary key. Destination text wraps to up to two lines by default; wrapping and the maximum line count can be changed in Config.
 
 ### Standort
 
@@ -176,6 +176,7 @@ Stable releases are created manually through the Release workflow. The workflow 
 | Large widget departures | 10 |
 | Extra Large widget departures | 14 |
 | Vollbild departures | 8 |
+| Vollbild sorting | Departure time |
 | Automatic pinned stop | On |
 | Automatic-selection radius | 200 m |
 | Location fallback | Last stop |
