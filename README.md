@@ -111,3 +111,14 @@ MIT.
 ### Update channels
 
 The Config offers two update channels. **Stable** (default) installs only the latest manually published GitHub Release. **Development** follows the current `main` branch. Development first resolves the current `main` commit SHA and then downloads all managed files from that exact commit, avoiding mixed revisions while `main` changes. Stable releases are intentionally published manually through the Release workflow; merging to `main` no longer publishes a Stable release automatically.
+
+
+### Stop roles, groups and filters
+
+Pinned stops can be assigned a role such as Home, Work, Love, Pub, Favorite or Transfer. Custom roles can use an individual emoji and label. Exactly one pinned stop can be Home; other roles may be used multiple times.
+
+A pinned stop can contain multiple TRIAS StopRefs. This allows several platforms or stop points belonging to the same logical stop to be queried and displayed together. Additional StopRefs can be maintained manually in Config.
+
+Each pinned stop can optionally define line and destination filters. Filters support whitelist and blacklist mode and can be enabled independently for the Home Screen widget and fullscreen view.
+
+Departure times distinguish realtime data from timetable-only data. Delays are shown next to the departure time, and cancelled services remain visible as cancelled.

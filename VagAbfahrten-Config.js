@@ -18,6 +18,7 @@ const DEFAULTS = {
   updates: {
     channel: 'stable',
   },
+  filters: { widget: true, fullscreen: true },
   columns: {
     line: { visible: true, width: 34 },
     destination: { visible: true, width: 105 },
@@ -69,6 +70,7 @@ async function loadConfig() {
         ? saved.refreshAfterLocationChange
         : DEFAULTS.refreshAfterLocationChange,
       updates: { ...DEFAULTS.updates, ...(saved.updates || {}) },
+      filters: { ...DEFAULTS.filters, ...(saved.filters || {}) },
       location: {
         ...DEFAULTS.location,
         ...(saved.fullscreen?.location || {}),
@@ -170,6 +172,10 @@ function pinStop(stop) {
     displayName: existing?.displayName || '',
     pinned: true,
     home: existing?.home === true,
+    role: existing?.role || (existing?.home === true ? 'home' : 'favorite'),
+    roleIcon: existing?.roleIcon || '', roleLabel: existing?.roleLabel || '',
+    stopRefs: Array.isArray(existing?.stopRefs) ? existing.stopRefs : [stop.stopRef],
+    filter: existing?.filter || { enabled: false, mode: 'whitelist', lines: [], destinations: [] },
   });
   writeSavedStops(filtered);
 }
@@ -328,6 +334,14 @@ async function addPinnedStop() {
   }
 }
 
+const STOP_ROLES = [{key:'favorite',icon:'⭐️',label:'Favorit'},{key:'work',icon:'💼',label:'Arbeit'},{key:'love',icon:'❤️',label:'Love'},{key:'pub',icon:'🍺',label:'Kneipe'},{key:'transfer',icon:'🚉',label:'Umstieg'}];
+function roleForStop(stop) { if (stop.home === true || stop.role === 'home') return {key:'home',icon:'🏠',label:'Home'}; if(stop.role==='custom') return {key:'custom',icon:stop.roleIcon||'📍',label:stop.roleLabel||'Eigene Rolle'}; return STOP_ROLES.find((r)=>r.key===stop.role)||{key:'favorite',icon:'⭐️',label:'Favorit'}; }
+function stopMenuLabel(stop) { return roleForStop(stop).icon + ' ' + (stop.displayName || stop.name); }
+async function configureStopRole(stops,index) { const stop=stops[index],a=new Alert(); a.title='Rolle · '+(stop.displayName||stop.name); a.addAction('🏠 Home'); for(const role of STOP_ROLES)a.addAction(role.icon+' '+role.label); a.addAction('Eigenes Emoji / Rolle'); a.addCancelAction('Zurück'); const x=await a.present(); if(x===-1)return; if(x===0){for(let i=0;i<stops.length;i++)stops[i]={...stops[i],home:i===index,role:i===index?'home':(stops[i].role==='home'?'favorite':stops[i].role)};} else if(x<=STOP_ROLES.length){stops[index]={...stop,home:false,role:STOP_ROLES[x-1].key,roleIcon:'',roleLabel:''};} else {const b=new Alert();b.title='Eigene Rolle';b.addTextField('Emoji',stop.roleIcon||'📍');b.addTextField('Bezeichnung',stop.roleLabel||'');b.addAction('Übernehmen');b.addCancelAction('Abbrechen');if(await b.present()===0)stops[index]={...stop,home:false,role:'custom',roleIcon:b.textFieldValue(0).trim()||'📍',roleLabel:b.textFieldValue(1).trim()||'Eigene Rolle'};} writeSavedStops(stops); }
+async function configureStopGroup(stops,index) { const stop=stops[index],refs=[...new Set([stop.stopRef,...(Array.isArray(stop.stopRefs)?stop.stopRefs:[])].filter(Boolean))],a=new Alert();a.title='Haltestellengruppe';a.message=refs.join('\n');a.addAction('StopRef hinzufügen');if(refs.length>1)a.addDestructiveAction('Zusätzliche StopRefs entfernen');a.addCancelAction('Zurück');const x=await a.present();if(x===0){const b=new Alert();b.title='StopRef hinzufügen';b.addTextField('StopRef');b.addAction('Hinzufügen');b.addCancelAction('Abbrechen');if(await b.present()===0){const ref=b.textFieldValue(0).trim();if(ref){stops[index]={...stop,stopRefs:[...new Set([...refs,ref])]};writeSavedStops(stops);}}}if(x===1&&refs.length>1){stops[index]={...stop,stopRefs:[stop.stopRef]};writeSavedStops(stops);} }
+async function configureStopFilter(stops,index) { const stop=stops[index],f={enabled:false,mode:'whitelist',lines:[],destinations:[],...(stop.filter||{})},a=new Alert();a.title='Filter · '+(stop.displayName||stop.name);a.message=(f.enabled?'Aktiv':'Aus')+' · '+(f.mode==='blacklist'?'Blacklist':'Whitelist')+'\nLinien: '+(f.lines.join(', ')||'alle')+'\nRichtungen: '+(f.destinations.join(', ')||'alle');a.addAction(f.enabled?'Filter deaktivieren':'Filter aktivieren');a.addAction('Modus: '+(f.mode==='blacklist'?'Blacklist':'Whitelist'));a.addAction('Linien bearbeiten');a.addAction('Richtungen bearbeiten');a.addCancelAction('Zurück');const x=await a.present();if(x===0)f.enabled=!f.enabled;if(x===1)f.mode=f.mode==='blacklist'?'whitelist':'blacklist';if(x===2||x===3){const b=new Alert(),isLines=x===2;b.title=isLines?'Linienfilter':'Richtungsfilter';b.message='Kommagetrennt. Leer = keine Einschränkung.';b.addTextField('Werte',(isLines?f.lines:f.destinations).join(', '));b.addAction('Übernehmen');b.addCancelAction('Abbrechen');if(await b.present()===0){const values=b.textFieldValue(0).split(',').map((v)=>v.trim()).filter(Boolean);if(isLines)f.lines=values;else f.destinations=values;}}stops[index]={...stop,filter:f};writeSavedStops(stops); }
+async function configureGlobalFilters(cfg) { const a=new Alert();a.title='Filter';a.message='Haltestellenfilter getrennt für Widget und Fullscreen anwenden.';a.addAction('Widget: '+(cfg.filters.widget?'an':'aus'));a.addAction('Fullscreen: '+(cfg.filters.fullscreen?'an':'aus'));a.addCancelAction('Zurück');const x=await a.present();if(x===0)cfg.filters.widget=!cfg.filters.widget;if(x===1)cfg.filters.fullscreen=!cfg.filters.fullscreen; }
+
 async function managePinnedStops() {
   // One-time migration: discard old rolling-history entries and retain pins.
   const all = savedStops();
@@ -340,7 +354,7 @@ async function managePinnedStops() {
     a.message = stops.length ? `${stops.length} Haltestelle(n) dauerhaft fixiert.` : 'Noch keine Haltestellen fixiert.';
     a.addAction('Haltestelle fixieren');
     const orderedStops = [...stops].sort((a, b) => Number(b.home === true) - Number(a.home === true));
-    for (const stop of orderedStops) a.addAction((stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name));
+    for (const stop of orderedStops) a.addAction(stopMenuLabel(stop));
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -354,7 +368,9 @@ async function managePinnedStops() {
     detail.title = stop.displayName || stop.name;
     detail.message = (stop.displayName ? 'TRIAS: ' + stop.name + '\n' : '') + stop.stopRef;
     detail.addAction('Anzeigename ändern');
-    detail.addAction(stop.home === true ? 'Home entfernen' : 'Als Home festlegen');
+    detail.addAction('Rolle ändern');
+    detail.addAction('Haltestellengruppe');
+    detail.addAction('Filter');
     detail.addDestructiveAction('Fixierung entfernen');
     detail.addCancelAction('Zurück');
     const action = await detail.present();
@@ -379,22 +395,10 @@ async function managePinnedStops() {
         await notice('Anzeigename entfernt', stop.name);
       }
     }
-    if (action === 1) {
-      if (stop.home === true) {
-        stops[index] = { ...stop, home: false };
-        writeSavedStops(stops);
-        await notice('Home entfernt', stop.displayName || stop.name);
-      } else {
-        const updated = stops.map((item, i) => ({ ...item, home: i === index }));
-        writeSavedStops(updated);
-        await notice('Home festgelegt', '🏠 Home ist jetzt ' + (stop.displayName || stop.name) + '.');
-      }
-    }
-    if (action === 2) {
-      stops.splice(index, 1);
-      writeSavedStops(stops);
-      await notice('Fixierung entfernt', stop.displayName || stop.name);
-    }
+    if (action === 1) await configureStopRole(stops, index);
+    if (action === 2) await configureStopGroup(stops, index);
+    if (action === 3) await configureStopFilter(stops, index);
+    if (action === 4) { stops.splice(index, 1); writeSavedStops(stops); await notice('Fixierung entfernt', stop.displayName || stop.name); }
   }
 }
 
@@ -578,6 +582,7 @@ async function importConfig() {
     ...clone(DEFAULTS),
     ...backup.config,
     updates: { ...DEFAULTS.updates, ...(backup.config.updates || {}) },
+    filters: { ...DEFAULTS.filters, ...(backup.config.filters || {}) },
     location: { ...DEFAULTS.location, ...(backup.config.location || {}) },
     columns: Object.fromEntries(Object.entries(DEFAULTS.columns).map(([key, value]) => [key, { ...value, ...(backup.config.columns?.[key] || {}) }])),
     spacing: { ...DEFAULTS.spacing, ...(backup.config.spacing || {}) },
@@ -1013,7 +1018,8 @@ async function main() {
     menu.addAction('Widget');
     menu.addAction('Fullscreen');
     menu.addAction('Standort');
-    menu.addAction('Fixierte Haltestellen');
+    menu.addAction('Haltestellen');
+    menu.addAction('Filter');
     menu.addAction('Updates');
     menu.addAction('Backup & Wiederherstellung');
     menu.addAction('Entwickleroptionen');
@@ -1035,19 +1041,12 @@ async function main() {
       await save(cfg, false);
     }
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) {
-      await configureUpdates(cfg);
-      await save(cfg, false);
-    }
-    if (choice === 5) {
-      const imported = await configureBackup(cfg);
-      if (imported) Object.assign(cfg, imported);
-    }
-    if (choice === 6) await configureDeveloperOptions(cfg);
-    if (choice === 7) {
-      await reset();
-      break;
-    }
+    if (choice === 4) { await configureGlobalFilters(cfg); await save(cfg, false); }
+    if (choice === 5) { await configureUpdates(cfg); await save(cfg, false); }
+    if (choice === 6) { const imported = await configureBackup(cfg); if (imported) Object.assign(cfg, imported); }
+    if (choice === 7) await configureDeveloperOptions(cfg);
+    if (choice === 8) { await reset(); break; }
+
   }
 
   Script.complete();

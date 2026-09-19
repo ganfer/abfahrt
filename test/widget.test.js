@@ -241,3 +241,26 @@ test('pinned and Home selection respect pin state and matching rules', () => {
   assert.equal(T.pinnedLabel(pinned[1]), '🏠 Zuhause');
   assert.equal(T.pinnedLabel(pinned[2]), '📌 Gamma');
 });
+
+
+test('stop roles, groups and filters are wired into runtime', () => {
+  const runtime = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(runtime, /function stopRefsFor\(/);
+  assert.match(runtime, /function eventMatchesFilter\(/);
+  assert.match(runtime, /applyPinnedFilter\(events, activePin, 'widget'\)/);
+  assert.match(runtime, /applyPinnedFilter\(events, activePin, 'fullscreen'\)/);
+  assert.match(config, /Arbeit/);
+  assert.match(config, /Love/);
+  assert.match(config, /Kneipe/);
+  assert.match(config, /Eigenes Emoji \/ Rolle/);
+  assert.match(config, /Haltestellengruppe/);
+  assert.match(config, /Blacklist/);
+  assert.match(config, /Whitelist/);
+});
+
+test('realtime display distinguishes realtime, delay and timetable-only data', () => {
+  const runtime = read('VagAbfahrten.js');
+  assert.ok(runtime.includes("r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'"));
+  assert.match(runtime, /if \(r\.cancelled\) right = 'entfällt'/);
+});
