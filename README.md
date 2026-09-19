@@ -1,6 +1,6 @@
 # vag-widget
 
-**Current version: v1.0.3**
+**Current version: v1.0.4**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API.
 
