@@ -582,7 +582,7 @@ function readOfflineJson(name) {
 async function downloadJson(url) {
   const req = new Request(url + '?t=' + Date.now());
   req.timeoutInterval = 30;
-  req.headers = { 'User-Agent': 'vag-widget/' + APP_VERSION, Accept: 'application/json' };
+  req.headers = { 'User-Agent': 'abfahrt/' + APP_VERSION, Accept: 'application/json' };
   const raw = await req.loadString();
   const status = req.response ? req.response.statusCode : 0;
   if (status === 404 && url.startsWith(GTFS_RAW_BASE_URL)) {
@@ -744,7 +744,7 @@ async function save(cfg, showNotice = true) {
 
 async function exportConfig(cfg) {
   const backup = {
-    format: 'vag-widget-backup',
+    format: 'abfahrt-backup',
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
     appVersion: APP_VERSION,
@@ -759,7 +759,7 @@ async function exportConfig(cfg) {
 async function importConfig() {
   const a = new Alert();
   a.title = 'Backup importieren';
-  a.message = 'Füge hier ein zuvor exportiertes VAG-Widget-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
+  a.message = 'Füge hier ein zuvor exportiertes Abfahrt-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
   a.addTextField('Backup JSON', Pasteboard.pasteString() || '');
   a.addAction('Importieren');
   a.addCancelAction('Abbrechen');
@@ -772,7 +772,7 @@ async function importConfig() {
     await notice('Import fehlgeschlagen', 'Das Backup ist kein gültiges JSON.');
     return null;
   }
-  if (backup?.format !== 'vag-widget-backup' || backup?.formatVersion !== 1 || !backup.config || !Array.isArray(backup.pinnedStops)) {
+  if (backup?.format !== 'abfahrt-backup' || backup?.formatVersion !== 1 || !backup.config || !Array.isArray(backup.pinnedStops)) {
     await notice('Import fehlgeschlagen', 'Das Backup-Format wird nicht unterstützt oder ist unvollständig.');
     return null;
   }
@@ -1387,7 +1387,7 @@ async function uninstall() {
       if (manager.fileExists(path)) manager.remove(path);
     }
   }
-  await notice('Deinstalliert', 'Alle bekannten VAG-Widget-Daten einschließlich TRIAS-Key und Script-Dateien wurden gelöscht.');
+  await notice('Deinstalliert', 'Alle bekannten Abfahrt-Daten einschließlich TRIAS-Key und Script-Dateien wurden gelöscht.');
   return true;
 }
 
