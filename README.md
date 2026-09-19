@@ -1,77 +1,95 @@
 # vag-widget
 
-**Development version: v1.1.1**  
+**Development version: v1.1.2**  
 **Stable version: v1.1.0**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API.
 
 ## What it does
 
-The Home Screen widget shows departures for the currently active stop. By default, before any stop has been selected, it falls back to **Bertoldsbrunnen**. A tap opens Scriptable and runs the interactive location flow:
+The Home Screen widget shows departures for the active stop. Without a previous selection it falls back to **Bertoldsbrunnen**. Tapping the widget opens the interactive flow:
 
 ```text
 Home Screen widget
   → GPS location
-  → EFA-BW nearby-stop search
-  → automatic pinned-stop selection OR stop picker
-  → active stop stored in Keychain
-  → optional immediate widget refresh
+  → nearby-stop search
+  → automatic pinned-stop selection or picker
+  → active stop stored
+  → optional widget refresh
   → fullscreen departures
 ```
 
-Pinned stops can be selected automatically when they are within the configured radius (default **200 m**). The picker marks pinned and recently used stops and shows their distance when TRIAS provides usable coordinates. At the bottom of the GPS picker, **Fixierte Haltestellen** opens all pinned stops for direct selection; choosing one uses the same active-stop, widget-refresh and fullscreen flow as a live nearby stop. If GPS or the nearby search fails, the last active stop can be used as a fallback.
+Realtime departures, delays and cancellations are shown when available. Timetable-only departures remain distinguishable from realtime data.
 
 ## Installation
 
-The recommended installation path is **`VagAbfahrten-Init.js`**. Run it once in Scriptable. It installs the runtime and Config scripts and then removes itself.
+Use **`VagAbfahrten-Init.js`** for a new installation. The installer resolves the **latest Stable GitHub Release**, downloads `VagAbfahrten.js` and `VagAbfahrten-Config.js` from that exact release tag, validates their versions and then removes itself after a successful installation.
 
-The installed scripts are:
+This keeps first installation consistent with the default **Stable** update channel. Development code from `main` is only installed after explicitly switching the update channel.
 
-- **`VagAbfahrten.js`** — Home Screen widget, GPS/location flow, TRIAS requests, immediate refresh path and fullscreen view.
-- **`VagAbfahrten-Config.js`** — personal settings, pinned stops and integrated updater.
-
-The TRIAS requestor key can be stored once in the iOS Keychain. It does not need to be kept in the widget parameter.
-
-Updates are resolved from the latest published GitHub Release. The updater downloads the runtime and Config from that exact `vX.Y.Z` tag rather than directly from `main`, so an installed release is reproducible and unreleased `main` changes are never delivered as an update.
+The TRIAS requestor key is stored in the iOS Keychain and does not need to be kept in the widget parameter.
 
 ## Configuration
 
-Run **`VagAbfahrten-Config`** in Scriptable.
+Run **`VagAbfahrten-Config`** in Scriptable. Changes are saved automatically when returning from a configuration submenu.
 
 ### Widget
 
-Configure the number of departures, visible columns, widths, spacing, font sizes and **Widget sofort aktualisieren** after a location change. The refresh uses a second non-interactive execution of `VagAbfahrten.js` with `parameter=refresh`; that path exits before GPS or fullscreen logic.
+Configure departure count, columns, widths, spacing, font sizes, immediate refresh after a location change and whether per-stop filters are applied to the Widget.
 
 ### Fullscreen
 
-Configure the number of departures, visible columns, widths and font size independently of the compact widget.
+Configure departure count, columns, widths, font size and whether per-stop filters are applied to the Fullscreen view.
 
 ### Standort
 
-Configure automatic pinned-stop selection and its radius. The radius is relevant only while automatic selection is enabled. For GPS or TRIAS lookup failures, choose **Last stop**, **🏠 Home**, or **No fallback**. If Home is selected but no Home stop exists, the last active stop is used as a safety fallback.
+Configure automatic selection of a pinned stop and its radius (default **200 m**). For GPS or TRIAS lookup failures, the fallback can use the last stop, **🏠 Home**, or no fallback. If Home is selected but no Home stop exists, the last active stop is used.
 
-### Fixierte Haltestellen
+### Haltestellen
 
-Stops can be pinned from recent history or found through the TRIAS stop search. A pinned stop can have a custom display name. Exactly one pinned stop can additionally be marked as **🏠 Home**. Home is always shown first in the pinned-stop picker and uses the house icon instead of the normal pin.
+Stops can be pinned from recent history or found through TRIAS search. A pinned stop can have a custom display name and a role such as **Home, Work, Love, Pub, Favorite or Transfer**; custom roles can use their own emoji and label. Exactly one pinned stop can be Home.
 
-Personal settings are stored in **`VagAbfahrten.config.json`** in Scriptable's iCloud directory. Runtime and Config await an iCloud download before reading the file. If it is missing or invalid, built-in defaults are used.
+A logical pinned stop can contain multiple TRIAS StopRefs so related platforms or stop points can be queried together. Additional StopRefs can be maintained manually.
+
+Each pinned stop can define optional line and destination filters in **whitelist** or **blacklist** mode. Whether those filters are applied is controlled separately under Widget and Fullscreen.
+
+### Updates
+
+Two update channels are available:
+
+- **Stable** (default) resolves the latest manually published GitHub Release and installs runtime and Config from its exact `vX.Y.Z` tag.
+- **Development** follows `main`. It resolves the current main commit SHA and downloads all managed files from that exact commit.
+
+The updater validates downloaded files before replacing the installed scripts. A successful update relaunches Config so the newly written code becomes active. **Was ist neu?** shows Stable release notes; Development identifies the current main commit.
+
+### Entwickleroptionen
+
+Developer options contain:
+
+- **Diagnose** — privacy-safe status report without key values, StopRefs, stop names or coordinates.
+- **Backup & Wiederherstellung** — exports/imports personal configuration and pinned stops; secrets and transient runtime state are excluded.
+- **Alle Einstellungen zurücksetzen** — restores configuration defaults while retaining pinned stops, history and the TRIAS key.
+- **Recovery · Installation reparieren** — bypasses normal channel checks and restores runtime and Config from the exact current main commit while preserving personal data.
+- **Deinstallieren · Alles löschen** — after explicit confirmation removes configuration, pinned/recent stop data, update provenance, the TRIAS key and the managed scripts from Scriptable iCloud/local storage.
+
+Personal settings are stored in **`VagAbfahrten.config.json`**. Pinned/recent stops and runtime state use Keychain entries.
 
 ## Display and status
 
-Both compact and fullscreen views use realtime data when available. Delays and cancellations are highlighted. Common transport/API failures are translated into concise user-facing messages; the compact widget shows the time of the failed refresh and fullscreen shows the time of the last attempt.
+Both compact and fullscreen views use realtime data when available. Positive delays are shown next to the departure time, timetable-only data is marked separately, and cancelled services remain visible as cancelled. Common transport/API failures are converted into concise user-facing messages.
 
 ## Updates and versioning
 
-Runtime, Config and installer share **`APP_VERSION`**. The Config title shows the installed version.
+Runtime, Config and installer on `main` share **`APP_VERSION`**.
 
-Use **Config → Auf Updates prüfen** to install the current runtime and Config from the GitHub `main` branch. The updater validates downloaded files before replacing local copies and preserves:
+The two README values intentionally mean different things:
 
-- `VagAbfahrten.config.json`
-- the TRIAS Keychain entry
-- the active/last stop
-- pinned and recent stops
+- **Development version** = `APP_VERSION` currently on `main`.
+- **Stable version** = latest published Stable GitHub Release.
 
-Retired helper scripts such as `VagAbfahrten-Display.js` and `VagAbfahrten-Refresh.js` are cleaned from Scriptable storage by the current updater.
+The PR version pipeline automatically bumps and synchronizes **only the Development version** when updater-relevant files change. It does **not** rewrite the Stable version. Stable changes only when a release is deliberately published and the README is updated accordingly.
+
+Stable releases are created manually through the Release workflow. Merging to `main` does not automatically publish a release.
 
 ## Defaults
 
@@ -82,44 +100,31 @@ Retired helper scripts such as `VagAbfahrten-Display.js` and `VagAbfahrten-Refre
 | Automatic pinned stop | On |
 | Automatic-selection radius | 200 m |
 | Location fallback | Last stop |
-| Immediate widget refresh after location change | On |
+| Immediate widget refresh | On |
+| Widget filters | On |
+| Fullscreen filters | On |
+| Update channel | Stable |
 
-TRIAS departure result requests are sized to the configured view and clamped to **1–30** results.
+TRIAS departure requests are sized to the configured view and clamped to **1–30** results.
 
 ## Troubleshooting
 
-If the widget reports that the TRIAS key was rejected, verify the Keychain value. If GPS is unavailable, check Scriptable's Location permission; with the fallback enabled, an existing last stop can still be opened. If EFA-BW cannot be reached or its response cannot be parsed, the UI shows a concise error while location-specific diagnostic dialogs retain additional technical detail.
+If the TRIAS key is rejected, verify the Keychain value. If GPS is unavailable, check Scriptable's Location permission. With an enabled fallback, an existing last/Home stop can still be used.
 
-If an update appears stale, run **Config → Auf Updates prüfen** again. The updater uses cache-busted GitHub downloads and validates all managed files before writing them.
+For updater or installation problems use **Entwickleroptionen → Diagnose** first. **Recovery** is intended for repairing runtime/Config installation problems when the normal updater cannot recover cleanly.
 
 ## Development
 
-Every push to `main` and every pull request runs the GitHub Actions CI pipeline on Node 22 and 24. It performs JavaScript syntax checks, the regression suite, repository/version consistency checks and publishes a JUnit XML report as a workflow artifact. GitHub Actions dependencies are kept current through Dependabot.
+Every push to `main` and every pull request runs CI on **Node 22**. It performs syntax checks, regression tests and repository/version consistency checks and uploads a JUnit XML report. Dependabot keeps GitHub Actions dependencies current.
 
-Run the same regression suite locally with:
+Run the regression suite locally with:
 
 ```sh
 node --test test/*.test.js
 ```
 
-The suite checks important source contracts around TRIAS request construction/parsing, platform extraction, configured result counts, iCloud config loading, location/refresh behavior, updater wiring and user-facing error states.
+The suite covers repository/version contracts, TRIAS request/parsing behavior, platform extraction, configured result counts, location and pinned-stop logic, updater behavior and user-facing error states.
 
 ## License
 
 MIT.
-
-
-### Update channels
-
-The Config offers two update channels. **Stable** (default) installs only the latest manually published GitHub Release. **Development** follows the current `main` branch. Development first resolves the current `main` commit SHA and then downloads all managed files from that exact commit, avoiding mixed revisions while `main` changes. Stable releases are intentionally published manually through the Release workflow; merging to `main` no longer publishes a Stable release automatically.
-
-
-### Stop roles, groups and filters
-
-Pinned stops can be assigned a role such as Home, Work, Love, Pub, Favorite or Transfer. Custom roles can use an individual emoji and label. Exactly one pinned stop can be Home; other roles may be used multiple times.
-
-A pinned stop can contain multiple TRIAS StopRefs. This allows several platforms or stop points belonging to the same logical stop to be queried and displayed together. Additional StopRefs can be maintained manually in Config.
-
-Each pinned stop can optionally define line and destination filters. Filters support whitelist and blacklist mode and can be enabled independently for the Home Screen widget and fullscreen view.
-
-Departure times distinguish realtime data from timetable-only data. Delays are shown next to the departure time, and cancelled services remain visible as cancelled.
