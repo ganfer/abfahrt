@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -75,6 +75,9 @@ const DEFAULT_FULLSCREEN_CONFIG = {
 };
 
 const DEFAULT_FILTER_CONFIG = { widget: true, fullscreen: true };
+const DEFAULT_OFFLINE_CONFIG = { enabled: true, pinned: true, history: true };
+const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/gtfs-data/data/gtfs/';
+const GTFS_CACHE_DIR = 'VagAbfahrten-GTFS';
 
 const DEFAULT_LOCATION_CONFIG = {
   autoSelectSavedStop: true,
@@ -103,6 +106,7 @@ function mergeWidgetConfig(saved) {
       ? s.refreshAfterLocationChange
       : d.refreshAfterLocationChange,
     filters: { ...DEFAULT_FILTER_CONFIG, ...(s.filters || {}) },
+    offline: { ...DEFAULT_OFFLINE_CONFIG, ...(s.offline || {}) },
     location: {
       ...DEFAULT_LOCATION_CONFIG,
       ...(s.fullscreen?.location || {}),
@@ -465,6 +469,96 @@ async function triasPost(body) {
   return text;
 }
 
+
+function canonicalGtfsStopRef(ref) {
+  const parts = String(ref || '').trim().split(':');
+  return parts.length >= 3 ? parts.slice(0, 3).join(':') : String(ref || '').trim();
+}
+
+function gtfsCacheManager() { return FileManager.local(); }
+function gtfsCachePath(name) {
+  const manager = gtfsCacheManager();
+  const dir = manager.joinPath(manager.documentsDirectory(), GTFS_CACHE_DIR);
+  return manager.joinPath(dir, name);
+}
+function readGtfsJson(name) {
+  try {
+    const manager = gtfsCacheManager();
+    const path = gtfsCachePath(name);
+    return manager.fileExists(path) ? JSON.parse(manager.readString(path)) : null;
+  } catch (_) { return null; }
+}
+function gtfsDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}${m}${d}`;
+}
+function gtfsServiceRuns(service, date) {
+  if (!service) return false;
+  const key = gtfsDateKey(date);
+  const exception = (service.exceptions || []).find((item) => item[0] === key);
+  if (exception) return Number(exception[1]) === 1;
+  if (service.start && key < service.start) return false;
+  if (service.end && key > service.end) return false;
+  const weekdays = String(service.weekdays || '0000000');
+  const mondayIndex = (date.getDay() + 6) % 7;
+  return weekdays[mondayIndex] === '1';
+}
+function offlineStopAllowed(stopRefs) {
+  if (!WIDGET_CONFIG.offline?.enabled) return false;
+  const refs = new Set((stopRefs || []).map(canonicalGtfsStopRef));
+  if (WIDGET_CONFIG.offline.pinned) {
+    for (const stop of savedStops().filter((item) => item.pinned === true)) {
+      const stopRefsSaved = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
+      if (stopRefsSaved.some((ref) => refs.has(canonicalGtfsStopRef(ref)))) return true;
+    }
+  }
+  if (WIDGET_CONFIG.offline.history) {
+    for (const stop of recentStops().slice(0, RECENT_STOPS_LIMIT)) {
+      if (refs.has(canonicalGtfsStopRef(stop.stopRef))) return true;
+    }
+  }
+  return false;
+}
+function offlineDepartures(stopRefs, nowMs = Date.now()) {
+  if (!offlineStopAllowed(stopRefs)) return [];
+  const index = readGtfsJson('index.json');
+  if (!index?.stops) return [];
+  const logicalRefs = [...new Set(stopRefs.map(canonicalGtfsStopRef))];
+  const now = new Date(nowMs);
+  const serviceDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const midnight = serviceDate.getTime();
+  const out = [];
+  for (const logicalRef of logicalRefs) {
+    const entry = index.stops[logicalRef];
+    if (!entry?.shard) continue;
+    const shard = readGtfsJson(entry.shard + '.json');
+    const departures = shard?.stops?.[logicalRef] || [];
+    for (const item of departures) {
+      const [seconds, line, destination, serviceId] = item;
+      if (!gtfsServiceRuns(shard.services?.[serviceId], serviceDate)) continue;
+      const plannedTime = midnight + Number(seconds) * 1000;
+      if (plannedTime < nowMs) continue;
+      out.push({
+        stopRef: logicalRef, plannedTime, realtimeTime: null, cancelled: false,
+        line: String(line || ''), destination: String(destination || ''), platform: '', offline: true,
+      });
+    }
+  }
+  return out.sort((a, b) => a.plannedTime - b.plannedTime);
+}
+
+async function fetchDeparturesWithOffline(stopRefs, key, resultLimit = 8) {
+  try {
+    return await fetchDepartures(stopRefs, key, resultLimit);
+  } catch (error) {
+    const fallback = offlineDepartures(stopRefs);
+    if (fallback.length) return fallback.slice(0, Math.max(1, resultLimit));
+    throw error;
+  }
+}
+
 async function fetchDepartures(stopRefs, key, resultLimit = 8) {
   const all = [];
   const errors = [];
@@ -685,7 +779,7 @@ async function defaultWidget(key, present, tapParameter) {
       : 'Bertoldsbrunnen';
 
   try {
-    const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.rows) || 5));
+    const events = await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.rows) || 5));
     const filteredEvents = applyPinnedFilter(events, activePin, 'widget');
     const rows = withDelay(filteredEvents, Date.now());
     const sub = filteredEvents.length
@@ -986,7 +1080,7 @@ async function presentDeparturesTable(key, context = null) {
       : 'Bertoldsbrunnen';
 
   try {
-    const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
+    const events = await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
     const filteredEvents = applyPinnedFilter(events, activePin, 'fullscreen');
     const now = Date.now();
     const rows = filteredEvents
