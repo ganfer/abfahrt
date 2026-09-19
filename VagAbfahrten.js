@@ -753,7 +753,7 @@ function homeStop(pinned = savedStops()) {
 }
 
 function pinnedLabel(stop) {
-  return (stop.home === true ? '🏠 ' : '📌 ') + (stop.home === true ? 'Home' : (stop.displayName || stop.name));
+  return (stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name);
 }
 
 function requestWidgetRefresh() {
@@ -783,7 +783,7 @@ async function fallbackToLastStop(key, diagnostics, reason) {
     const home = homeStop();
     if (home) {
       diagnostics.push('Fallback: Home ✓');
-      rememberStop({ stopRef: home.stopRef, name: 'Home' });
+      rememberStop({ stopRef: home.stopRef, name: home.displayName || home.name });
       requestWidgetRefresh();
       const a = new Alert();
       a.title = 'Standort nicht verfügbar';
@@ -898,7 +898,7 @@ async function nearbyFlow(key) {
     const isRecent = recent.some((s) => sameStop(s, stop));
     const distance = stopDistanceMeters(stop, loc);
     const distanceLabel = distance === null ? '' : ` · ${Math.round(distance)} m`;
-    picker.addAction((pin ? (pin.home === true ? '🏠 ' : '📌 ') : isRecent ? '★ ' : '') + (pin?.home === true ? 'Home' : (pin?.displayName || stop.name)) + distanceLabel);
+    picker.addAction((pin ? (pin.home === true ? '🏠 ' : '📌 ') : isRecent ? '★ ' : '') + (pin?.displayName || stop.name) + distanceLabel);
   }
   const pinnedMenuIndex = stops.length;
   if (pinned.length) picker.addAction('📌 Fixierte Haltestellen');
@@ -928,7 +928,7 @@ async function nearbyFlow(key) {
     selectedPin = orderedPinned[pinnedIdx];
     selected = {
       stopRef: selectedPin.stopRef,
-      name: selectedPin.home === true ? 'Home' : (selectedPin.displayName || selectedPin.name),
+      name: selectedPin.displayName || selectedPin.name,
     };
   } else {
     selected = stops[idx];
