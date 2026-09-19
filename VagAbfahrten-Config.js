@@ -618,6 +618,38 @@ async function downloadUpdateFile(file, releaseTag) {
   return source;
 }
 
+function installedManagedVersions() {
+  const versions = [];
+  for (const file of UPDATE_FILES) {
+    const found = [];
+    for (const target of updateTargets(file.name)) {
+      const path = target.fm.joinPath(target.fm.documentsDirectory(), file.name);
+      if (!target.fm.fileExists(path)) continue;
+      try {
+        const version = versionFromSource(target.fm.readString(path));
+        found.push({ label: target.label, version: version || 'unbekannt' });
+      } catch (_) {
+        found.push({ label: target.label, version: 'unlesbar' });
+      }
+    }
+    versions.push({ file: file.name, copies: found });
+  }
+  return versions;
+}
+
+function managedInstallMatches(version) {
+  const installed = installedManagedVersions();
+  return installed.every((item) =>
+    item.copies.length > 0 && item.copies.every((copy) => copy.version === version)
+  );
+}
+
+function installedVersionSummary() {
+  return installedManagedVersions()
+    .map((item) => `${item.file}: ${item.copies.length ? item.copies.map((copy) => `${copy.label} v${copy.version}`).join(', ') : 'fehlt'}`)
+    .join('\n');
+}
+
 async function configureUpdateChannel(cfg) {
   const a = new Alert();
   a.title = 'Update-Kanal';
@@ -642,15 +674,16 @@ async function updateScripts(cfg) {
     return;
   }
   const remoteVersion = development ? null : source.version;
-  if (!development && compareVersions(remoteVersion, APP_VERSION) <= 0) {
-    await notice('Kein Update verfügbar', `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\nKanal: 🛡 Stable\n\nDu verwendest bereits die aktuelle Stable-Version.`);
+  const stableInstallComplete = development ? false : managedInstallMatches(remoteVersion);
+  if (!development && compareVersions(remoteVersion, APP_VERSION) <= 0 && stableInstallComplete) {
+    await notice('Kein Update verfügbar', `Verfügbar: v${remoteVersion}\nKanal: 🛡 Stable\n\nAlle verwalteten Skripte entsprechen bereits dem aktuellen Stable Release.\n\n${installedVersionSummary()}`);
     return;
   }
   const confirm = new Alert();
   confirm.title = development ? `Development ${source.label} installieren` : `Update v${remoteVersion} verfügbar`;
   confirm.message = development
     ? `Installiert: v${APP_VERSION}\nKanal: 🧪 Development\nCommit: ${source.label}\n\nWidget und Config werden exakt aus diesem main-Commit installiert. Development kann instabil sein.`
-    : `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem veröffentlichten GitHub Release ${source.tag} aktualisiert.`;
+    : `Config: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\n${stableInstallComplete ? '' : 'Die lokale Installation ist unvollständig oder hat unterschiedliche Versionsstände.\n\n'}Widget und Config werden aus dem veröffentlichten GitHub Release ${source.tag} aktualisiert.\n\n${installedVersionSummary()}`;
   confirm.addAction(development ? 'Development installieren' : 'Update installieren');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -669,7 +702,8 @@ async function updateScripts(cfg) {
         written.push(`• ${item.file.name} [${target.label}]`);
       }
     }
-    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
+    if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
+    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
     if (!development && source.notes) await notice(`Was ist neu? · ${source.tag}`, formatReleaseNotes(source.notes));
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
