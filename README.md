@@ -76,7 +76,7 @@ Das temporäre Installationsscript wird automatisch entfernt.
   <img src="docs/assets/install/scriptable-04-finished.svg" alt="Scriptable: abfahrt und abfahrt-config nach der Installation" width="280">
 </p>
 
-Starte anschließend **`abfahrt` einmal direkt in Scriptable** und hinterlege deinen TRIAS-Requestor-Key, wenn du danach gefragt wirst. Danach kannst du auf dem iPhone ein **mittleres Scriptable-Widget** hinzufügen und als Script `abfahrt` auswählen. Das Widget-Parameterfeld kann leer bleiben.
+Starte anschließend **`abfahrt` einmal direkt in Scriptable** und hinterlege deinen TRIAS-Requestor-Key, wenn du danach gefragt wirst. Danach kannst du ein **mittleres oder großes Scriptable-Widget** hinzufügen und als Script `abfahrt` auswählen. Das Widget-Parameterfeld kann leer bleiben. Large und Extra Large nutzen die zusätzliche Fläche automatisch für mehr Abfahrten und Spaltenüberschriften.
 
 > Die gezeigten Scriptable-Ansichten sind vereinfachte Beispielbilder. Je nach iOS- und Scriptable-Version können Positionen oder Symbole leicht abweichen.
 
@@ -111,7 +111,7 @@ Run **`abfahrt-config`** in Scriptable. Changes are saved automatically when ret
 
 ### Widget
 
-Configure departure count, columns, widths, spacing, font sizes, immediate refresh after a location change and whether per-stop filters are applied to the Widget.
+Configure the Medium baseline departure count, columns, widths, spacing, font sizes, immediate refresh after a location change and whether per-stop filters are applied to the Widget. Large and Extra Large widgets automatically add more rows and a compact column header while preserving the same visual language.
 
 ### Vollbild
 

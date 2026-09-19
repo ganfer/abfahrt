@@ -468,7 +468,7 @@ async function configureWidget(cfg) {
   while (true) {
     const a = new Alert();
     a.title = 'Widget konfigurieren';
-    a.message = `${cfg.rows} Abfahrten · kompakte Home-Screen-Ansicht`;
+    a.message = `${cfg.rows} Abfahrten im Medium-Widget · Large und Extra Large zeigen automatisch mehr Abfahrten und Spaltenüberschriften`;
     a.addAction('Anzahl Abfahrten');
     a.addAction('Linie');
     a.addAction('Richtung');
@@ -482,7 +482,7 @@ async function configureWidget(cfg) {
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
-    if (choice === 0) cfg.rows = await askNumber('Anzahl Abfahrten', 'Wie viele Abfahrten sollen angezeigt werden?', cfg.rows, 1, 8);
+    if (choice === 0) cfg.rows = await askNumber('Anzahl Abfahrten', 'Wie viele Abfahrten soll das Medium-Widget anzeigen? Größere Widgets leiten daraus automatisch zusätzliche Zeilen ab.', cfg.rows, 1, 8);
     if (choice === 1) await configureColumn(cfg, 'line', 'Linie');
     if (choice === 2) await configureColumn(cfg, 'destination', 'Richtung');
     if (choice === 3) await configureColumn(cfg, 'platform', 'Gleis');
@@ -553,7 +553,7 @@ function summary(cfg) {
   const columns = Object.keys(names)
     .map((key) => `${names[key]}: ${cfg.columns[key].visible ? cfg.columns[key].width + ' pt' : 'aus'}`)
     .join('\n');
-  return `${cfg.rows} Widget-Abfahrten\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
+  return `${cfg.rows} Medium-Widget-Abfahrten\nLarge/Extra Large: automatisch mehr Zeilen + Spaltenüberschriften\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
 }
 
 
