@@ -547,7 +547,7 @@ function summary(cfg) {
     line: 'Linie',
     destination: 'Richtung',
     platform: 'Gleis',
-    departureTime: 'abfahrt',
+    departureTime: 'Abfahrt',
     countdown: 'Restzeit',
   };
   const columns = Object.keys(names)
@@ -827,14 +827,14 @@ const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF';
 const PENDING_INSTALL_VERSION_KEY = 'ABFAHRT_PENDING_INSTALL_VERSION';
 const PENDING_INSTALLER_NAME_KEY = 'ABFAHRT_PENDING_INSTALLER_NAME';
 
-const INSTALLER_FILE_NAMES = ['abfahrt-Install.js'];
+const INSTALLER_FILE_NAMES = ['abfahrt-install.js'];
 const MANAGED_FILES = [
   {
     name: 'abfahrt.js',
     markers: ["const APP_VERSION = '", "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();'],
   },
   {
-    name: 'abfahrt-Config.js',
+    name: 'abfahrt-config.js',
     markers: ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'abfahrt.config.json';", 'await main();'],
   },
 ];
@@ -1302,9 +1302,9 @@ function storageDiagnosticLines() {
   return [
     `Laufender Code: v${APP_VERSION}`,
     `Script.name(): ${Script.name()}`,
-    'abfahrt-Config.js',
-    inspect('  iCloud', cloud, 'abfahrt-Config.js'),
-    inspect('  Lokal', local, 'abfahrt-Config.js'),
+    'abfahrt-config.js',
+    inspect('  iCloud', cloud, 'abfahrt-config.js'),
+    inspect('  Lokal', local, 'abfahrt-config.js'),
     'abfahrt.js',
     inspect('  iCloud', cloud, 'abfahrt.js'),
     inspect('  Lokal', local, 'abfahrt.js'),
