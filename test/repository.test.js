@@ -19,7 +19,7 @@ test('all managed scripts use the same semantic version', () => {
 });
 test('bootstrap installer is versionsless and Stable-first', () => {
   const installer = read('VagAbfahrten-Install.js');
-  assert.doesNotMatch(installer, /const APP_VERSION =/);
+  assert.doesNotMatch(installer, /^const APP_VERSION\s*=/m);
   assert.match(installer, /releases\/latest/);
   assert.match(installer, /VagAbfahrten-Config\.js/);
   assert.match(installer, /VAG_PENDING_INSTALL_REF/);
@@ -49,6 +49,15 @@ test('README Development version matches scripts', () => {
   const runtimeVersion = version(read('VagAbfahrten.js'));
   const escaped = runtimeVersion.split('.').join('\\.');
   assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
+});
+
+test('release workflow creates checksummed Stable metadata before tagging', () => {
+  const workflow = read('.github/workflows/release.yml');
+  assert.match(workflow, /release-manifest\.json/);
+  assert.match(workflow, /createHash\('sha256'\)/);
+  assert.match(workflow, /git rev-parse HEAD/);
+  assert.match(workflow, /--target "\$TARGET"/);
+  assert.doesNotMatch(workflow, /--target "\$GITHUB_SHA"/);
 });
 
 test('README and screenshot workflow keep the preview contract', () => {
