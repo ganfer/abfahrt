@@ -2,12 +2,10 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.9';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
-const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
-const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULTS = {
   rows: 5,
@@ -559,13 +557,66 @@ const UPDATE_FILES = [
   },
 ];
 
-function updateTargets(fileName) {
+function storageDiagnostics() {
   const cloud = FileManager.iCloud();
   const local = FileManager.local();
-  const targets = [{ label: 'iCloud', fm: cloud }];
-  const localPath = local.joinPath(local.documentsDirectory(), fileName);
-  if (local.fileExists(localPath)) targets.push({ label: 'Lokal', fm: local });
-  return targets;
+  const files = ['VagAbfahrten-Config.js', 'VagAbfahrten.js'];
+
+  function inspect(label, fm, name) {
+    const path = fm.joinPath(fm.documentsDirectory(), name);
+    if (!fm.fileExists(path)) return `${label}: fehlt`;
+    try {
+      if (fm.isFileStoredIniCloud && fm.isFileStoredIniCloud(path) && fm.downloadFileFromiCloud) fm.downloadFileFromiCloud(path);
+      const version = versionFromSource(fm.readString(path));
+      return `${label}: ${version ? 'v' + version : 'Version unbekannt'}`;
+    } catch (e) {
+      return `${label}: vorhanden, nicht lesbar (${e.message})`;
+    }
+  }
+
+  return [
+    'Scriptable Speicherdiagnose',
+    `Laufender Code: v${APP_VERSION}`,
+    `Script.name(): ${Script.name()}`,
+    '',
+    ...files.flatMap((name) => [
+      name,
+      inspect('  iCloud', cloud, name),
+      inspect('  Lokal', local, name),
+    ]),
+  ].join('\n');
+}
+
+async function showStorageDiagnostics() {
+  const report = storageDiagnostics();
+  const a = new Alert();
+  a.title = 'Speicherdiagnose';
+  a.message = report;
+  a.addAction('Kopieren');
+  a.addCancelAction('Schließen');
+  if (await a.present() === 0) {
+    Pasteboard.copyString(report);
+    await notice('Kopiert', 'Die Speicherdiagnose wurde in die Zwischenablage kopiert.');
+  }
+}
+
+function currentScriptFileManager() {
+  const cloud = FileManager.iCloud();
+  const local = FileManager.local();
+  const scriptName = Script.name() + '.js';
+  const cloudPath = cloud.joinPath(cloud.documentsDirectory(), scriptName);
+  const localPath = local.joinPath(local.documentsDirectory(), scriptName);
+
+  // Prefer the storage that contains the currently named Config script.
+  // If both copies exist, Scriptable's iCloud script is the normal source.
+  if (cloud.fileExists(cloudPath)) return { label: 'iCloud', fm: cloud };
+  if (local.fileExists(localPath)) return { label: 'Lokal', fm: local };
+  return { label: 'iCloud', fm: cloud };
+}
+
+function updateTargets(fileName) {
+  const current = currentScriptFileManager();
+  return [{ label: current.label, fm: current.fm }];
 }
 
 function versionFromSource(source) {
@@ -620,6 +671,38 @@ async function downloadUpdateFile(file, releaseTag) {
   return source;
 }
 
+function installedManagedVersions() {
+  const versions = [];
+  for (const file of UPDATE_FILES) {
+    const found = [];
+    for (const target of updateTargets(file.name)) {
+      const path = target.fm.joinPath(target.fm.documentsDirectory(), file.name);
+      if (!target.fm.fileExists(path)) continue;
+      try {
+        const version = versionFromSource(target.fm.readString(path));
+        found.push({ label: target.label, version: version || 'unbekannt' });
+      } catch (_) {
+        found.push({ label: target.label, version: 'unlesbar' });
+      }
+    }
+    versions.push({ file: file.name, copies: found });
+  }
+  return versions;
+}
+
+function managedInstallMatches(version) {
+  const installed = installedManagedVersions();
+  return installed.every((item) =>
+    item.copies.length > 0 && item.copies.every((copy) => copy.version === version)
+  );
+}
+
+function installedVersionSummary() {
+  return installedManagedVersions()
+    .map((item) => `${item.file}: ${item.copies.length ? item.copies.map((copy) => `${copy.label} v${copy.version}`).join(', ') : 'fehlt'}`)
+    .join('\n');
+}
+
 async function configureUpdateChannel(cfg) {
   const a = new Alert();
   a.title = 'Update-Kanal';
@@ -644,15 +727,16 @@ async function updateScripts(cfg) {
     return;
   }
   const remoteVersion = development ? null : source.version;
-  if (!development && compareVersions(remoteVersion, APP_VERSION) <= 0) {
-    await notice('Kein Update verfügbar', `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\nKanal: 🛡 Stable\n\nDu verwendest bereits die aktuelle Stable-Version.`);
+  const stableInstallComplete = development ? false : managedInstallMatches(remoteVersion);
+  if (!development && compareVersions(remoteVersion, APP_VERSION) <= 0 && stableInstallComplete) {
+    await notice('Kein Update verfügbar', `Verfügbar: v${remoteVersion}\nKanal: 🛡 Stable\n\nAlle verwalteten Skripte entsprechen bereits dem aktuellen Stable Release.\n\n${installedVersionSummary()}`);
     return;
   }
   const confirm = new Alert();
   confirm.title = development ? `Development ${source.label} installieren` : `Update v${remoteVersion} verfügbar`;
   confirm.message = development
     ? `Installiert: v${APP_VERSION}\nKanal: 🧪 Development\nCommit: ${source.label}\n\nWidget und Config werden exakt aus diesem main-Commit installiert. Development kann instabil sein.`
-    : `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem veröffentlichten GitHub Release ${source.tag} aktualisiert.`;
+    : `Config: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\n${stableInstallComplete ? '' : 'Die lokale Installation ist unvollständig oder hat unterschiedliche Versionsstände.\n\n'}Widget und Config werden aus dem veröffentlichten GitHub Release ${source.tag} aktualisiert.\n\n${installedVersionSummary()}`;
   confirm.addAction(development ? 'Development installieren' : 'Update installieren');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -671,7 +755,8 @@ async function updateScripts(cfg) {
         written.push(`• ${item.file.name} [${target.label}]`);
       }
     }
-    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
+    if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
+    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
     if (!development && source.notes) await notice(`Was ist neu? · ${source.tag}`, formatReleaseNotes(source.notes));
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
@@ -717,6 +802,7 @@ async function configureUpdates(cfg) {
     a.addAction('Update-Kanal');
     a.addAction('Auf Updates prüfen');
     a.addAction('Was ist neu?');
+  a.addAction('Speicherdiagnose');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -727,20 +813,20 @@ async function configureUpdates(cfg) {
       return;
     }
     if (choice === 2) await showWhatsNew(cfg);
+  if (choice === 3) await showStorageDiagnostics();
   }
 }
 
 function diagnosticSnapshot(cfg) {
-  const pinned = savedStops().filter((s) => s.pinned === true);
+  const pinned = savedStops().filter((stop) => stop.pinned === true);
   const hasKey = Keychain.contains('TRIAS_REQUESTOR_REF') && Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
-  const hasLastStop = Keychain.contains(LAST_STOP_REF_KEY) && Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
+  const hasLastStop = Keychain.contains('VAG_LAST_STOP_REF') && Keychain.get('VAG_LAST_STOP_REF').trim() !== '';
   return {
-    version: APP_VERSION,
     channel: cfg.updates.channel === 'development' ? 'Development' : 'Stable',
     key: hasKey ? 'vorhanden' : 'fehlt',
     lastStop: hasLastStop ? 'vorhanden' : 'nicht gesetzt',
     pinned: pinned.length,
-    home: pinned.some((s) => s.home === true) ? 'gesetzt' : 'nicht gesetzt',
+    home: pinned.some((stop) => stop.home === true) ? 'gesetzt' : 'nicht gesetzt',
   };
 }
 
@@ -757,13 +843,38 @@ async function probeEndpoint(url, headers = {}) {
   }
 }
 
+function storageDiagnosticLines() {
+  const cloud = FileManager.iCloud();
+  const local = FileManager.local();
+  const inspect = (label, fm, name) => {
+    const path = fm.joinPath(fm.documentsDirectory(), name);
+    if (!fm.fileExists(path)) return `${label}: fehlt`;
+    try {
+      const version = versionFromSource(fm.readString(path));
+      return `${label}: ${version ? 'v' + version : 'Version unbekannt'}`;
+    } catch (_) {
+      return `${label}: vorhanden, nicht lesbar`;
+    }
+  };
+  return [
+    `Laufender Code: v${APP_VERSION}`,
+    `Script.name(): ${Script.name()}`,
+    'VagAbfahrten-Config.js',
+    inspect('  iCloud', cloud, 'VagAbfahrten-Config.js'),
+    inspect('  Lokal', local, 'VagAbfahrten-Config.js'),
+    'VagAbfahrten.js',
+    inspect('  iCloud', cloud, 'VagAbfahrten.js'),
+    inspect('  Lokal', local, 'VagAbfahrten.js'),
+  ];
+}
+
 async function buildDiagnostics(cfg) {
   const d = diagnosticSnapshot(cfg);
   const github = await probeEndpoint(RELEASE_API_URL, { Accept: 'application/vnd.github+json' });
   const trias = await probeEndpoint(TRIAS_ENDPOINT);
   return [
     'VAG Widget Diagnose',
-    `Version: v${d.version}`,
+    ...storageDiagnosticLines(),
     `Update-Kanal: ${d.channel}`,
     `TRIAS-Key: ${d.key}`,
     `TRIAS-Endpunkt: ${trias}`,
@@ -781,10 +892,9 @@ async function configureDiagnostics(cfg) {
   a.message = report;
   a.addAction('Diagnose kopieren');
   a.addCancelAction('Zurück');
-  const choice = await a.present();
-  if (choice === 0) {
+  if (await a.present() === 0) {
     Pasteboard.copyString(report);
-    await notice('Diagnose kopiert', 'Der bereinigte Diagnosebericht wurde in die Zwischenablage kopiert. Keys, Stop-IDs, Haltestellennamen und Koordinaten werden nicht ausgegeben.');
+    await notice('Diagnose kopiert', 'Der Diagnosebericht wurde kopiert. Keys, Stop-IDs, Haltestellennamen und Koordinaten werden nicht ausgegeben.');
   }
 }
 
