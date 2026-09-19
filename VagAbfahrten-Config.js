@@ -29,7 +29,6 @@ const DEFAULTS = {
     },
     fontSize: 16,
     location: {
-      autoRefreshOnOpen: false,
       autoSelectSavedStop: true,
     },
   },
@@ -389,7 +388,6 @@ async function configureFullscreen(cfg) {
     a.addAction('Abfahrtszeit');
     a.addAction('Restzeit');
     a.addAction('Schriftgröße');
-    a.addAction(`Standort beim Öffnen: ${cfg.fullscreen.location.autoRefreshOnOpen ? 'AN' : 'AUS'}`);
     a.addAction(`Fixierte Haltestelle automatisch: ${cfg.fullscreen.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
@@ -409,8 +407,7 @@ async function configureFullscreen(cfg) {
       if (sub === 1) col.width = await askNumber(labels[key] + ' – Breite', 'Breite in Pixeln für die Fullscreen-Tabelle.', col.width, 40, 400);
     }
     if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Fullscreen – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
-    if (choice === 7) cfg.fullscreen.location.autoRefreshOnOpen = !cfg.fullscreen.location.autoRefreshOnOpen;
-    if (choice === 8) cfg.fullscreen.location.autoSelectSavedStop = !cfg.fullscreen.location.autoSelectSavedStop;
+    if (choice === 7) cfg.fullscreen.location.autoSelectSavedStop = !cfg.fullscreen.location.autoSelectSavedStop;
   }
 }
 
