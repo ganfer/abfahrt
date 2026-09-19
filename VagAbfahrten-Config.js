@@ -618,47 +618,49 @@ async function downloadUpdateFile(file, releaseTag) {
   return source;
 }
 
-async function updateScripts() {
-  let release;
+async function configureUpdateChannel(cfg) {
+  const a = new Alert();
+  a.title = 'Update-Kanal';
+  a.message = cfg.updates.channel === 'development'
+    ? 'Aktuell: 🧪 Development\nNeuester Stand von main. Kann instabil sein.'
+    : 'Aktuell: 🛡 Stable\nNur veröffentlichte GitHub Releases.';
+  a.addAction('🛡 Stable' + (cfg.updates.channel === 'stable' ? ' ✓' : ''));
+  a.addAction('🧪 Development' + (cfg.updates.channel === 'development' ? ' ✓' : ''));
+  a.addCancelAction('Zurück');
+  const choice = await a.present();
+  if (choice === 0) cfg.updates.channel = 'stable';
+  if (choice === 1) cfg.updates.channel = 'development';
+}
+
+async function updateScripts(cfg) {
+  const development = cfg.updates.channel === 'development';
+  let source;
   try {
-    release = await latestRelease();
+    source = development ? await latestDevelopment() : await latestRelease();
   } catch (e) {
-    await notice('Update-Prüfung fehlgeschlagen', 'Das neueste GitHub Release konnte nicht ermittelt werden.\n\n' + e.message);
+    await notice('Update-Prüfung fehlgeschlagen', (development ? 'Der aktuelle Development-Stand' : 'Das neueste GitHub Release') + ' konnte nicht ermittelt werden.\n\n' + e.message);
     return;
   }
-  const remoteVersion = release.version;
-
-  const comparison = compareVersions(remoteVersion, APP_VERSION);
-  if (comparison <= 0) {
-    await notice(
-      'Kein Update verfügbar',
-      `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nDu verwendest bereits die aktuelle Version.`,
-    );
+  const remoteVersion = development ? null : source.version;
+  if (!development && compareVersions(remoteVersion, APP_VERSION) <= 0) {
+    await notice('Kein Update verfügbar', `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\nKanal: 🛡 Stable\n\nDu verwendest bereits die aktuelle Stable-Version.`);
     return;
   }
-
   const confirm = new Alert();
-  confirm.title = `Update v${remoteVersion} verfügbar`;
-  confirm.message = `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem veröffentlichten GitHub Release ${release.tag} aktualisiert. Deine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
-  confirm.addAction('Update installieren');
+  confirm.title = development ? `Development ${source.label} installieren` : `Update v${remoteVersion} verfügbar`;
+  confirm.message = development
+    ? `Installiert: v${APP_VERSION}\nKanal: 🧪 Development\nCommit: ${source.label}\n\nWidget und Config werden exakt aus diesem main-Commit installiert. Development kann instabil sein.`
+    : `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem veröffentlichten GitHub Release ${source.tag} aktualisiert.`;
+  confirm.addAction(development ? 'Development installieren' : 'Update installieren');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
-
   try {
-    // Validate all managed files before replacing anything. File identity is
-    // checked with explicit markers instead of an arbitrary minimum size.
+    const ref = development ? source.ref : source.tag;
     const downloads = [];
-    for (const file of UPDATE_FILES) {
-      downloads.push({ file, source: await downloadUpdateFile(file, release.tag) });
-    }
-
-    const downloadedVersions = downloads
-      .map((item) => versionFromSource(item.source))
-      .filter(Boolean);
-    if (!downloadedVersions.length || downloadedVersions.some((version) => version !== remoteVersion)) {
-      throw new Error('Die heruntergeladenen Skripte haben unterschiedliche Versionsstände.');
-    }
-
+    for (const file of UPDATE_FILES) downloads.push({ file, source: await downloadUpdateFile(file, ref) });
+    const downloadedVersions = downloads.map((item) => versionFromSource(item.source)).filter(Boolean);
+    if (!downloadedVersions.length || downloadedVersions.some((version) => version !== downloadedVersions[0])) throw new Error('Die heruntergeladenen Skripte haben unterschiedliche Versionsstände.');
+    if (!development && downloadedVersions[0] !== remoteVersion) throw new Error('Die Release-Dateien passen nicht zur veröffentlichten Version.');
     const written = [];
     for (const item of downloads) {
       for (const target of updateTargets(item.file.name)) {
@@ -667,23 +669,28 @@ async function updateScripts() {
         written.push(`• ${item.file.name} [${target.label}]`);
       }
     }
-
-    for (const store of [FileManager.iCloud(), FileManager.local()]) {
-      for (const retired of ['VagAbfahrten-Display.js', 'VagAbfahrten-Refresh.js']) {
-        const oldPath = store.joinPath(store.documentsDirectory(), retired);
-        if (store.fileExists(oldPath)) {
-          store.remove(oldPath);
-          written.push(`• ${retired} entfernt`);
-        }
-      }
-    }
-
-    await notice(
-      'Update abgeschlossen',
-      `Version v${remoteVersion} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.',
-    );
+    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
+  }
+}
+
+async function configureUpdates(cfg) {
+  while (true) {
+    const a = new Alert();
+    a.title = 'Updates';
+    a.message = `Installiert: v${APP_VERSION}\nKanal: ${cfg.updates.channel === 'development' ? '🧪 Development' : '🛡 Stable'}`;
+    a.addAction('Update-Kanal');
+    a.addAction('Auf Updates prüfen');
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) await configureUpdateChannel(cfg);
+    if (choice === 1) {
+      await save(cfg);
+      await updateScripts(cfg);
+      return;
+    }
   }
 }
 
@@ -700,8 +707,7 @@ async function main() {
     menu.addAction('Fullscreen');
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
-    menu.addAction(`Update-Kanal · ${cfg.updates.channel === 'development' ? '🧪 Development' : '🛡 Stable'}`);
-    menu.addAction('Auf Updates prüfen');
+    menu.addAction('Updates');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -712,17 +718,12 @@ async function main() {
     if (choice === 1) await configureFullscreen(cfg);
     if (choice === 2) await configureLocation(cfg);
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) await configureUpdateChannel(cfg);
+    if (choice === 4) await configureUpdates(cfg);
     if (choice === 5) {
       await save(cfg);
-      await updateScripts(cfg);
       break;
     }
     if (choice === 6) {
-      await save(cfg);
-      break;
-    }
-    if (choice === 7) {
       await reset();
       break;
     }
