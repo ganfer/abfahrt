@@ -57,18 +57,28 @@ jobs:
         env:
           UPSTREAM: ${{ steps.upstream.outputs.value }}
           PUBLISHED: ${{ steps.published.outputs.value }}
+          BEFORE: ${{ github.event.before }}
         shell: bash
         run: |
           SCHEMA="$(git show origin/gtfs-data:data/gtfs/manifest.json 2>/dev/null \
             | python3 -c 'import json,sys; print(json.load(sys.stdin).get("schemaVersion",""))' \
             || true)"
           EXPECTED_SCHEMA="$(python3 -c 'import re,pathlib; text=pathlib.Path("scripts/build-gtfs.py").read_text(); match=re.search(r"^SCHEMA_VERSION\s*=\s*(\d+)", text, re.MULTILINE); print(match.group(1) if match else "")')"
-          if [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ] && [ -n "$EXPECTED_SCHEMA" ] && [ "$SCHEMA" = "$EXPECTED_SCHEMA" ]; then
+          BUILDER_CHANGED=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            ZERO_SHA="0000000000000000000000000000000000000000"
+            if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "$ZERO_SHA" ]; then
+              BUILDER_CHANGED=true
+            elif ! git diff --quiet "$BEFORE" "$GITHUB_SHA" -- scripts/build-gtfs.py; then
+              BUILDER_CHANGED=true
+            fi
+          fi
+          if [ "$BUILDER_CHANGED" = "false" ] && [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ] && [ -n "$EXPECTED_SCHEMA" ] && [ "$SCHEMA" = "$EXPECTED_SCHEMA" ]; then
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "Published GTFS snapshot already matches upstream import and schema $EXPECTED_SCHEMA."
           else
             echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "Rebuild required (upstream=$UPSTREAM, published=$PUBLISHED, schema=$SCHEMA, expected=$EXPECTED_SCHEMA)."
+            echo "Rebuild required (builderChanged=$BUILDER_CHANGED, upstream=$UPSTREAM, published=$PUBLISHED, schema=$SCHEMA, expected=$EXPECTED_SCHEMA)."
           fi
 
       - name: Download GTFS
