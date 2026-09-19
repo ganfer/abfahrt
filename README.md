@@ -31,6 +31,8 @@ The installed scripts are:
 
 The TRIAS requestor key can be stored once in the iOS Keychain. It does not need to be kept in the widget parameter.
 
+Updates are resolved from the latest published GitHub Release. The updater downloads the runtime and Config from that exact `vX.Y.Z` tag rather than directly from `main`, so an installed release is reproducible and unreleased `main` changes are never delivered as an update.
+
 ## Configuration
 
 Run **`VagAbfahrten-Config`** in Scriptable.
