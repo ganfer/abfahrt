@@ -602,8 +602,12 @@ function offlineWantedStops(cfg) {
 }
 function formatOfflineTimestamp(value) {
   if (!value || value === 'keine Daten' || value === 'unbekannt') return value || 'keine Daten';
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return String(value);
+  let normalized = value;
+  if (typeof normalized === 'string' && normalized.startsWith('"') && normalized.endsWith('"')) {
+    try { normalized = JSON.parse(normalized); } catch (_) {}
+  }
+  const date = new Date(normalized);
+  if (!Number.isFinite(date.getTime())) return String(normalized);
   return date.toLocaleString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -626,15 +630,23 @@ async function syncOfflineData(cfg) {
     const found = wanted.filter((ref) => index.value.stops?.[ref]);
     const missing = wantedEntries.filter((item) => !index.value.stops?.[item.ref]);
     const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
+    const downloads = [];
+    for (const shard of shards) downloads.push([shard, await downloadJson(GTFS_RAW_BASE_URL + shard + '.json')]);
+
+    // Keep the previous cache untouched until every required shard is available.
     const manager = offlineManager();
     ensureOfflineDir();
-    manager.writeString(offlineFile('manifest.json'), manifest.raw);
+    const localManifest = {
+      ...manifest.value,
+      localSyncedAt: new Date().toISOString(),
+      localRequestedStops: [...wanted],
+    };
+    manager.writeString(offlineFile('manifest.json'), JSON.stringify(localManifest));
     manager.writeString(offlineFile('index.json'), JSON.stringify({
       schemaVersion: index.value.schemaVersion,
       stops: Object.fromEntries(found.map((ref) => [ref, index.value.stops[ref]])),
     }));
-    for (const shard of shards) {
-      const data = await downloadJson(GTFS_RAW_BASE_URL + shard + '.json');
+    for (const [shard, data] of downloads) {
       manager.writeString(offlineFile(shard + '.json'), data.raw);
     }
     const keep = new Set(['manifest.json', 'index.json', ...shards.map((s) => s + '.json')]);
@@ -645,7 +657,7 @@ async function syncOfflineData(cfg) {
     const missingText = missing.length
       ? '\n\nNicht zugeordnet (' + missing.length + '):\n' + missing.map((item) => '• ' + item.name + ' [' + item.ref + ']').join('\n')
       : '';
-    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} gespeicherte Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
+    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} Haltestellen-IDs verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
   } catch (e) {
     await notice('Offline-Update fehlgeschlagen', 'Die bisherigen Offline-Daten bleiben erhalten.\n\n' + e.message);
   }
@@ -661,14 +673,14 @@ function offlineStatus(cfg) {
   const wanted = offlineWantedStops(cfg);
   const available = wanted.filter((ref) => index?.stops?.[ref]).length;
   const stamp = formatOfflineTimestamp(manifest?.sourceImportedAt || manifest?.generatedAt || 'keine Daten');
-  return { wanted: wanted.length, available, stamp };
+  return { wanted: wanted.length, available, stamp, schemaVersion: manifest?.schemaVersion || null };
 }
 async function configureOffline(cfg) {
   while (true) {
     const status = offlineStatus(cfg);
     const a = new Alert();
     a.title = 'Offline-Fahrplan';
-    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nZuletzt verwendet (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
+    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nZuletzt verwendet (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nOffline-Zuordnungen: ${status.available}/${status.wanted}\nDatenformat: ${status.schemaVersion ? 'v' + status.schemaVersion : 'keine Daten'}\nDatenstand: ${status.stamp}`;
     a.addAction(`Offline-Fahrplan ${cfg.offline.enabled ? 'ausschalten' : 'einschalten'}`);
     a.addAction(`Angepinnte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
     a.addAction(`Zuletzt verwendete: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
@@ -735,6 +747,7 @@ async function importConfig() {
     ...backup.config,
     updates: { ...DEFAULTS.updates, ...(backup.config.updates || {}) },
     filters: { ...DEFAULTS.filters, ...(backup.config.filters || {}) },
+    offline: { ...DEFAULTS.offline, ...(backup.config.offline || {}) },
     location: { ...DEFAULTS.location, ...(backup.config.location || {}) },
     columns: Object.fromEntries(Object.entries(DEFAULTS.columns).map(([key, value]) => [key, { ...value, ...(backup.config.columns?.[key] || {}) }])),
     spacing: { ...DEFAULTS.spacing, ...(backup.config.spacing || {}) },
@@ -767,7 +780,7 @@ async function configureBackup(cfg) {
 async function reset() {
   if (fm.fileExists(configPath)) fm.remove(configPath);
   await deleteOfflineData(false);
-  await notice('Zurückgesetzt', 'Die persönliche Konfiguration wurde gelöscht. Das Widget verwendet wieder die Standardwerte.');
+  await notice('Zurückgesetzt', 'Die persönliche Konfiguration und der lokale Offline-Cache wurden gelöscht. Angepinnte und zuletzt verwendete Haltestellen sowie der TRIAS-Key bleiben erhalten.');
 }
 
 
@@ -1017,12 +1030,18 @@ async function configureUpdates(cfg) {
 
 function diagnosticSnapshot(cfg) {
   const pinned = savedStops().filter((stop) => stop.pinned === true);
+  const offline = offlineStatus(cfg);
   return {
     channel: cfg.updates.channel === 'development' ? 'Development' : 'Stable',
     key: Keychain.contains('TRIAS_REQUESTOR_REF') && Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '' ? 'vorhanden' : 'fehlt',
     lastStop: Keychain.contains('VAG_LAST_STOP_REF') && Keychain.get('VAG_LAST_STOP_REF').trim() !== '' ? 'vorhanden' : 'nicht gesetzt',
     pinned: pinned.length,
+    recent: recentStops().length,
     home: pinned.some((stop) => stop.home === true) ? 'gesetzt' : 'nicht gesetzt',
+    offlineEnabled: cfg.offline?.enabled ? 'an' : 'aus',
+    offlineAvailable: `${offline.available}/${offline.wanted}`,
+    offlineSchema: offline.schemaVersion ? 'v' + offline.schemaVersion : 'keine Daten',
+    offlineStamp: offline.stamp,
   };
 }
 
@@ -1077,7 +1096,12 @@ async function buildDiagnostics(cfg) {
     `GitHub/Updater: ${github}`,
     `Letzte Haltestelle: ${d.lastStop}`,
     `Angepinnte Haltestellen: ${d.pinned}`,
+    `Zuletzt verwendete Haltestellen: ${d.recent}`,
     `Home: ${d.home}`,
+    `Offline-Fahrplan: ${d.offlineEnabled}`,
+    `Offline-Zuordnungen: ${d.offlineAvailable}`,
+    `Offline-Datenformat: ${d.offlineSchema}`,
+    `Offline-Datenstand: ${d.offlineStamp}`,
   ].join('\n');
 }
 
@@ -1152,9 +1176,17 @@ async function uninstall() {
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() !== 0) return false;
 
-  const keychainKeys = ['TRIAS_REQUESTOR_REF', SAVED_STOPS_KEY, RECENT_STOPS_KEY, DEVELOPMENT_REF_KEY];
+  const keychainKeys = [
+    'TRIAS_REQUESTOR_REF',
+    'VAG_LAST_STOP_REF',
+    'VAG_LAST_STOP_NAME',
+    SAVED_STOPS_KEY,
+    RECENT_STOPS_KEY,
+    DEVELOPMENT_REF_KEY,
+  ];
   for (const key of keychainKeys) if (Keychain.contains(key)) Keychain.remove(key);
   if (fm.fileExists(configPath)) fm.remove(configPath);
+  await deleteOfflineData(false);
 
   for (const manager of [FileManager.iCloud(), FileManager.local()]) {
     for (const file of ['VagAbfahrten.js', 'VagAbfahrten-Config.js', 'VagAbfahrten-Init.js']) {
