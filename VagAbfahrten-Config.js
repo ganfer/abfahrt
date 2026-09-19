@@ -6,6 +6,8 @@ const APP_VERSION = '1.0.6';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
+const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
+const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULTS = {
   rows: 5,
@@ -728,6 +730,64 @@ async function configureUpdates(cfg) {
   }
 }
 
+function diagnosticSnapshot(cfg) {
+  const pinned = savedStops().filter((s) => s.pinned === true);
+  const hasKey = Keychain.contains('TRIAS_REQUESTOR_REF') && Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
+  const hasLastStop = Keychain.contains(LAST_STOP_REF_KEY) && Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
+  return {
+    version: APP_VERSION,
+    channel: cfg.updates.channel === 'development' ? 'Development' : 'Stable',
+    key: hasKey ? 'vorhanden' : 'fehlt',
+    lastStop: hasLastStop ? 'vorhanden' : 'nicht gesetzt',
+    pinned: pinned.length,
+    home: pinned.some((s) => s.home === true) ? 'gesetzt' : 'nicht gesetzt',
+  };
+}
+
+async function probeEndpoint(url, headers = {}) {
+  try {
+    const req = new Request(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
+    req.timeoutInterval = 8;
+    req.headers = headers;
+    await req.loadString();
+    const status = req.response ? req.response.statusCode : 0;
+    return status >= 200 && status < 500 ? `erreichbar (HTTP ${status})` : `Fehler (HTTP ${status || '?'})`;
+  } catch (_) {
+    return 'nicht erreichbar';
+  }
+}
+
+async function buildDiagnostics(cfg) {
+  const d = diagnosticSnapshot(cfg);
+  const github = await probeEndpoint(RELEASE_API_URL, { Accept: 'application/vnd.github+json' });
+  const trias = await probeEndpoint(TRIAS_ENDPOINT);
+  return [
+    'VAG Widget Diagnose',
+    `Version: v${d.version}`,
+    `Update-Kanal: ${d.channel}`,
+    `TRIAS-Key: ${d.key}`,
+    `TRIAS-Endpunkt: ${trias}`,
+    `GitHub/Updater: ${github}`,
+    `Letzte Haltestelle: ${d.lastStop}`,
+    `Fixierte Haltestellen: ${d.pinned}`,
+    `Home: ${d.home}`,
+  ].join('\n');
+}
+
+async function configureDiagnostics(cfg) {
+  const report = await buildDiagnostics(cfg);
+  const a = new Alert();
+  a.title = 'Diagnose';
+  a.message = report;
+  a.addAction('Diagnose kopieren');
+  a.addCancelAction('Zurück');
+  const choice = await a.present();
+  if (choice === 0) {
+    Pasteboard.copyString(report);
+    await notice('Diagnose kopiert', 'Der bereinigte Diagnosebericht wurde in die Zwischenablage kopiert. Keys, Stop-IDs, Haltestellennamen und Koordinaten werden nicht ausgegeben.');
+  }
+}
+
 async function main() {
   const cfg = await loadConfig();
 
@@ -742,6 +802,7 @@ async function main() {
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
     menu.addAction('Updates');
+    menu.addAction('Diagnose');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -753,11 +814,12 @@ async function main() {
     if (choice === 2) await configureLocation(cfg);
     if (choice === 3) await managePinnedStops();
     if (choice === 4) await configureUpdates(cfg);
-    if (choice === 5) {
+    if (choice === 5) await configureDiagnostics(cfg);
+    if (choice === 6) {
       await save(cfg);
       break;
     }
-    if (choice === 6) {
+    if (choice === 7) {
       await reset();
       break;
     }
