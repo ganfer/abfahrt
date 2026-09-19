@@ -547,9 +547,8 @@ function offlineCacheNeedsUpdate(wanted) {
   const manifest = readGtfsJson('manifest.json');
   const index = readGtfsJson('index.json');
   if (!manifest || !index?.stops) return true;
-  if (wanted.some((ref) => !index.stops[ref])) return true;
-  const cached = Object.keys(index.stops).sort().join('|');
-  if (cached !== [...wanted].sort().join('|')) return true;
+  const requested = Array.isArray(manifest.requestedStopRefs) ? [...manifest.requestedStopRefs].sort() : null;
+  if (!requested || requested.join('|') !== [...wanted].sort().join('|')) return true;
   const checkedAt = Date.parse(manifest.localSyncedAt || '');
   return !Number.isFinite(checkedAt) || Date.now() - checkedAt >= 24 * 60 * 60 * 1000;
 }
@@ -570,7 +569,12 @@ async function autoSyncOfflineData() {
     const manager = gtfsCacheManager();
     const dir = manager.joinPath(manager.documentsDirectory(), GTFS_CACHE_DIR);
     if (!manager.fileExists(dir)) manager.createDirectory(dir, true);
-    const localManifest = { ...manifest.value, localSyncedAt: new Date().toISOString() };
+    const localManifest = {
+      ...manifest.value,
+      localSyncedAt: new Date().toISOString(),
+      requestedStopRefs: [...wanted].sort(),
+      missingStopRefs: wanted.filter((ref) => !index.value.stops?.[ref]).sort(),
+    };
     manager.writeString(gtfsCachePath('manifest.json'), JSON.stringify(localManifest));
     manager.writeString(gtfsCachePath('index.json'), JSON.stringify({
       schemaVersion: index.value.schemaVersion,
@@ -593,28 +597,36 @@ function offlineDepartures(stopRefs, nowMs = Date.now()) {
   if (!index?.stops) return [];
   const logicalRefs = [...new Set(stopRefs.map(canonicalGtfsStopRef))];
   const now = new Date(nowMs);
-  const serviceDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const midnight = serviceDate.getTime();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  const serviceDates = [today, yesterday];
   const out = [];
+  const seen = new Set();
   for (const logicalRef of logicalRefs) {
     const entry = index.stops[logicalRef];
     if (!entry?.shard) continue;
     const shard = readGtfsJson(entry.shard + '.json');
     const departures = shard?.stops?.[logicalRef] || [];
-    for (const item of departures) {
-      const [seconds, line, destination, serviceId] = item;
-      if (!gtfsServiceRuns(shard.services?.[serviceId], serviceDate)) continue;
-      const plannedTime = midnight + Number(seconds) * 1000;
-      if (plannedTime < nowMs) continue;
-      out.push({
-        stopRef: logicalRef, plannedTime, realtimeTime: null, cancelled: false,
-        line: String(line || ''), destination: String(destination || ''), platform: '', offline: true,
-      });
+    for (const serviceDate of serviceDates) {
+      if (!serviceDate) continue;
+      const midnight = serviceDate.getTime();
+      for (const item of departures) {
+        const [seconds, line, destination, serviceId] = item;
+        if (!gtfsServiceRuns(shard.services?.[serviceId], serviceDate)) continue;
+        const plannedTime = midnight + Number(seconds) * 1000;
+        if (plannedTime < nowMs) continue;
+        const key = [logicalRef, plannedTime, line, destination, serviceId].join('|');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          stopRef: logicalRef, plannedTime, realtimeTime: null, cancelled: false,
+          line: String(line || ''), destination: String(destination || ''), platform: '', offline: true,
+        });
+      }
     }
   }
   return out.sort((a, b) => a.plannedTime - b.plannedTime);
 }
-
 async function fetchDeparturesWithOffline(stopRefs, key, resultLimit = 8) {
   try {
     return await fetchDepartures(stopRefs, key, resultLimit);
@@ -915,7 +927,7 @@ function stopRole(stop) {
   if (stop.home === true || stop.role === 'home') return { icon: '🏠', label: 'Home' };
   const roles = { work: ['💼','Arbeit'], love: ['❤️','Love'], pub: ['🍺','Kneipe'], favorite: ['⭐️','Favorit'], transfer: ['🚉','Umstieg'] };
   if (stop.role === 'custom') return { icon: stop.roleIcon || '📍', label: stop.roleLabel || 'Eigene Rolle' };
-  const role = roles[stop.role] || ['📌','Fixiert']; return { icon: role[0], label: role[1] };
+  const role = roles[stop.role] || ['📌','Angepinnt']; return { icon: role[0], label: role[1] };
 }
 function activePinnedStop(stopRef, pinned = savedStops()) { return pinned.find((stop) => stop.pinned === true && stopRefsFor(stop).includes(stopRef)) || null; }
 function eventMatchesFilter(event, stop) {
@@ -1076,7 +1088,7 @@ async function nearbyFlow(key) {
 
   const picker = new Alert();
   picker.title = 'Haltestelle wählen';
-  picker.message = 'GPS ±100 m · 📌 fixiert · ★ zuletzt verwendet';
+  picker.message = 'GPS ±100 m · 📌 angepinnt · ★ zuletzt verwendet';
   for (const stop of stops) {
     const pin = pinnedStopFor(stop, pinned);
     const isRecent = recent.some((s) => sameStop(s, stop));
@@ -1085,7 +1097,7 @@ async function nearbyFlow(key) {
     picker.addAction((pin ? (pin.home === true ? '🏠 ' : '📌 ') : isRecent ? '★ ' : '') + (pin?.displayName || stop.name) + distanceLabel);
   }
   const pinnedMenuIndex = stops.length;
-  if (pinned.length) picker.addAction('📌 Fixierte Haltestellen');
+  if (pinned.length) picker.addAction('📌 Angepinnte Haltestellen');
   picker.addCancelAction('Abbrechen');
   const idx = await picker.present();
   if (idx === -1) {
@@ -1098,7 +1110,7 @@ async function nearbyFlow(key) {
   if (pinned.length && idx === pinnedMenuIndex) {
     const pinnedPicker = new Alert();
     pinnedPicker.title = 'Fixierte Haltestellen';
-    pinnedPicker.message = 'Wähle eine fixierte Haltestelle.';
+    pinnedPicker.message = 'Wähle eine angepinnte Haltestelle.';
     const orderedPinned = [...pinned].sort((a, b) => Number(b.home === true) - Number(a.home === true));
     for (const stop of orderedPinned) {
       pinnedPicker.addAction(pinnedLabel(stop));
