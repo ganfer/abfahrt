@@ -161,7 +161,7 @@ test('GPS picker exposes pinned stops and shares the selection flow', () => {
   const source = read('VagAbfahrten.js');
   assert.match(source, /picker\.addAction\('📌 Fixierte Haltestellen'\)/);
   assert.match(source, /pinnedPicker\.title = 'Fixierte Haltestellen'/);
-  assert.match(source, /selectedPin = pinned\[pinnedIdx\]/);
+  assert.match(source, /selectedPin = orderedPinned\\[pinnedIdx\\]/);
   assert.match(source, /rememberStop\(\{ \.\.\.selected, name: selectedPin\?\.displayName \|\| selected\.name \}\)/);
   assert.match(source, /requestWidgetRefresh\(\);[\s\S]*await presentDeparturesTable\(key\);/);
 });
