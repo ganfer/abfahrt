@@ -581,20 +581,33 @@ async function downloadJson(url) {
   if (status < 200 || status >= 300) throw new Error('HTTP ' + (status || '?'));
   return { raw, value: JSON.parse(raw) };
 }
-function offlineWantedStopEntries(cfg) {
+function offlineWantedStopGroups(cfg) {
   const all = [];
   if (cfg.offline?.pinned) all.push(...savedStops().filter((stop) => stop.pinned === true));
   if (cfg.offline?.history) all.push(...recentStops().slice(0, 20));
-  const entries = new Map();
+  const groups = new Map();
   for (const stop of all) {
-    const stopRefs = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
-    for (const rawRef of stopRefs) {
-      if (!rawRef) continue;
-      const ref = canonicalGtfsStopRef(rawRef);
-      if (!entries.has(ref)) entries.set(ref, {
-        ref,
-        name: stop.displayName || stop.name || 'Unbenannte Haltestelle',
-      });
+    const refs = [...new Set(
+      (Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef])
+        .filter(Boolean)
+        .map(canonicalGtfsStopRef)
+    )];
+    if (!refs.length) continue;
+    const key = canonicalGtfsStopRef(stop.stopRef) || normalizeStopName(stop.name);
+    if (!groups.has(key)) groups.set(key, {
+      name: stop.displayName || stop.name || 'Unbenannte Haltestelle',
+      refs: [],
+    });
+    const group = groups.get(key);
+    group.refs = [...new Set([...group.refs, ...refs])];
+  }
+  return [...groups.values()];
+}
+function offlineWantedStopEntries(cfg) {
+  const entries = new Map();
+  for (const group of offlineWantedStopGroups(cfg)) {
+    for (const ref of group.refs) {
+      if (!entries.has(ref)) entries.set(ref, { ref, name: group.name });
     }
   }
   return [...entries.values()];
@@ -604,8 +617,12 @@ function offlineWantedStops(cfg) {
 }
 function formatOfflineTimestamp(value) {
   if (!value || value === 'keine Daten' || value === 'unbekannt') return value || 'keine Daten';
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return String(value);
+  let normalized = String(value).trim();
+  if (normalized.startsWith('"') && normalized.endsWith('"')) {
+    try { normalized = JSON.parse(normalized); } catch (_) {}
+  }
+  const date = new Date(normalized);
+  if (!Number.isFinite(date.getTime())) return normalized;
   return date.toLocaleString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -616,10 +633,11 @@ async function syncOfflineData(cfg) {
     await notice('Offline-Fahrplan ist aus', 'Aktiviere den Offline-Fahrplan zuerst.');
     return;
   }
+  const groups = offlineWantedStopGroups(cfg);
   const wantedEntries = offlineWantedStopEntries(cfg);
   const wanted = wantedEntries.map((item) => item.ref);
   if (!wanted.length) {
-    await notice('Keine Haltestellen', 'Es gibt keine ausgewählten fixierten oder zuletzt verwendeten Haltestellen.');
+    await notice('Keine Haltestellen', 'Es gibt keine ausgewählten angepinnten oder zuletzt verwendeten Haltestellen.');
     return;
   }
   try {
@@ -628,26 +646,38 @@ async function syncOfflineData(cfg) {
     const found = wanted.filter((ref) => index.value.stops?.[ref]);
     const missing = wantedEntries.filter((item) => !index.value.stops?.[item.ref]);
     const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
+    const downloads = [];
+    for (const shard of shards) downloads.push([shard, await downloadJson(GTFS_RAW_BASE_URL + shard + '.json')]);
+
+    // Download all required files before replacing the usable local cache.
     const manager = offlineManager();
     ensureOfflineDir();
-    manager.writeString(offlineFile('manifest.json'), manifest.raw);
+    const localManifest = {
+      ...manifest.value,
+      localSyncedAt: new Date().toISOString(),
+      requestedStopRefs: [...wanted].sort(),
+      missingStopRefs: missing.map((item) => item.ref).sort(),
+    };
+    manager.writeString(offlineFile('manifest.json'), JSON.stringify(localManifest));
     manager.writeString(offlineFile('index.json'), JSON.stringify({
       schemaVersion: index.value.schemaVersion,
       stops: Object.fromEntries(found.map((ref) => [ref, index.value.stops[ref]])),
     }));
-    for (const shard of shards) {
-      const data = await downloadJson(GTFS_RAW_BASE_URL + shard + '.json');
-      manager.writeString(offlineFile(shard + '.json'), data.raw);
-    }
-    const keep = new Set(['manifest.json', 'index.json', ...shards.map((s) => s + '.json')]);
+    for (const [shard, data] of downloads) manager.writeString(offlineFile(shard + '.json'), data.raw);
+    const keep = new Set(['manifest.json', 'index.json', ...shards.map((value) => value + '.json')]);
     for (const name of manager.listContents(offlineDir())) {
       if (!keep.has(name)) manager.remove(manager.joinPath(offlineDir(), name));
     }
+
+    const foundSet = new Set(found);
+    const availableGroups = groups.filter((group) => group.refs.some((ref) => foundSet.has(ref)));
+    const missingGroups = groups.filter((group) => !group.refs.some((ref) => foundSet.has(ref)));
     const stamp = formatOfflineTimestamp(manifest.value.sourceImportedAt || manifest.value.generatedAt || 'unbekannt');
-    const missingText = missing.length
-      ? '\n\nNicht zugeordnet (' + missing.length + '):\n' + missing.map((item) => '• ' + item.name + ' [' + item.ref + ']').join('\n')
+    const missingText = missingGroups.length
+      ? '\n\nNicht zugeordnet (' + missingGroups.length + '):\n' +
+        missingGroups.map((group) => '• ' + group.name + ' [' + group.refs.join(', ') + ']').join('\n')
       : '';
-    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} gespeicherte Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
+    await notice('Offline-Daten aktualisiert', `${availableGroups.length}/${groups.length} Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
   } catch (e) {
     await notice('Offline-Update fehlgeschlagen', 'Die bisherigen Offline-Daten bleiben erhalten.\n\n' + e.message);
   }
@@ -660,10 +690,10 @@ async function deleteOfflineData(showNotice = true) {
 function offlineStatus(cfg) {
   const manifest = readOfflineJson('manifest.json');
   const index = readOfflineJson('index.json');
-  const wanted = offlineWantedStops(cfg);
-  const available = wanted.filter((ref) => index?.stops?.[ref]).length;
+  const groups = offlineWantedStopGroups(cfg);
+  const available = groups.filter((group) => group.refs.some((ref) => index?.stops?.[ref])).length;
   const stamp = formatOfflineTimestamp(manifest?.sourceImportedAt || manifest?.generatedAt || 'keine Daten');
-  return { wanted: wanted.length, available, stamp };
+  return { wanted: groups.length, available, stamp };
 }
 async function configureOffline(cfg) {
   while (true) {
