@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build compact GTFS timetable shards for Abfahrt.
+"""Build compact GTFS timetable shards for abfahrt.
 
 The source is the MobiData BW/NVBW bwgesamt GTFS feed without shapes. The
 output is intentionally optimized for Scriptable: a deterministic manifest,
