@@ -165,3 +165,21 @@ test('GPS picker exposes pinned stops and shares the selection flow', () => {
   assert.match(source, /rememberStop\(\{ \.\.\.selected, name: selectedPin\?\.displayName \|\| selected\.name \}\)/);
   assert.match(source, /requestWidgetRefresh\(\);[\s\S]*await presentDeparturesTable\(key\);/);
 });
+
+
+test('Home superpin is exposed in runtime and fallback flow', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /function homeStop\(/);
+  assert.match(source, /stop\.home === true \? '🏠 '/);
+  assert.match(source, /mode === 'home'/);
+  assert.match(source, /Stattdessen wird 🏠 Home verwendet/);
+});
+
+test('config supports one Home stop and three fallback modes', () => {
+  const source = read('VagAbfahrten-Config.js');
+  assert.match(source, /Als Home festlegen/);
+  assert.match(source, /Home entfernen/);
+  assert.match(source, /fallbackMode: 'last'/);
+  assert.match(source, /cfg\.location\.fallbackMode = 'home'/);
+  assert.match(source, /cfg\.location\.fallbackMode = 'none'/);
+});
