@@ -1,0 +1,107 @@
+name: GTFS Offline Data
+
+on:
+  schedule:
+    - cron: '25 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gtfs-offline-data
+  cancel-in-progress: false
+
+env:
+  GTFS_URL: https://www.nvbw.de/fileadmin/user_upload/service/open_data/fahrplandaten_ohne_liniennetz/bwgesamt.zip
+  GTFS_IMPORT_STATUS_URL: https://api.mobidata-bw.de/gtfs/rpc/gtfs_data_imported_at
+
+jobs:
+  build:
+    name: Build Baden-Württemberg offline data
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read upstream import timestamp
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          VALUE="$(curl --fail --silent --show-error --retry 3 \
+            -H 'User-Agent: vag-widget GitHub Actions' \
+            "$GTFS_IMPORT_STATUS_URL" || true)"
+          VALUE="$(printf '%s' "$VALUE" | tr -d '\n\r')"
+          echo "value=$VALUE" >> "$GITHUB_OUTPUT"
+
+      - name: Read published data timestamp
+        id: published
+        shell: bash
+        run: |
+          set -euo pipefail
+          VALUE="$(git show origin/gtfs-data:data/gtfs/manifest.json 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("sourceImportedAt",""))' \
+            || true)"
+          echo "value=$VALUE" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether rebuild is needed
+        id: decision
+        env:
+          UPSTREAM: ${{ steps.upstream.outputs.value }}
+          PUBLISHED: ${{ steps.published.outputs.value }}
+        shell: bash
+        run: |
+          if [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Published GTFS snapshot already matches upstream import."
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download GTFS
+        if: steps.decision.outputs.build == 'true'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 --show-error \
+            -H 'User-Agent: vag-widget GitHub Actions' \
+            "$GTFS_URL" -o /tmp/bwgesamt.zip
+
+      - name: Build offline shards
+        if: steps.decision.outputs.build == 'true'
+        env:
+          GTFS_IMPORTED_AT: ${{ steps.upstream.outputs.value }}
+        run: |
+          python3 scripts/build-gtfs.py /tmp/bwgesamt.zip /tmp/gtfs-data
+
+      - name: Validate generated data
+        if: steps.decision.outputs.build == 'true'
+        run: |
+          python3 scripts/build-gtfs.py --validate /tmp/gtfs-data
+
+      - name: Publish snapshot branch
+        if: steps.decision.outputs.build == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch --orphan gtfs-data-build
+          git rm -rf . >/dev/null 2>&1 || true
+          mkdir -p data/gtfs
+          cp -R /tmp/gtfs-data/. data/gtfs/
+          cat > README.md <<'EOF'
+          # VagAbfahrten GTFS data
+
+          Machine-generated offline timetable data for VagAbfahrten.
+
+          Source: MobiData BW / NVBW, Baden-Württemberg scheduled public transport data.
+          License: Datenlizenz Deutschland – Namensnennung – Version 2.0.
+
+          Do not edit this branch manually. It is replaced by the GTFS Offline Data workflow.
+          EOF
+          git add README.md data/gtfs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: refresh GTFS offline snapshot"
+          git push --force origin HEAD:gtfs-data
