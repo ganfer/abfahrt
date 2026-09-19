@@ -153,8 +153,10 @@ test('README describes the current two-script architecture', () => {
   const source = read('README.md');
   assert.match(source, /VagAbfahrten\.js/);
   assert.match(source, /Home Screen widget/);
-  assert.match(source, /VagAbfahrten-Config\.js.*personal settings/);
-  assert.match(source, /Retired helper scripts/);
+  assert.match(source, /VagAbfahrten-Config\.js/);
+  assert.match(source, /personal settings/);
+  assert.doesNotMatch(source, /VagAbfahrten-Display\.js/);
+  assert.doesNotMatch(source, /VagAbfahrten-Refresh\.js/);
 });
 
 
