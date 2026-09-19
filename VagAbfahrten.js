@@ -838,7 +838,7 @@ async function nearbyFlow(key) {
       const { stop: hit, pin } = candidates[0];
       rememberStop({ ...hit, name: pin.displayName || hit.name });
       requestWidgetRefresh();
-      await presentDeparturesTable(key);
+      await presentDeparturesTable(key, { autoSelected: true, distance: candidates[0].distance });
       return;
     }
   }
@@ -849,7 +849,9 @@ async function nearbyFlow(key) {
   for (const stop of stops) {
     const pin = pinnedStopFor(stop, pinned);
     const isRecent = recent.some((s) => sameStop(s, stop));
-    picker.addAction((pin ? '📌 ' : isRecent ? '★ ' : '') + (pin?.displayName || stop.name));
+    const distance = stopDistanceMeters(stop, loc);
+    const distanceLabel = distance === null ? '' : ` · ${Math.round(distance)} m`;
+    picker.addAction((pin ? '📌 ' : isRecent ? '★ ' : '') + (pin?.displayName || stop.name) + distanceLabel);
   }
   picker.addCancelAction('Abbrechen');
   const idx = await picker.present();
@@ -874,7 +876,7 @@ function htmlEsc(value) {
   }[ch]));
 }
 
-async function presentDeparturesTable(key) {
+async function presentDeparturesTable(key, context = null) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
     Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
@@ -965,7 +967,7 @@ async function presentDeparturesTable(key) {
 </head>
 <body>
   <h1>${htmlEsc(title)}</h1>
-  <div class="meta">Abfahrten · aktualisiert ${htmlEsc(fmtClock(Date.now()))}</div>
+  <div class="meta">Abfahrten · aktualisiert ${htmlEsc(fmtClock(Date.now()))}${context?.autoSelected && Number.isFinite(context.distance) ? ' · 📍 automatisch gewählt · ' + htmlEsc(Math.round(context.distance) + ' m') : ''}</div>
   <div class="table-wrap">
     <table>
       <thead><tr>${header}</tr></thead>
