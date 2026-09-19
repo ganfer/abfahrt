@@ -64,12 +64,16 @@ jobs:
             | python3 -c 'import json,sys; print(json.load(sys.stdin).get("schemaVersion",""))' \
             || true)"
           EXPECTED_SCHEMA="$(awk -F= '/^SCHEMA_VERSION[[:space:]]*=/ {gsub(/[[:space:]]/, "", $2); print $2; exit}' scripts/build-gtfs.py)"
-          if [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ] && [ -n "$EXPECTED_SCHEMA" ] && [ "$SCHEMA" = "$EXPECTED_SCHEMA" ]; then
+          BUILDER_CHANGED=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && git rev-parse HEAD^ >/dev/null 2>&1 && ! git diff --quiet HEAD^ HEAD -- scripts/build-gtfs.py; then
+            BUILDER_CHANGED=true
+          fi
+          if [ "$BUILDER_CHANGED" = "false" ] && [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ] && [ -n "$EXPECTED_SCHEMA" ] && [ "$SCHEMA" = "$EXPECTED_SCHEMA" ]; then
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "Published GTFS snapshot already matches upstream import and schema $EXPECTED_SCHEMA."
           else
             echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "Rebuild required (upstream=$UPSTREAM, published=$PUBLISHED, schema=$SCHEMA, expected=$EXPECTED_SCHEMA)."
+            echo "Rebuild required (builderChanged=$BUILDER_CHANGED, upstream=$UPSTREAM, published=$PUBLISHED, schema=$SCHEMA, expected=$EXPECTED_SCHEMA)."
           fi
 
       - name: Download GTFS
