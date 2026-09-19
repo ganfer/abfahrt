@@ -557,6 +557,49 @@ const UPDATE_FILES = [
   },
 ];
 
+function storageDiagnostics() {
+  const cloud = FileManager.iCloud();
+  const local = FileManager.local();
+  const files = ['VagAbfahrten-Config.js', 'VagAbfahrten.js'];
+
+  function inspect(label, fm, name) {
+    const path = fm.joinPath(fm.documentsDirectory(), name);
+    if (!fm.fileExists(path)) return `${label}: fehlt`;
+    try {
+      if (fm.isFileStoredIniCloud && fm.isFileStoredIniCloud(path) && fm.downloadFileFromiCloud) fm.downloadFileFromiCloud(path);
+      const version = versionFromSource(fm.readString(path));
+      return `${label}: ${version ? 'v' + version : 'Version unbekannt'}`;
+    } catch (e) {
+      return `${label}: vorhanden, nicht lesbar (${e.message})`;
+    }
+  }
+
+  return [
+    'Scriptable Speicherdiagnose',
+    `Laufender Code: v${APP_VERSION}`,
+    `Script.name(): ${Script.name()}`,
+    '',
+    ...files.flatMap((name) => [
+      name,
+      inspect('  iCloud', cloud, name),
+      inspect('  Lokal', local, name),
+    ]),
+  ].join('\n');
+}
+
+async function showStorageDiagnostics() {
+  const report = storageDiagnostics();
+  const a = new Alert();
+  a.title = 'Speicherdiagnose';
+  a.message = report;
+  a.addAction('Kopieren');
+  a.addCancelAction('Schließen');
+  if (await a.present() === 0) {
+    Pasteboard.copyString(report);
+    await notice('Kopiert', 'Die Speicherdiagnose wurde in die Zwischenablage kopiert.');
+  }
+}
+
 function currentScriptFileManager() {
   const cloud = FileManager.iCloud();
   const local = FileManager.local();
@@ -759,6 +802,7 @@ async function configureUpdates(cfg) {
     a.addAction('Update-Kanal');
     a.addAction('Auf Updates prüfen');
     a.addAction('Was ist neu?');
+  a.addAction('Speicherdiagnose');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -769,6 +813,7 @@ async function configureUpdates(cfg) {
       return;
     }
     if (choice === 2) await showWhatsNew(cfg);
+  if (choice === 3) await showStorageDiagnostics();
   }
 }
 
