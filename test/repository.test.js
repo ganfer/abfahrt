@@ -105,6 +105,11 @@ test('release workflow creates checksummed Stable metadata without bypassing pro
   assert.match(workflow, /--target "\$TARGET"/);
   assert.match(workflow, /RELEASE_BRANCH="release\/v\$VERSION"/);
   assert.match(workflow, /gh pr create/);
+  const metadataPrStep = workflow.split('- name: Open Stable metadata pull request')[1];
+  assert.ok(metadataPrStep, 'Stable metadata PR step must exist');
+  assert.doesNotMatch(metadataPrStep, /if: steps\.existing\.outputs\.exists == 'false'/);
+  assert.match(metadataPrStep, /git ls-remote --exit-code --heads origin "\$RELEASE_BRANCH"/);
+  assert.match(metadataPrStep, /origin\/main\.\.\.origin\/\$RELEASE_BRANCH/);
   assert.doesNotMatch(workflow, /git push origin HEAD:main/);
   assert.doesNotMatch(workflow, /--target "\$GITHUB_SHA"/);
 });
