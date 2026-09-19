@@ -57,6 +57,7 @@ jobs:
           node --check VagAbfahrten.js
           node --check VagAbfahrten-Config.js
           node --check VagAbfahrten-Init.js
+          node --check scripts/render-widget-preview.mjs
           node --check test/widget.test.js
           node --check test/repository.test.js
       - name: Run tests
