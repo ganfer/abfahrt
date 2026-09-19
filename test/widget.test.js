@@ -278,7 +278,7 @@ test('location distance requires valid stop and device coordinates', () => {
 test('README describes the current two-script architecture', () => {
   const source = read('README.md');
   assert.match(source, /abfahrt\.js/);
-  assert.match(source, /Home Screen widget/);
+  assert.match(source, /Home-Screen-Widget/);
   assert.match(source, /abfahrt-config\.js/);
   assert.doesNotMatch(source, /abfahrt-Display\.js/);
   assert.doesNotMatch(source, /abfahrt-refresh\.js/);
