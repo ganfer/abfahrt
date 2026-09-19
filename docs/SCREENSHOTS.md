@@ -12,7 +12,7 @@ This keeps the preview coupled to the current default column visibility, widths,
 
 On pull requests that change the widget runtime, Config, renderer or screenshot workflow, the job renders a fresh PNG and uploads it as a workflow artifact for visual review.
 
-On pushes to `main`, the same image is written to `docs/assets/widget-preview.png`. If the bytes changed, the workflow commits the PNG on `automation/widget-screenshot` and opens or refreshes a pull request back to the protected `main` branch. If the image is unchanged, no branch or pull request is created.
+On pushes to `main`, the same image is written to `docs/assets/widget-preview.png`. If the bytes changed, the workflow commits the PNG on `automation/widget-screenshot` and opens or refreshes a pull request back to the protected `main` branch. If repository settings prevent GitHub Actions from creating pull requests, the branch is still published and the workflow emits a warning instead of failing; a PR can then be opened manually. If the image is unchanged, no branch or pull request is created.
 
 The README references that versioned PNG directly.
 

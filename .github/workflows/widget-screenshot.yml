@@ -84,10 +84,12 @@ jobs:
           EXISTING="$(gh pr list --base main --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
           if [ -n "$EXISTING" ]; then
             echo "Screenshot PR #$EXISTING already exists and was refreshed."
+          elif gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "docs: refresh widget screenshot" \
+            --body "Refresh the generated widget preview through the protected main-branch workflow."; then
+            echo "Opened screenshot pull request."
           else
-            gh pr create \
-              --base main \
-              --head "$BRANCH" \
-              --title "docs: refresh widget screenshot" \
-              --body "Refresh the generated widget preview through the protected main-branch workflow."
+            echo "::warning::The refreshed screenshot was pushed to $BRANCH, but GitHub Actions is not allowed to create pull requests. Open a PR from $BRANCH manually or enable 'Allow GitHub Actions to create and approve pull requests' in Settings → Actions → General."
           fi
