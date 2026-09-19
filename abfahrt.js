@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '2.0.4';
+const APP_VERSION = '2.0.5';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -701,9 +701,8 @@ function addDepartureRow(w, r, place, c, options = {}) {
   row.layoutHorizontally();
   row.centerAlignContent();
   if (options.highlight) {
-    row.backgroundColor = new Color('#18181b');
-    row.cornerRadius = 9;
-    row.setPadding(3, 5, 3, 5);
+    row.backgroundColor = new Color('#151517');
+    row.cornerRadius = 7;
   }
   let hasColumn = false;
   const columns = WIDGET_CONFIG.columns;
@@ -795,26 +794,6 @@ function friendlyError(error) {
   return message || 'Abfahrten konnten nicht geladen werden';
 }
 
-function addWidgetChip(parent, text, options = {}) {
-  const chip = parent.addStack();
-  chip.layoutHorizontally();
-  chip.centerAlignContent();
-  chip.cornerRadius = 8;
-  chip.backgroundColor = new Color(options.background || '#232326');
-  chip.setPadding(2, 6, 2, 6);
-  if (options.dotColor) {
-    const dot = chip.addText('●');
-    dot.font = Font.systemFont(6);
-    dot.textColor = new Color(options.dotColor);
-    chip.addSpacer(4);
-  }
-  const label = chip.addText(text);
-  label.font = Font.mediumSystemFont(options.fontSize || 8);
-  label.textColor = new Color(options.textColor || '#d1d1d6');
-  label.lineLimit = 1;
-  return chip;
-}
-
 function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {}) {
   const c = palette();
   const w = new ListWidget();
@@ -826,72 +805,80 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
   const realtimeAvailable = rows.some((r) => Boolean(r.realtimeTime));
   const platforms = [...new Set(rows.map((r) => String(r.platform || '').trim()).filter(Boolean))];
   const activePin = options.activePin || null;
+  const platformSummary = platforms.length === 1
+    ? '1 Steig'
+    : platforms.length > 1
+      ? platforms.length + ' Steige'
+      : '';
+  const statusLabel = realtimeAvailable ? 'Live' : 'Plan';
 
   const header = w.addStack();
-  header.layoutHorizontally();
-  header.centerAlignContent();
+  header.layoutVertically();
   header.backgroundColor = new Color('#17171a');
   header.cornerRadius = 12;
-  header.setPadding(7, 8, 7, 8);
+  header.setPadding(6, 8, 6, 8);
 
-  const badge = header.addStack();
-  badge.size = new Size(30, 30);
-  badge.cornerRadius = 15;
+  const topLine = header.addStack();
+  topLine.layoutHorizontally();
+  topLine.centerAlignContent();
+
+  const badge = topLine.addStack();
+  badge.size = new Size(28, 28);
+  badge.cornerRadius = 14;
   badge.backgroundColor = new Color('#123822');
   badge.centerAlignContent();
   badge.addSpacer();
   const badgeText = badge.addText('H');
-  badgeText.font = Font.boldSystemFont(17);
+  badgeText.font = Font.boldSystemFont(16);
   badgeText.textColor = new Color('#ffd60a');
   badge.addSpacer();
 
-  header.addSpacer(8);
+  topLine.addSpacer(7);
 
-  const titleStack = header.addStack();
-  titleStack.layoutVertically();
-  const titleEl = titleStack.addText(stop.stop || title);
+  const titleEl = topLine.addText(stop.stop || title);
   titleEl.font = Font.boldSystemFont(15);
   titleEl.textColor = new Color(c.fg);
   titleEl.lineLimit = 1;
-  titleEl.minimumScaleFactor = 0.72;
+  titleEl.minimumScaleFactor = 0.68;
+
+  topLine.addSpacer();
+
+  if (activePin) {
+    const pin = topLine.addText(activePin.home === true ? '🏠' : '★');
+    pin.font = Font.systemFont(12);
+    pin.textColor = new Color(activePin.home === true ? c.fg : '#ffd60a');
+    pin.lineLimit = 1;
+  }
+
+  header.addSpacer(2);
+
+  const metaLine = header.addStack();
+  metaLine.layoutHorizontally();
+  metaLine.centerAlignContent();
+  metaLine.addSpacer(35);
+
+  if (!errorText && rows.length) {
+    const dot = metaLine.addText('●');
+    dot.font = Font.systemFont(6);
+    dot.textColor = new Color(realtimeAvailable ? '#30d158' : '#8e8e93');
+    metaLine.addSpacer(3);
+  }
 
   const metaParts = [];
   if (stop.place) metaParts.push(stop.place);
   else if (subtitle) metaParts.push(subtitle);
-  metaParts.push('akt. ' + fmtClock(Date.now()));
-
-  const sub = titleStack.addText(metaParts.join(' · '));
-  sub.font = Font.mediumSystemFont(8);
-  sub.textColor = new Color(c.dim);
-  sub.lineLimit = 1;
-  sub.minimumScaleFactor = 0.75;
-
-  header.addSpacer();
-
-  const rightHeader = header.addStack();
-  rightHeader.layoutHorizontally();
-  rightHeader.centerAlignContent();
-
   if (!errorText && rows.length) {
-    addWidgetChip(
-      rightHeader,
-      realtimeAvailable ? 'Live' : 'Plan',
-      realtimeAvailable
-        ? { background: '#123b24', textColor: '#79e697', dotColor: '#30d158' }
-        : { background: '#262629', textColor: c.dim, dotColor: '#8e8e93' },
-    );
-    if (platforms.length) {
-      rightHeader.addSpacer(4);
-      addWidgetChip(rightHeader, platforms.length === 1 ? '1 Steig' : platforms.length + ' Steige');
-    }
+    metaParts.push(statusLabel);
+    if (platformSummary) metaParts.push(platformSummary);
   }
+  metaParts.push('akt. ' + fmtClock(Date.now()));
+  if (cancelledN) metaParts.push(cancelledN + ' entfällt');
 
-  if (activePin) {
-    rightHeader.addSpacer(5);
-    const pin = rightHeader.addText(activePin.home === true ? '🏠' : '★');
-    pin.font = Font.systemFont(12);
-    pin.textColor = new Color(activePin.home === true ? c.fg : '#ffd60a');
-  }
+  const meta = metaLine.addText(metaParts.join(' · '));
+  meta.font = Font.mediumSystemFont(8);
+  meta.textColor = new Color(errorText ? c.late : c.dim);
+  meta.lineLimit = 1;
+  meta.minimumScaleFactor = 0.65;
 
   w.addSpacer(7);
 
@@ -921,26 +908,6 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
       }
     });
   }
-
-  w.addSpacer();
-
-  const footer = w.addStack();
-  footer.layoutHorizontally();
-  const status = footer.addText(
-    errorText
-      ? 'Fehler · ' + fmtClock(Date.now())
-      : cancelledN
-        ? cancelledN + ' entfällt'
-        : realtimeAvailable
-          ? '● Echtzeit'
-          : '° Fahrplan',
-  );
-  status.font = Font.systemFont(7);
-  status.textColor = new Color(errorText ? c.late : realtimeAvailable ? c.ok : c.dim);
-  footer.addSpacer();
-  const hint = footer.addText('Tippen für Details');
-  hint.font = Font.systemFont(7);
-  hint.textColor = new Color(c.dim);
 
   return w;
 }
