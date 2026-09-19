@@ -4,13 +4,8 @@ const { execFileSync } = require('node:child_process');
 const VERSION_FILES = [
   'VagAbfahrten.js',
   'VagAbfahrten-Config.js',
-  'VagAbfahrten-Init.js',
 ];
-const UPDATE_RELEVANT = [
-  'VagAbfahrten.js',
-  'VagAbfahrten-Config.js',
-  'VagAbfahrten-Init.js',
-];
+const UPDATE_RELEVANT = VERSION_FILES;
 
 function parseVersion(source, label) {
   const match = source.match(/const APP_VERSION = ['"]([^'"]+)['"]/);

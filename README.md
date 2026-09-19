@@ -1,6 +1,6 @@
 # VAG Widget for Scriptable
 
-**Development version: v1.1.9**  
+**Development version: v1.1.10**  
 **Stable version: v1.1.2**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API, with realtime information, pinned stops, GPS selection and an offline GTFS timetable fallback.
@@ -31,16 +31,18 @@ Realtime departures, delays and cancellations are shown when available. Timetabl
 
 ## Installation
 
-For a new installation, copy **`VagAbfahrten-Init.js`** to Scriptable and run it once. The installer:
+A new installation needs only one bootstrap file:
 
-1. resolves the **latest Stable GitHub Release**,
-2. downloads `VagAbfahrten.js` and `VagAbfahrten-Config.js` from that exact release tag,
-3. validates both managed files and their versions,
-4. removes the installer after a successful installation.
+1. copy **`VagAbfahrten-Install.js`** to Scriptable,
+2. run it once,
+3. the bootstrap resolves the **latest Stable GitHub Release** and loads the released Config,
+4. `VagAbfahrten-Config.js` installs and verifies the managed `VagAbfahrten.js` + `VagAbfahrten-Config.js` files from that exact release tag and removes the bootstrap installer.
+
+The bootstrap itself is deliberately **versionless**. It is not part of `APP_VERSION`; Stable always means the latest deliberately published GitHub Release, never the current `main` branch.
+
+For compatibility, the bootstrap contains a small fallback for Stable releases from before the Config-owned installation lifecycle existed. Once a current release is installed, installation, updates, repair and uninstall are all managed centrally by Config.
 
 Then run **`VagAbfahrten`** once and save the TRIAS requestor key when prompted. Add a medium Scriptable widget to the Home Screen and select `VagAbfahrten`; the widget parameter can stay empty.
-
-This keeps first installation consistent with the default **Stable** update channel. Development code from `main` is installed only after explicitly switching the update channel in Config.
 
 The TRIAS requestor key is stored in the iOS Keychain and does not need to be kept in the widget parameter.
 
@@ -81,7 +83,7 @@ Two update channels are available:
 - **Stable** (default) resolves the latest manually published GitHub Release and installs runtime and Config from its exact `vX.Y.Z` tag.
 - **Development** follows `main`. It resolves the current main commit SHA and downloads all managed files from that exact commit.
 
-The updater validates downloaded files before replacing the installed scripts. A successful update relaunches Config so the newly written code becomes active. **Was ist neu?** shows Stable release notes; Development identifies the current main commit.
+The updater validates downloaded source markers and versions before replacing installed scripts. Stable releases created with the current release workflow also include `release-manifest.json`; Config verifies the SHA-256 checksum of every managed file against that manifest. Older Stable releases without a manifest remain supported for migration. A successful update relaunches Config so the newly written code becomes active. **Was ist neu?** shows Stable release notes; Development identifies the current main commit.
 
 ### Entwickleroptionen
 
@@ -101,16 +103,16 @@ Both compact and fullscreen views use realtime data when available. Positive del
 
 ## Updates and versioning
 
-Runtime, Config and installer on `main` share **`APP_VERSION`**.
+Runtime and Config on `main` share **`APP_VERSION`**. The bootstrap installer is intentionally versionless and always resolves Stable dynamically.
 
 The two README values intentionally mean different things:
 
 - **Development version** = `APP_VERSION` currently on `main`.
 - **Stable version** = latest published Stable GitHub Release.
 
-The PR version pipeline automatically bumps and synchronizes **only the Development version** when updater-relevant files change. It does **not** rewrite the Stable version. Stable changes only when a release is deliberately published and the README is updated accordingly.
+The PR version pipeline automatically bumps and synchronizes **only the Development version** when Runtime or Config changes. It does **not** rewrite the Stable version. Stable changes only when a release is deliberately published and the README is updated accordingly.
 
-Stable releases are created manually through the Release workflow. Merging to `main` does not automatically publish a release.
+Stable releases are created manually through the Release workflow. The workflow writes `release-manifest.json`, updates the Stable README version, commits that metadata and creates the tag/Release against that exact resulting commit. Merging to `main` does not automatically publish a release.
 
 ## Defaults
 

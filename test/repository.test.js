@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const managed = ['VagAbfahrten.js', 'VagAbfahrten-Config.js', 'VagAbfahrten-Init.js'];
+const managed = ['VagAbfahrten.js', 'VagAbfahrten-Config.js'];
 function version(source) {
   const match = source.match(/const APP_VERSION = ['"]([^'"]+)['"]/);
   return match ? match[1] : null;
@@ -17,30 +17,47 @@ test('all managed scripts use the same semantic version', () => {
   }
   assert.equal(new Set(versions.map((pair) => pair[1])).size, 1);
 });
-test('installer manages the current runtime and config scripts', () => {
-  const installer = read('VagAbfahrten-Init.js');
-  assert.match(installer, /VagAbfahrten\.js/);
+test('bootstrap installer is versionsless and Stable-first', () => {
+  const installer = read('VagAbfahrten-Install.js');
+  assert.doesNotMatch(installer, /^const APP_VERSION\s*=/m);
+  assert.match(installer, /releases\/latest/);
   assert.match(installer, /VagAbfahrten-Config\.js/);
-  assert.doesNotMatch(installer, /VagAbfahrten-Display\.js/);
-  assert.doesNotMatch(installer, /VagAbfahrten-Refresh\.js/);
+  assert.match(installer, /VAG_PENDING_INSTALL_REF/);
+  assert.match(installer, /Compatibility bridge/);
 });
-test('config updater validates versioned managed files', () => {
+
+test('config owns the managed installation lifecycle', () => {
   const config = read('VagAbfahrten-Config.js');
-  assert.match(config, /const UPDATE_FILES = \[/);
+  assert.match(config, /const MANAGED_FILES = \[/);
+  assert.match(config, /const MANAGED_KEYCHAIN_KEYS = \[/);
+  assert.match(config, /const INSTALLER_FILE_NAMES = \[/);
   assert.match(config, /VagAbfahrten\.js/);
   assert.match(config, /VagAbfahrten-Config\.js/);
-  assert.match(config, /const APP_VERSION = '/);
+  assert.match(config, /downloadManagedFiles/);
+  assert.match(config, /release-manifest\.json/);
+  assert.match(config, /sha256Hex/);
   assert.match(config, /file\.markers\.every/);
 });
 
-test('obsolete refresh helper is not part of the repository architecture', () => {
+test('obsolete helper and legacy installer are not part of the repository architecture', () => {
   assert.equal(fs.existsSync(path.join(root, 'VagAbfahrten-Refresh.js')), false);
+  assert.equal(fs.existsSync(path.join(root, 'VagAbfahrten-Init.js')), false);
+  assert.equal(fs.existsSync(path.join(root, 'VagAbfahrten-Install.js')), true);
 });
 
 test('README Development version matches scripts', () => {
   const runtimeVersion = version(read('VagAbfahrten.js'));
   const escaped = runtimeVersion.split('.').join('\\.');
   assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
+});
+
+test('release workflow creates checksummed Stable metadata before tagging', () => {
+  const workflow = read('.github/workflows/release.yml');
+  assert.match(workflow, /release-manifest\.json/);
+  assert.match(workflow, /createHash\('sha256'\)/);
+  assert.match(workflow, /git rev-parse HEAD/);
+  assert.match(workflow, /--target "\$TARGET"/);
+  assert.doesNotMatch(workflow, /--target "\$GITHUB_SHA"/);
 });
 
 test('README and screenshot workflow keep the preview contract', () => {

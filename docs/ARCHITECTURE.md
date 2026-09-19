@@ -5,8 +5,8 @@
 | Component | Responsibility |
 | --- | --- |
 | `VagAbfahrten.js` | Runtime, TRIAS requests/parsing, GPS stop selection, compact Scriptable widget, fullscreen departures and offline fallback consumption. |
-| `VagAbfahrten-Config.js` | User configuration, pinned stops, filters, update channels, diagnostics, backup/restore and offline-data maintenance. |
-| `VagAbfahrten-Init.js` | One-time Stable-first installer. It resolves the latest GitHub Release and installs Runtime + Config from the same release tag. |
+| `VagAbfahrten-Config.js` | User configuration plus the central package lifecycle: install, Stable/Development update, repair, uninstall, validation, pinned stops, filters, diagnostics, backup/restore and offline-data maintenance. |
+| `VagAbfahrten-Install.js` | Small versionless bootstrap. It resolves the latest Stable GitHub Release, installs the released Config and hands the remaining installation lifecycle to Config. |
 | `scripts/build-gtfs.py` | Builds the compact offline timetable snapshot from the statewide GTFS feed. |
 | `gtfs-data` branch | Generated offline timetable data. Kept separate from application source and force-refreshed by the scheduled pipeline. |
 
@@ -28,7 +28,11 @@ Diagnostics are designed to avoid exposing the requestor key, stop references, s
 
 Stable resolves the latest published GitHub Release and installs Runtime + Config from that exact tag. Development resolves the current `main` commit and downloads all managed files from that exact commit.
 
-The installer and updater validate downloaded source markers and versions before replacing the managed scripts.
+The bootstrap installer is not an app-versioned component. Runtime and Config are the managed application files and share `APP_VERSION`.
+
+For current Stable releases, the Release workflow creates `release-manifest.json` with SHA-256 hashes for Runtime and Config. Config resolves the exact release tag, validates source markers/version and verifies downloaded bytes against that manifest before replacing the managed scripts. Releases from before manifest support use the previous marker/version validation as a compatibility path.
+
+A bootstrap installation stores a short pending-install handoff in Keychain and launches the released Config. Config then downloads the complete managed set, writes it with rollback protection, removes installer artifacts and clears the handoff state. The same central managed-file definition is reused by updates, Recovery and Uninstall.
 
 ## CI contracts
 

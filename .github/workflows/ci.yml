@@ -28,12 +28,12 @@ jobs:
       - name: Commit automatic version bump
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          if git diff --quiet -- VagAbfahrten.js VagAbfahrten-Config.js VagAbfahrten-Init.js README.md; then
+          if git diff --quiet -- VagAbfahrten.js VagAbfahrten-Config.js README.md; then
             echo "Version already matches the required patch version."
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add VagAbfahrten.js VagAbfahrten-Config.js VagAbfahrten-Init.js README.md
+            git add VagAbfahrten.js VagAbfahrten-Config.js README.md
             git commit -m "chore: bump updater version"
             git push origin HEAD:${{ github.head_ref }}
           fi
@@ -56,7 +56,7 @@ jobs:
         run: |
           node --check VagAbfahrten.js
           node --check VagAbfahrten-Config.js
-          node --check VagAbfahrten-Init.js
+          node --check VagAbfahrten-Install.js
           node --check scripts/render-widget-preview.mjs
           node --check test/widget.test.js
           node --check test/repository.test.js
