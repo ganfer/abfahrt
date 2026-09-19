@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '2.0.6';
+const APP_VERSION = '2.0.7';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -36,8 +36,8 @@ const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
 
 // User-facing widget layout configuration. Widths are points inside the
-// medium Scriptable widget. Hide columns you do not need and give the freed
-// space to another visible column.
+// Scriptable widget. The configured row count is the Medium baseline; Large
+// and Extra Large automatically use the additional height for more departures.
 const DEFAULT_WIDGET_CONFIG = {
   rows: 5,
   refreshAfterLocationChange: true,
@@ -644,7 +644,7 @@ async function fetchDepartures(stopRefs, key, resultLimit = 8) {
   return all;
 }
 
-function withDelay(events, now) {
+function withDelay(events, now, limit = WIDGET_CONFIG.rows) {
   return events
     .filter((e) => (e.realtimeTime || e.plannedTime) >= now)
     .map((e) => {
@@ -660,7 +660,21 @@ function withDelay(events, now) {
       return { ...e, at, delayMin };
     })
     .sort((a, b) => a.at - b.at)
-    .slice(0, Math.max(1, Math.min(8, Number(WIDGET_CONFIG.rows) || 5)));
+    .slice(0, Math.max(1, Math.min(16, Number(limit) || 5)));
+}
+
+function widgetLayoutProfile(family = config.widgetFamily || 'medium') {
+  const baseRows = Math.max(1, Number(WIDGET_CONFIG.rows) || 5);
+  if (family === 'small') {
+    return { family, rows: Math.min(3, baseRows), showColumnHeader: false };
+  }
+  if (family === 'large') {
+    return { family, rows: Math.min(12, Math.max(8, baseRows + 5)), showColumnHeader: true };
+  }
+  if (family === 'extraLarge') {
+    return { family, rows: Math.min(16, Math.max(10, baseRows + 9)), showColumnHeader: true };
+  }
+  return { family: 'medium', rows: baseRows, showColumnHeader: false };
 }
 
 function cancelledCount(events, now) {
@@ -696,6 +710,37 @@ function addColumnSpacer(row, hasPreviousColumn) {
   if (hasPreviousColumn) row.addSpacer(Math.max(0, WIDGET_CONFIG.spacing.columns));
 }
 
+function addWidgetColumnHeader(w, c) {
+  const row = w.addStack();
+  row.layoutHorizontally();
+  row.centerAlignContent();
+  let hasColumn = false;
+  const columns = WIDGET_CONFIG.columns;
+  const labels = {
+    line: 'Linie',
+    destination: 'Richtung',
+    platform: 'Gleis',
+    departureTime: 'Abfahrt',
+    countdown: 'Restzeit',
+  };
+
+  for (const key of ['line', 'destination', 'platform', 'departureTime', 'countdown']) {
+    const columnConfig = columns[key];
+    if (!columnConfig?.visible) continue;
+    addColumnSpacer(row, hasColumn);
+    const column = row.addStack();
+    column.size = new Size(Math.max(1, columnConfig.width), 12);
+    column.centerAlignContent();
+    if (key === 'countdown') column.addSpacer();
+    const label = column.addText(labels[key]);
+    label.font = Font.mediumSystemFont(7);
+    label.textColor = new Color(c.dim);
+    label.lineLimit = 1;
+    label.minimumScaleFactor = 0.6;
+    hasColumn = true;
+  }
+}
+
 function addDepartureRow(w, r, place, c, options = {}) {
   const row = w.addStack();
   row.layoutHorizontally();
@@ -706,7 +751,9 @@ function addDepartureRow(w, r, place, c, options = {}) {
   }
   let hasColumn = false;
   const columns = WIDGET_CONFIG.columns;
-  const height = Math.max(16, WIDGET_CONFIG.badgeHeight);
+  const family = options.family || 'medium';
+  const familyHeightBonus = family === 'extraLarge' ? 4 : family === 'large' ? 2 : 0;
+  const height = Math.max(16, WIDGET_CONFIG.badgeHeight + familyHeightBonus);
 
   if (columns.line.visible) {
     const badge = row.addStack();
@@ -811,6 +858,7 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
       ? platforms.length + ' Steige'
       : '';
   const statusLabel = realtimeAvailable ? 'Live' : 'Plan';
+  const profile = widgetLayoutProfile(options.family);
 
   const header = w.addStack();
   header.layoutHorizontally();
@@ -917,9 +965,16 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
     none.font = Font.systemFont(11);
     none.textColor = new Color(c.dim);
   } else {
-    const visibleRows = rows.slice(0, Math.max(1, WIDGET_CONFIG.rows));
+    const visibleRows = rows.slice(0, profile.rows);
+    if (profile.showColumnHeader) {
+      addWidgetColumnHeader(w, c);
+      w.addSpacer(4);
+    }
     visibleRows.forEach((r, index) => {
-      addDepartureRow(w, r, stop.place, c, { highlight: index === 0 });
+      addDepartureRow(w, r, stop.place, c, {
+        highlight: index === 0,
+        family: profile.family,
+      });
       if (index < visibleRows.length - 1) {
         w.addSpacer(Math.max(1, WIDGET_CONFIG.spacing.rows));
       }
@@ -942,9 +997,10 @@ async function defaultWidget(key, present) {
       : 'Bertoldsbrunnen';
 
   try {
-    const events = await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.rows) || 5));
+    const profile = widgetLayoutProfile();
+    const events = await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, profile.rows));
     const filteredEvents = applyPinnedFilter(events, activePin, 'widget');
-    const rows = withDelay(filteredEvents, Date.now());
+    const rows = withDelay(filteredEvents, Date.now(), profile.rows);
     const sub = filteredEvents.length
       ? `${filteredEvents.length} Ereignisse gelesen`
       : 'API antwortete ohne Events';

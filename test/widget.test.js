@@ -83,7 +83,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   src.replace(
     'await main();',
-    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef };',
+    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef, widgetLayoutProfile, withDelay };',
   ),
   sandbox,
 );
@@ -146,10 +146,36 @@ test('widget and config await iCloud config downloads', () => {
   assert.match(config, /await fm\.downloadFileFromiCloud\(configPath\)/);
 });
 
-test('widget row slicing uses configured row count', () => {
+test('widget row slicing supports larger widget families', () => {
   const source = read('abfahrt.js');
-  assert.match(source, /slice\(0, Math\.max\(1, Math\.min\(8, Number\(WIDGET_CONFIG\.rows\)/);
+  assert.match(source, /slice\(0, Math\.max\(1, Math\.min\(16, Number\(limit\)/);
+  assert.match(source, /family === 'large'/);
+  assert.match(source, /family === 'extraLarge'/);
   assert.doesNotMatch(source, /\.slice\(0, 5\);/);
+});
+
+test('large widget families derive more rows without changing the medium preference', () => {
+  sandbox.config.widgetFamily = 'medium';
+  assert.equal(T.widgetLayoutProfile().rows, 5);
+  assert.equal(T.widgetLayoutProfile().showColumnHeader, false);
+
+  sandbox.config.widgetFamily = 'large';
+  assert.equal(T.widgetLayoutProfile().rows, 10);
+  assert.equal(T.widgetLayoutProfile().showColumnHeader, true);
+
+  sandbox.config.widgetFamily = 'extraLarge';
+  assert.equal(T.widgetLayoutProfile().rows, 14);
+  assert.equal(T.widgetLayoutProfile().showColumnHeader, true);
+
+  sandbox.config.widgetFamily = 'medium';
+});
+
+test('large widget layout adds column headers and family-aware row height', () => {
+  const source = read('abfahrt.js');
+  assert.match(source, /function addWidgetColumnHeader\(w, c\)/);
+  assert.match(source, /line: 'Linie'[\s\S]*destination: 'Richtung'[\s\S]*platform: 'Gleis'[\s\S]*departureTime: 'Abfahrt'[\s\S]*countdown: 'Restzeit'/);
+  assert.match(source, /familyHeightBonus = family === 'extraLarge' \? 4 : family === 'large' \? 2 : 0/);
+  assert.match(source, /if \(profile\.showColumnHeader\)/);
 });
 
 
