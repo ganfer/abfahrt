@@ -29,7 +29,7 @@ Widget antippen
   → nächste Abfahrten erscheinen
 ```
 
-Das Home-Screen-Widget selbst verwendet **keine dauerhafte Standortabfrage**. Es zeigt die zuletzt aktive Haltestelle und lädt deren Abfahrten. Erst wenn du das Widget antippst und abfahrt im Vordergrund öffnest, wird der Standort verwendet. Dadurch bleibt die Bedienung schnell und die Ortung unnötig batteriearm.
+Das Home-Screen-Widget selbst verwendet **keine dauerhafte Standortabfrage**. Es zeigt die zuletzt aktive Haltestelle und lädt deren Abfahrten. Erst wenn du das Widget antippst und abfahrt im Vordergrund öffnest, wird der Standort verwendet. Dadurch bleibt die Bedienung schnell und unnötige Hintergrundortung wird vermieden.
 
 abfahrt ist außerdem keine eigene App: Im Kern sind es JavaScript-Dateien, die in [Scriptable](https://scriptable.app/) laufen. Das Projekt ist bewusst leichtgewichtig geblieben, auch wenn inzwischen viele Einstellungen und Komfortfunktionen dazugekommen sind.
 
