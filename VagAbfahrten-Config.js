@@ -800,8 +800,12 @@ const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/releases
 const RELEASE_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/';
 const MAIN_COMMIT_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/commits/main';
 const DEVELOPMENT_REF_KEY = 'VAG_DEVELOPMENT_REF';
+const PENDING_INSTALL_REF_KEY = 'VAG_PENDING_INSTALL_REF';
+const PENDING_INSTALL_VERSION_KEY = 'VAG_PENDING_INSTALL_VERSION';
+const PENDING_INSTALLER_NAME_KEY = 'VAG_PENDING_INSTALLER_NAME';
 
-const UPDATE_FILES = [
+const INSTALLER_FILE_NAMES = ['VagAbfahrten-Install.js', 'VagAbfahrten-Init.js'];
+const MANAGED_FILES = [
   {
     name: 'VagAbfahrten.js',
     markers: ["const APP_VERSION = '", "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();'],
@@ -810,6 +814,17 @@ const UPDATE_FILES = [
     name: 'VagAbfahrten-Config.js',
     markers: ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();'],
   },
+];
+const MANAGED_KEYCHAIN_KEYS = [
+  'TRIAS_REQUESTOR_REF',
+  'VAG_LAST_STOP_REF',
+  'VAG_LAST_STOP_NAME',
+  SAVED_STOPS_KEY,
+  RECENT_STOPS_KEY,
+  DEVELOPMENT_REF_KEY,
+  PENDING_INSTALL_REF_KEY,
+  PENDING_INSTALL_VERSION_KEY,
+  PENDING_INSTALLER_NAME_KEY,
 ];
 
 function currentScriptFileManager() {
@@ -834,6 +849,62 @@ function updateTargets(fileName) {
 function versionFromSource(source) {
   const match = source.match(/const APP_VERSION = ['"]([^'"]+)['"]/);
   return match ? match[1] : null;
+}
+
+function sha256Hex(input) {
+  const text = unescape(encodeURIComponent(String(input)));
+  const bytes = Array.from(text, (ch) => ch.charCodeAt(0));
+  const bitLength = bytes.length * 8;
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2,
+  ];
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const rotr = (value, amount) => (value >>> amount) | (value << (32 - amount));
+
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  const high = Math.floor(bitLength / 0x100000000);
+  const low = bitLength >>> 0;
+  for (let shift = 24; shift >= 0; shift -= 8) bytes.push((high >>> shift) & 0xff);
+  for (let shift = 24; shift >= 0; shift -= 8) bytes.push((low >>> shift) & 0xff);
+
+  for (let offset = 0; offset < bytes.length; offset += 64) {
+    const w = new Array(64).fill(0);
+    for (let i = 0; i < 16; i++) {
+      const p = offset + i * 4;
+      w[i] = ((bytes[p] << 24) | (bytes[p + 1] << 16) | (bytes[p + 2] << 8) | bytes[p + 3]) >>> 0;
+    }
+    for (let i = 16; i < 64; i++) {
+      const s0 = (rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3)) >>> 0;
+      const s1 = (rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10)) >>> 0;
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+
+    let [a,b,c,d,e,f,g,h] = H;
+    for (let i = 0; i < 64; i++) {
+      const s1 = (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) >>> 0;
+      const ch = ((e & f) ^ (~e & g)) >>> 0;
+      const t1 = (h + s1 + ch + K[i] + w[i]) >>> 0;
+      const s0 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) >>> 0;
+      const maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+      const t2 = (s0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0;
+      d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0;
+    H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+    H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0;
+    H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+  }
+
+  return H.map((value) => value.toString(16).padStart(8, '0')).join('');
 }
 
 function compareVersions(a, b) {
@@ -870,8 +941,31 @@ async function latestDevelopment() {
   return { ref: commit.sha, label: commit.sha.slice(0, 7) };
 }
 
-async function downloadUpdateFile(file, releaseTag) {
-  const req = new Request(RELEASE_RAW_BASE_URL + encodeURIComponent(releaseTag) + '/' + file.name + '?t=' + Date.now());
+async function downloadReleaseManifest(ref, expectedVersion) {
+  const req = new Request(RELEASE_RAW_BASE_URL + encodeURIComponent(ref) + '/release-manifest.json?t=' + Date.now());
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'application/json', 'Cache-Control': 'no-cache' };
+  const raw = await req.loadString();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status === 404) return null; // Compatibility with releases created before manifest support.
+  if (status !== 200) throw new Error(`Release-Manifest: GitHub HTTP ${status || '?'}`);
+
+  let manifest;
+  try { manifest = JSON.parse(raw); } catch (_) { throw new Error('Das Release-Manifest ist kein gültiges JSON.'); }
+  if (manifest?.schemaVersion !== 1 || manifest?.version !== expectedVersion || !Array.isArray(manifest?.files)) {
+    throw new Error('Das Release-Manifest passt nicht zum ausgewählten Stable Release.');
+  }
+  for (const file of MANAGED_FILES) {
+    const entry = manifest.files.find((item) => item?.name === file.name);
+    if (!entry || !/^[0-9a-f]{64}$/i.test(String(entry.sha256 || ''))) {
+      throw new Error(`Release-Manifest: ${file.name} fehlt oder hat keinen gültigen SHA-256-Hash.`);
+    }
+  }
+  return manifest;
+}
+
+async function downloadUpdateFile(file, ref, manifest = null) {
+  const req = new Request(RELEASE_RAW_BASE_URL + encodeURIComponent(ref) + '/' + file.name + '?t=' + Date.now());
   req.timeoutInterval = 15;
   req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
   const source = await req.loadString();
@@ -880,12 +974,120 @@ async function downloadUpdateFile(file, releaseTag) {
   if (!source.trim() || !file.markers.every((marker) => source.includes(marker))) {
     throw new Error(`${file.name}: Download konnte nicht validiert werden.`);
   }
+  if (manifest) {
+    const expected = manifest.files.find((item) => item.name === file.name)?.sha256;
+    const actual = sha256Hex(source);
+    if (!expected || actual !== String(expected).toLowerCase()) {
+      throw new Error(`${file.name}: SHA-256-Prüfung gegen das Release-Manifest fehlgeschlagen.`);
+    }
+  }
   return source;
+}
+
+async function downloadManagedFiles(ref, expectedVersion = null, manifest = null) {
+  const downloads = [];
+  for (const file of MANAGED_FILES) {
+    downloads.push({ file, source: await downloadUpdateFile(file, ref, manifest) });
+  }
+  const versions = downloads.map((item) => versionFromSource(item.source));
+  if (versions.some((version) => !version) || versions.some((version) => version !== versions[0])) {
+    throw new Error('Die heruntergeladenen Skripte haben unterschiedliche oder ungültige Versionsstände.');
+  }
+  if (expectedVersion && versions[0] !== expectedVersion) {
+    throw new Error('Die Release-Dateien passen nicht zur veröffentlichten Version.');
+  }
+  return downloads;
+}
+
+function writeManagedFiles(downloads) {
+  const target = currentScriptFileManager();
+  const paths = downloads.map((item) => ({
+    item,
+    path: target.fm.joinPath(target.fm.documentsDirectory(), item.file.name),
+  }));
+  const backups = paths.map(({ path }) => ({
+    path,
+    existed: target.fm.fileExists(path),
+    source: target.fm.fileExists(path) ? target.fm.readString(path) : null,
+  }));
+
+  try {
+    for (const { item, path } of paths) target.fm.writeString(path, item.source);
+  } catch (writeError) {
+    for (const backup of backups) {
+      try {
+        if (backup.existed) target.fm.writeString(backup.path, backup.source);
+        else if (target.fm.fileExists(backup.path)) target.fm.remove(backup.path);
+      } catch (_) {}
+    }
+    throw new Error('Die Installation konnte nicht vollständig geschrieben werden; die vorherigen Dateien wurden soweit möglich wiederhergestellt. ' + writeError.message);
+  }
+  return { target, written: paths.map(({ item }) => `• ${item.file.name} [${target.label}]`) };
+}
+
+function installerFileNames() {
+  const names = new Set(INSTALLER_FILE_NAMES);
+  if (Keychain.contains(PENDING_INSTALLER_NAME_KEY)) {
+    const pending = Keychain.get(PENDING_INSTALLER_NAME_KEY).trim();
+    if (pending) names.add(pending.endsWith('.js') ? pending : pending + '.js');
+  }
+  return [...names];
+}
+
+function clearPendingInstallState() {
+  for (const key of [PENDING_INSTALL_REF_KEY, PENDING_INSTALL_VERSION_KEY, PENDING_INSTALLER_NAME_KEY]) {
+    if (Keychain.contains(key)) Keychain.remove(key);
+  }
+}
+
+function removeInstallerFiles() {
+  const names = installerFileNames();
+  for (const manager of [FileManager.iCloud(), FileManager.local()]) {
+    for (const name of names) {
+      const path = manager.joinPath(manager.documentsDirectory(), name);
+      if (manager.fileExists(path)) manager.remove(path);
+    }
+  }
+}
+
+async function completePendingInstall() {
+  if (!Keychain.contains(PENDING_INSTALL_REF_KEY)) return false;
+  const ref = Keychain.get(PENDING_INSTALL_REF_KEY).trim();
+  const expectedVersion = Keychain.contains(PENDING_INSTALL_VERSION_KEY)
+    ? Keychain.get(PENDING_INSTALL_VERSION_KEY).trim()
+    : ref.replace(/^v/, '');
+
+  try {
+    const manifest = await downloadReleaseManifest(ref, expectedVersion);
+    const downloads = await downloadManagedFiles(ref, expectedVersion, manifest);
+    const result = writeManagedFiles(downloads);
+    if (!managedInstallMatches(expectedVersion)) {
+      throw new Error('Die installierten Skripte konnten nicht als vollständige Zielversion verifiziert werden.');
+    }
+
+    removeInstallerFiles();
+    clearPendingInstallState();
+    if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
+    await notice(
+      'Installation abgeschlossen',
+      `VAG Widget Stable v${expectedVersion} wurde aus ${ref} installiert und verifiziert.
+
+${result.written.join('\n')}
+
+Starte jetzt VagAbfahrten einmalig, um den TRIAS-Key einzurichten.`,
+    );
+  } catch (e) {
+    await notice(
+      'Installation fehlgeschlagen',
+      'Der Bootstrap-Installer und der Installationsstatus bleiben für einen erneuten Versuch erhalten.\n\n' + e.message,
+    );
+  }
+  return true;
 }
 
 function installedManagedVersions() {
   const versions = [];
-  for (const file of UPDATE_FILES) {
+  for (const file of MANAGED_FILES) {
     const found = [];
     for (const target of updateTargets(file.name)) {
       const path = target.fm.joinPath(target.fm.documentsDirectory(), file.name);
@@ -963,19 +1165,10 @@ async function updateScripts(cfg) {
   if (await confirm.present() === -1) return;
   try {
     const ref = development ? source.ref : source.tag;
-    const downloads = [];
-    for (const file of UPDATE_FILES) downloads.push({ file, source: await downloadUpdateFile(file, ref) });
-    const downloadedVersions = downloads.map((item) => versionFromSource(item.source)).filter(Boolean);
-    if (!downloadedVersions.length || downloadedVersions.some((version) => version !== downloadedVersions[0])) throw new Error('Die heruntergeladenen Skripte haben unterschiedliche Versionsstände.');
-    if (!development && downloadedVersions[0] !== remoteVersion) throw new Error('Die Release-Dateien passen nicht zur veröffentlichten Version.');
-    const written = [];
-    for (const item of downloads) {
-      for (const target of updateTargets(item.file.name)) {
-        const path = target.fm.joinPath(target.fm.documentsDirectory(), item.file.name);
-        target.fm.writeString(path, item.source);
-        written.push(`• ${item.file.name} [${target.label}]`);
-      }
-    }
+    const manifest = development ? null : await downloadReleaseManifest(source.tag, remoteVersion);
+    const downloads = await downloadManagedFiles(ref, development ? null : remoteVersion, manifest);
+    const downloadedVersions = downloads.map((item) => versionFromSource(item.source));
+    const { written } = writeManagedFiles(downloads);
     if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
     if (development) Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
     else if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
@@ -1141,39 +1334,11 @@ async function recoverFromMain() {
 
   try {
     const source = await latestDevelopment();
-    const downloads = [];
-    for (const file of UPDATE_FILES) {
-      downloads.push({ file, source: await downloadUpdateFile(file, source.ref) });
-    }
+    const downloads = await downloadManagedFiles(source.ref);
     const versions = downloads.map((item) => versionFromSource(item.source));
-    if (versions.some((version) => !version) || versions.some((version) => version !== versions[0])) {
-      throw new Error('Die heruntergeladenen Skripte haben unterschiedliche oder ungültige Versionsstände.');
-    }
+    const { target } = writeManagedFiles(downloads);
 
-    const target = currentScriptFileManager();
-    const paths = downloads.map((item) => ({
-      item,
-      path: target.fm.joinPath(target.fm.documentsDirectory(), item.file.name),
-    }));
-    const backups = paths.map(({ path }) => ({
-      path,
-      existed: target.fm.fileExists(path),
-      source: target.fm.fileExists(path) ? target.fm.readString(path) : null,
-    }));
-
-    try {
-      for (const { item, path } of paths) target.fm.writeString(path, item.source);
-    } catch (writeError) {
-      for (const backup of backups) {
-        try {
-          if (backup.existed) target.fm.writeString(backup.path, backup.source);
-          else if (target.fm.fileExists(backup.path)) target.fm.remove(backup.path);
-        } catch (_) {}
-      }
-      throw new Error('Recovery konnte nicht vollständig geschrieben werden; die vorherigen Dateien wurden soweit möglich wiederhergestellt. ' + writeError.message);
-    }
-
-    if (typeof DEVELOPMENT_REF_KEY !== 'undefined') Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
+    Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
     await notice('Recovery abgeschlossen', `v${versions[0]} · main ${source.label} wurde in ${target.label} installiert.\n\nBitte die Config anschließend neu öffnen.`);
   } catch (e) {
     await notice('Recovery fehlgeschlagen', e.message);
@@ -1188,20 +1353,13 @@ async function uninstall() {
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() !== 0) return false;
 
-  const keychainKeys = [
-    'TRIAS_REQUESTOR_REF',
-    'VAG_LAST_STOP_REF',
-    'VAG_LAST_STOP_NAME',
-    SAVED_STOPS_KEY,
-    RECENT_STOPS_KEY,
-    DEVELOPMENT_REF_KEY,
-  ];
-  for (const key of keychainKeys) if (Keychain.contains(key)) Keychain.remove(key);
+  const scriptNames = [...new Set([...MANAGED_FILES.map((file) => file.name), ...installerFileNames()])];
+  for (const key of MANAGED_KEYCHAIN_KEYS) if (Keychain.contains(key)) Keychain.remove(key);
   if (fm.fileExists(configPath)) fm.remove(configPath);
   await deleteOfflineData(false);
 
   for (const manager of [FileManager.iCloud(), FileManager.local()]) {
-    for (const file of ['VagAbfahrten.js', 'VagAbfahrten-Config.js', 'VagAbfahrten-Init.js']) {
+    for (const file of scriptNames) {
       const path = manager.joinPath(manager.documentsDirectory(), file);
       if (manager.fileExists(path)) manager.remove(path);
     }
@@ -1232,6 +1390,11 @@ async function configureDeveloperOptions(cfg) {
 }
 
 async function main() {
+  if (await completePendingInstall()) {
+    Script.complete();
+    return;
+  }
+
   const cfg = await loadConfig();
 
   while (true) {
