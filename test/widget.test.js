@@ -324,7 +324,10 @@ test('stop roles, groups and filters are wired into runtime', () => {
 
 test('realtime display distinguishes realtime, delay and timetable-only data', () => {
   const runtime = read('abfahrt.js');
-  assert.ok(runtime.includes("r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'"));
+  assert.match(runtime, /realtimeAvailable \? 'Live' : 'Plan'/);
+  assert.match(runtime, /realtimeAvailable \? '● Echtzeit' : '° Fahrplan'/);
+  assert.ok(runtime.includes("const clock = column.addText(fmtClock(r.at));"));
+  assert.match(runtime, /r\.delayMin >= DELAY_HEAVY_MIN \? c\.late : r\.delayMin > 0 \? c\.delay : c\.ok/);
   assert.match(runtime, /if \(r\.cancelled\) right = 'entfällt'/);
 });
 
