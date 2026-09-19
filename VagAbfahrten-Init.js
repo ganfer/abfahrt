@@ -5,9 +5,9 @@
 // it removes itself from the Scriptable storage it was launched from.
 
 const FILES = [
-  ['VagAbfahrten.js', "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';"],
-  ['VagAbfahrten-Config.js', "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';"],
-  ['VagAbfahrten-Refresh.js', "const MAIN_SCRIPT = 'VagAbfahrten';"],
+  ['VagAbfahrten.js', ["const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();']],
+  ['VagAbfahrten-Config.js', ["const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();']],
+  ['VagAbfahrten-Refresh.js', ["const MAIN_SCRIPT = 'VagAbfahrten';", 'await main();']],
 ];
 const BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/';
 
@@ -19,14 +19,14 @@ async function show(title, message) {
   await a.present();
 }
 
-async function download(name, marker) {
+async function download(name, markers) {
   const req = new Request(BASE_URL + name);
   req.timeoutInterval = 15;
   req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
   const source = await req.loadString();
   const status = req.response ? req.response.statusCode : 0;
   if (status !== 200) throw new Error(name + ': GitHub HTTP ' + (status || '?'));
-  if (source.length < 100 || !source.includes(marker) || !source.includes('await main();')) {
+  if (!source.trim() || !markers.every((marker) => source.includes(marker))) {
     throw new Error(name + ': Download konnte nicht validiert werden.');
   }
   return source;
@@ -46,8 +46,8 @@ async function main() {
   const target = currentFileManager();
   try {
     const downloads = [];
-    for (const [name, marker] of FILES) {
-      downloads.push({ name, source: await download(name, marker) });
+    for (const [name, markers] of FILES) {
+      downloads.push({ name, source: await download(name, markers) });
     }
 
     // Validate every download before writing the first file.
