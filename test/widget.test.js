@@ -97,3 +97,25 @@ test('nearby request contains coordinates', () => {
   assert.ok(xml.includes('<Latitude>47.99</Latitude>'));
   assert.ok(xml.includes('<Longitude>7.85</Longitude>'));
 });
+
+
+test('stop event request accepts configured result limit', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /function buildStopEventRequest\(stopRef, key, resultLimit = 8\)/);
+  assert.match(source, /NumberOfResults>\$\{Math\.max\(1, Math\.min\(30,/);
+});
+
+test('widget and config await iCloud config downloads', () => {
+  const widget = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(widget, /async function loadWidgetConfig\(\)/);
+  assert.match(widget, /await fm\.downloadFileFromiCloud\(path\)/);
+  assert.match(config, /async function loadConfig\(\)/);
+  assert.match(config, /await fm\.downloadFileFromiCloud\(configPath\)/);
+});
+
+test('widget row slicing uses configured row count', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /slice\(0, Math\.max\(1, Math\.min\(8, Number\(WIDGET_CONFIG\.rows\)/);
+  assert.doesNotMatch(source, /\.slice\(0, 5\);/);
+});

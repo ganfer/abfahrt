@@ -44,10 +44,10 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function loadConfig() {
+async function loadConfig() {
   if (!fm.fileExists(configPath)) return clone(DEFAULTS);
   try {
-    if (!fm.isFileDownloaded(configPath)) fm.downloadFileFromiCloud(configPath);
+    if (!fm.isFileDownloaded(configPath)) await fm.downloadFileFromiCloud(configPath);
     const saved = JSON.parse(fm.readString(configPath));
     return {
       ...clone(DEFAULTS),
@@ -583,7 +583,7 @@ async function updateScripts() {
 }
 
 async function main() {
-  const cfg = loadConfig();
+  const cfg = await loadConfig();
 
   while (true) {
     const stops = savedStops();
