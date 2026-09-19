@@ -8,6 +8,11 @@ const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULTS = {
   rows: 5,
+  refreshAfterLocationChange: true,
+  location: {
+    autoSelectSavedStop: true,
+    savedStopRadiusMeters: 200,
+  },
   columns: {
     line: { visible: true, width: 34 },
     destination: { visible: true, width: 105 },
@@ -28,10 +33,6 @@ const DEFAULTS = {
       countdown: { visible: true, width: 92 },
     },
     fontSize: 16,
-    location: {
-      autoSelectSavedStop: true,
-      savedStopRadiusMeters: 200,
-    },
   },
 };
 
@@ -59,6 +60,14 @@ function loadConfig() {
       },
       spacing: { ...DEFAULTS.spacing, ...(saved.spacing || {}) },
       fontSize: { ...DEFAULTS.fontSize, ...(saved.fontSize || {}) },
+      refreshAfterLocationChange: typeof saved.refreshAfterLocationChange === 'boolean'
+        ? saved.refreshAfterLocationChange
+        : DEFAULTS.refreshAfterLocationChange,
+      location: {
+        ...DEFAULTS.location,
+        ...(saved.fullscreen?.location || {}),
+        ...(saved.location || {}),
+      },
       fullscreen: {
         ...DEFAULTS.fullscreen,
         ...(saved.fullscreen || {}),
@@ -69,7 +78,6 @@ function loadConfig() {
           departureTime: { ...DEFAULTS.fullscreen.columns.departureTime, ...(saved.fullscreen?.columns?.departureTime || {}) },
           countdown: { ...DEFAULTS.fullscreen.columns.countdown, ...(saved.fullscreen?.columns?.countdown || {}) },
         },
-        location: { ...DEFAULTS.fullscreen.location, ...(saved.fullscreen?.location || {}) },
       },
     };
   } catch (_) {
@@ -389,8 +397,6 @@ async function configureFullscreen(cfg) {
     a.addAction('Abfahrtszeit');
     a.addAction('Restzeit');
     a.addAction('Schriftgröße');
-    a.addAction(`Fixierte Haltestelle automatisch: ${cfg.fullscreen.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
-    a.addAction(`Entfernung: ${cfg.fullscreen.location.savedStopRadiusMeters} m`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -409,8 +415,6 @@ async function configureFullscreen(cfg) {
       if (sub === 1) col.width = await askNumber(labels[key] + ' – Breite', 'Breite in Pixeln für die Fullscreen-Tabelle.', col.width, 40, 400);
     }
     if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Fullscreen – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
-    if (choice === 7) cfg.fullscreen.location.autoSelectSavedStop = !cfg.fullscreen.location.autoSelectSavedStop;
-    if (choice === 8) cfg.fullscreen.location.savedStopRadiusMeters = await askNumber('Automatische Haltestelle – Entfernung', 'Maximale Entfernung in Metern, in der eine fixierte Haltestelle automatisch übernommen wird.', cfg.fullscreen.location.savedStopRadiusMeters, 25, 5000);
   }
 }
 
@@ -427,6 +431,7 @@ async function configureWidget(cfg) {
     a.addAction('Restzeit');
     a.addAction('Abstände');
     a.addAction('Schriftgrößen');
+    a.addAction(`Widget nach Standortwechsel aktualisieren: ${cfg.refreshAfterLocationChange ? 'AN' : 'AUS'}`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -447,6 +452,28 @@ async function configureWidget(cfg) {
       cfg.fontSize.departureTime = await askNumber('Abfahrtszeit – Schriftgröße', '', cfg.fontSize.departureTime, 8, 18);
       cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
     }
+    if (choice === 8) cfg.refreshAfterLocationChange = !cfg.refreshAfterLocationChange;
+  }
+}
+
+async function configureLocation(cfg) {
+  while (true) {
+    const a = new Alert();
+    a.title = 'Standort konfigurieren';
+    a.message = `Automatische Auswahl: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}\nEntfernung: ${cfg.location.savedStopRadiusMeters} m`;
+    a.addAction(`Fixierte Haltestelle automatisch: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
+    a.addAction(`Entfernung: ${cfg.location.savedStopRadiusMeters} m`);
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) cfg.location.autoSelectSavedStop = !cfg.location.autoSelectSavedStop;
+    if (choice === 1) cfg.location.savedStopRadiusMeters = await askNumber(
+      'Automatische Haltestelle – Entfernung',
+      'Maximale Entfernung in Metern, in der eine fixierte Haltestelle automatisch übernommen wird.',
+      cfg.location.savedStopRadiusMeters,
+      25,
+      5000,
+    );
   }
 }
 
@@ -485,10 +512,6 @@ const UPDATE_FILES = [
     name: 'VagAbfahrten-Config.js',
     markers: ["const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();'],
   },
-  {
-    name: 'VagAbfahrten-Refresh.js',
-    markers: ["const MAIN_SCRIPT = 'VagAbfahrten';", 'await main();'],
-  },
 ];
 
 function updateTargets(fileName) {
@@ -516,7 +539,7 @@ async function downloadUpdateFile(file) {
 async function updateScripts() {
   const confirm = new Alert();
   confirm.title = 'Skripte aktualisieren';
-  confirm.message = 'Lädt Widget, Config und Refresh-Helfer aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
+  confirm.message = 'Lädt Widget und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
   confirm.addAction('Update starten');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -538,13 +561,15 @@ async function updateScripts() {
         written.push(`• ${item.file.name} [${target.label}]`);
       }
     }
-    // Remove the retired standalone fullscreen script from both Scriptable
-    // stores. Fullscreen rendering now lives in VagAbfahrten.js.
+    // Remove retired helper/display scripts. Refresh and fullscreen rendering
+    // now both live in VagAbfahrten.js.
     for (const store of [FileManager.iCloud(), FileManager.local()]) {
-      const oldDisplay = store.joinPath(store.documentsDirectory(), 'VagAbfahrten-Display.js');
-      if (store.fileExists(oldDisplay)) {
-        store.remove(oldDisplay);
-        written.push('• VagAbfahrten-Display.js entfernt');
+      for (const retired of ['VagAbfahrten-Display.js', 'VagAbfahrten-Refresh.js']) {
+        const oldPath = store.joinPath(store.documentsDirectory(), retired);
+        if (store.fileExists(oldPath)) {
+          store.remove(oldPath);
+          written.push(`• ${retired} entfernt`);
+        }
       }
     }
     await notice('Update abgeschlossen', written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
@@ -564,6 +589,7 @@ async function main() {
     menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nFixierte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
     menu.addAction('Fullscreen');
+    menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
     menu.addAction('Update');
     menu.addAction('Speichern');
@@ -574,16 +600,17 @@ async function main() {
     if (choice === -1) break;
     if (choice === 0) await configureWidget(cfg);
     if (choice === 1) await configureFullscreen(cfg);
-    if (choice === 2) await managePinnedStops();
-    if (choice === 3) {
+    if (choice === 2) await configureLocation(cfg);
+    if (choice === 3) await managePinnedStops();
+    if (choice === 4) {
       await updateScripts();
       break;
     }
-    if (choice === 4) {
+    if (choice === 5) {
       await save(cfg);
       break;
     }
-    if (choice === 5) {
+    if (choice === 6) {
       await reset();
       break;
     }
