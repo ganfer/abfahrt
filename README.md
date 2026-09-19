@@ -165,7 +165,7 @@ The two README values intentionally mean different things:
 
 The PR version pipeline automatically bumps and synchronizes **only the Development version** when Runtime or Config changes. It does **not** rewrite the Stable version. Stable changes only when a release is deliberately published and the README is updated accordingly.
 
-Stable releases are created manually through the Release workflow. The workflow writes `release-manifest.json`, updates the Stable README version, commits that metadata and creates the tag/Release against that exact resulting commit. Merging to `main` does not automatically publish a release.
+Stable releases are created manually through the Release workflow. The workflow writes `release-manifest.json`, updates the Stable README version, commits that metadata on a dedicated `release/vX.Y.Z` branch and creates the tag/Release against that exact commit. It then opens a pull request to sync the generated Stable metadata back to the protected `main` branch. Merging to `main` does not automatically publish a release.
 
 ## Defaults
 
