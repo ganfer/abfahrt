@@ -132,6 +132,7 @@ Sie unterstützt:
 - mehrzeilige Ziele
 - eigene Schriftgröße
 - Sortierung nach Abfahrtszeit, Gleis, Richtung oder Linie
+- Gruppenüberschriften für Gleis-, Richtungs- und Liniensortierung; innerhalb der Gruppen bleibt die Abfahrtszeit das zweite Kriterium
 
 ### Nutzerfreundliche Fehler
 
