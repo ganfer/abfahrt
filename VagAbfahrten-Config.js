@@ -539,7 +539,8 @@ async function reset() {
 }
 
 
-const UPDATE_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/';
+const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/releases/latest';
+const RELEASE_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/';
 const UPDATE_FILES = [
   {
     name: 'VagAbfahrten.js',
@@ -576,14 +577,21 @@ function compareVersions(a, b) {
   return 0;
 }
 
-async function latestVersion() {
-  const mainFile = UPDATE_FILES[0];
-  const source = await downloadUpdateFile(mainFile);
-  return versionFromSource(source);
+async function latestRelease() {
+  const req = new Request(RELEASE_API_URL + '?t=' + Date.now());
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'application/vnd.github+json', 'Cache-Control': 'no-cache' };
+  const release = await req.loadJSON();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200) throw new Error(`GitHub Releases HTTP ${status || '?'}`);
+  const tag = String(release?.tag_name || '');
+  const match = tag.match(/^v(\d+\.\d+\.\d+)$/);
+  if (!match) throw new Error('Das neueste GitHub Release hat keine gültige vX.Y.Z-Version.');
+  return { version: match[1], tag };
 }
 
-async function downloadUpdateFile(file) {
-  const req = new Request(UPDATE_BASE_URL + file.name + '?t=' + Date.now());
+async function downloadUpdateFile(file, releaseTag) {
+  const req = new Request(RELEASE_RAW_BASE_URL + encodeURIComponent(releaseTag) + '/' + file.name + '?t=' + Date.now());
   req.timeoutInterval = 15;
   req.headers = { Accept: 'text/plain', 'Cache-Control': 'no-cache' };
   const source = await req.loadString();
@@ -596,13 +604,14 @@ async function downloadUpdateFile(file) {
 }
 
 async function updateScripts() {
-  let remoteVersion;
+  let release;
   try {
-    remoteVersion = await latestVersion();
+    release = await latestRelease();
   } catch (e) {
-    await notice('Update-Prüfung fehlgeschlagen', 'Die aktuelle Version auf GitHub konnte nicht ermittelt werden.\n\n' + e.message);
+    await notice('Update-Prüfung fehlgeschlagen', 'Das neueste GitHub Release konnte nicht ermittelt werden.\n\n' + e.message);
     return;
   }
+  const remoteVersion = release.version;
 
   const comparison = compareVersions(remoteVersion, APP_VERSION);
   if (comparison <= 0) {
@@ -615,7 +624,7 @@ async function updateScripts() {
 
   const confirm = new Alert();
   confirm.title = `Update v${remoteVersion} verfügbar`;
-  confirm.message = `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem main-Branch aktualisiert. Deine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
+  confirm.message = `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem veröffentlichten GitHub Release ${release.tag} aktualisiert. Deine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
   confirm.addAction('Update installieren');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -625,7 +634,7 @@ async function updateScripts() {
     // checked with explicit markers instead of an arbitrary minimum size.
     const downloads = [];
     for (const file of UPDATE_FILES) {
-      downloads.push({ file, source: await downloadUpdateFile(file) });
+      downloads.push({ file, source: await downloadUpdateFile(file, release.tag) });
     }
 
     const downloadedVersions = downloads
