@@ -130,4 +130,9 @@ test('README and screenshot workflow keep the preview contract', () => {
   const triggerSection = workflow.split('\npermissions:')[0];
   assert.doesNotMatch(triggerSection, /docs\/assets\/widget-preview\.png/, 'generated screenshot must not retrigger its own workflow');
   assert.match(renderer, /extractObject\('DEFAULT_WIDGET_CONFIG'\)/);
+  assert.match(renderer, /widget-header/);
+  assert.match(renderer, /chip live/);
+  assert.match(renderer, /departure-row\$\{index === 0 \? ' featured' : ''\}/);
+  assert.match(renderer, /departure: '12:45'/);
+  assert.doesNotMatch(renderer, /departure: '12:45 ·'/);
 });

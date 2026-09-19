@@ -58,11 +58,11 @@ const palette = {
 };
 
 const rows = [
-  { line: '1', destination: 'Littenweiler', platform: '1', departure: '12:45 ·', countdown: '3 min', state: 'ok' },
-  { line: '3', destination: 'Vauban', platform: '2', departure: '12:48 +2', countdown: '6 min', state: 'delay' },
-  { line: '4', destination: 'Messe Freiburg', platform: '3', departure: '12:51 ·', countdown: '9 min', state: 'ok' },
-  { line: '2', destination: 'Hornusstraße', platform: '4', departure: '12:54 °', countdown: '12 min', state: 'ok' },
-  { line: '5', destination: 'Europaplatz', platform: '–', departure: '12:57 ·', countdown: 'entfällt', state: 'cancelled' },
+  { line: '1', destination: 'Littenweiler', platform: '1', departure: '12:45', countdown: '3 min', state: 'ok', realtime: true },
+  { line: '3', destination: 'Vauban', platform: '2', departure: '12:48', countdown: '6 min', state: 'delay', realtime: true },
+  { line: '4', destination: 'Messe Freiburg', platform: '3', departure: '12:51', countdown: '9 min', state: 'ok', realtime: true },
+  { line: '2', destination: 'Hornusstraße', platform: '4', departure: '12:54', countdown: '12 min', state: 'ok', realtime: false },
+  { line: '5', destination: 'Europaplatz', platform: '–', departure: '12:57', countdown: 'entfällt', state: 'cancelled', realtime: true },
 ].slice(0, Math.max(1, Number(config.rows) || 5));
 
 const visible = Object.entries(config.columns).filter(([, value]) => value.visible !== false);
@@ -80,8 +80,8 @@ function cell(key, row) {
   return '';
 }
 
-const rowHtml = rows.map((row) =>
-  `<div class="departure-row">${visible.map(([key]) => cell(key, row)).join('')}</div>`
+const rowHtml = rows.map((row, index) =>
+  `<div class="departure-row${index === 0 ? ' featured' : ''}">${visible.map(([key]) => cell(key, row)).join('')}</div>`
 ).join('');
 
 const html = `<!doctype html>
@@ -123,11 +123,50 @@ const html = `<!doctype html>
     min-height: 260px;
     border-radius: 28px;
     background: ${palette.bg};
-    padding: 13px 14px 10px;
+    padding: 11px 12px 9px;
     box-shadow: 0 12px 26px rgba(0,0,0,.35);
   }
-  .widget-title { font-size: 16px; line-height: 20px; font-weight: 750; color: ${palette.fg}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .widget-subtitle { margin-top: 1px; font-size: 10px; line-height: 13px; font-weight: 500; color: ${palette.dim}; }
+  .widget-header {
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 12px;
+    background: radial-gradient(circle at 10% 15%, rgba(48,209,88,.14), transparent 38%), #17171a;
+  }
+  .stop-badge {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #123822;
+    color: #ffd60a;
+    font-size: 17px;
+    font-weight: 800;
+  }
+  .widget-copy { min-width: 0; flex: 1; }
+  .widget-title { font-size: 15px; line-height: 18px; font-weight: 750; color: ${palette.fg}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .widget-subtitle { margin-top: 1px; font-size: 8px; line-height: 11px; font-weight: 500; color: ${palette.dim}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .widget-status { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+  .chip {
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 7px;
+    border-radius: 8px;
+    background: #232326;
+    color: #d1d1d6;
+    font-size: 8px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .chip.live { background: #123b24; color: #79e697; }
+  .chip-dot { font-size: 6px; color: #30d158; }
+  .pin { margin-left: 1px; color: #ffd60a; font-size: 14px; line-height: 1; }
   .rows { margin-top: 7px; display: flex; flex-direction: column; gap: ${rowGap}px; }
   .departure-row {
     display: grid;
@@ -135,7 +174,10 @@ const html = `<!doctype html>
     column-gap: ${gap}px;
     align-items: center;
     min-height: ${badgeHeight}px;
+    padding: 0;
+    border-radius: 9px;
   }
+  .departure-row.featured { padding: 3px 5px; background: #18181b; }
   .departure-row > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .line-badge {
     height: ${badgeHeight}px;
@@ -156,7 +198,8 @@ const html = `<!doctype html>
   .countdown.delay { color: ${palette.delay}; }
   .countdown.late { color: ${palette.late}; }
   .countdown.cancelled, .cancelled-text { color: ${palette.dim}; opacity: .72; }
-  .footer { margin-top: 5px; text-align: right; font-size: 8px; color: ${palette.dim}; }
+  .footer { margin-top: 5px; display: flex; justify-content: space-between; font-size: 7px; color: ${palette.dim}; }
+  .footer .realtime { color: ${palette.ok}; }
   .dock {
     position: absolute;
     left: 24px;
@@ -177,10 +220,20 @@ const html = `<!doctype html>
     <div class="day">Samstag, 19. September</div>
     <div class="city">Freiburg</div>
     <section class="widget" aria-label="public transport departures widget preview">
-      <div class="widget-title">Bertoldsbrunnen</div>
-      <div class="widget-subtitle">Freiburg</div>
+      <div class="widget-header">
+        <div class="stop-badge">H</div>
+        <div class="widget-copy">
+          <div class="widget-title">Bertoldsbrunnen</div>
+          <div class="widget-subtitle">Freiburg · akt. 12:42</div>
+        </div>
+        <div class="widget-status">
+          <div class="chip live"><span class="chip-dot">●</span>Live</div>
+          <div class="chip">4 Steige</div>
+          <div class="pin">★</div>
+        </div>
+      </div>
       <div class="rows">${rowHtml}</div>
-      <div class="footer">aktualisiert 12:42 · 1 entfällt</div>
+      <div class="footer"><span class="realtime">● Echtzeit</span><span>Tippen für Details</span></div>
     </section>
     <div class="dock"><div class="app"></div><div class="app"></div><div class="app"></div><div class="app"></div></div>
     <div class="home-indicator"></div>
