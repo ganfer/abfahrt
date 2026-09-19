@@ -23,9 +23,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=$(sed -n "s/^const APP_VERSION = ['\"]\([0-9][0-9.]*\)['\"];$/\1/p" Abfahrt.js)
+          VERSION=$(sed -n "s/^const APP_VERSION = ['\"]\([0-9][0-9.]*\)['\"];$/\1/p" abfahrt.js)
           if [ -z "$VERSION" ]; then
-            echo "APP_VERSION could not be read from Abfahrt.js"
+            echo "APP_VERSION could not be read from abfahrt.js"
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -55,7 +55,7 @@ jobs:
           const crypto = require('node:crypto');
           const fs = require('node:fs');
           const version = process.env.VERSION;
-          const files = ['Abfahrt.js', 'Abfahrt-Config.js'];
+          const files = ['abfahrt.js', 'abfahrt-Config.js'];
           const manifest = {
             schemaVersion: 1,
             version,
