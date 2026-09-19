@@ -26,6 +26,25 @@ test('bootstrap installer is versionsless and Stable-first', () => {
   assert.match(installer, /Compatibility bridge/);
 });
 
+test('README quick installer stays copy-pasteable in Scriptable', () => {
+  const installer = read('VagAbfahrten-Install.js');
+  const readme = read('README.md');
+  const oneLine = 'await eval(await new Request("https://raw.githubusercontent.com/ganfer/vag-widget/main/VagAbfahrten-Install.js").loadString())';
+
+  assert.match(installer, /\(async \(\) => \{/);
+  assert.doesNotMatch(installer, /^await main\(\);$/m);
+  assert.ok(readme.includes(oneLine));
+  for (const file of [
+    'docs/assets/install/scriptable-01-new-script.svg',
+    'docs/assets/install/scriptable-02-paste.svg',
+    'docs/assets/install/scriptable-03-run.svg',
+    'docs/assets/install/scriptable-04-finished.svg',
+  ]) {
+    assert.equal(fs.existsSync(path.join(root, file)), true, file + ' must exist');
+    assert.ok(readme.includes(file), file + ' must be referenced by README');
+  }
+});
+
 test('config owns the managed installation lifecycle', () => {
   const config = read('VagAbfahrten-Config.js');
   assert.match(config, /const MANAGED_FILES = \[/);
