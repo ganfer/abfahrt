@@ -1,6 +1,6 @@
 # vag-widget
 
-**Current version: v1.0.1**
+**Current version: v1.0.2**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API.
 
@@ -45,11 +45,11 @@ Configure the number of departures, visible columns, widths and font size indepe
 
 ### Standort
 
-Configure automatic pinned-stop selection and its radius. The radius is relevant only while automatic selection is enabled. You can also enable the fallback to the last active stop when GPS or the TRIAS nearby lookup is unavailable.
+Configure automatic pinned-stop selection and its radius. The radius is relevant only while automatic selection is enabled. For GPS or TRIAS lookup failures, choose **Last stop**, **🏠 Home**, or **No fallback**. If Home is selected but no Home stop exists, the last active stop is used as a safety fallback.
 
 ### Fixierte Haltestellen
 
-Stops can be pinned from recent history or found through the TRIAS stop search. A pinned stop can have a custom display name.
+Stops can be pinned from recent history or found through the TRIAS stop search. A pinned stop can have a custom display name. Exactly one pinned stop can additionally be marked as **🏠 Home**. Home is always shown first in the pinned-stop picker and uses the house icon instead of the normal pin.
 
 Personal settings are stored in **`VagAbfahrten.config.json`** in Scriptable's iCloud directory. Runtime and Config await an iCloud download before reading the file. If it is missing or invalid, built-in defaults are used.
 
@@ -78,7 +78,7 @@ Retired helper scripts such as `VagAbfahrten-Display.js` and `VagAbfahrten-Refre
 | Fullscreen departures | 8 |
 | Automatic pinned stop | On |
 | Automatic-selection radius | 200 m |
-| Last-stop fallback | On |
+| Location fallback | Last stop |
 | Immediate widget refresh after location change | On |
 
 TRIAS departure result requests are sized to the configured view and clamped to **1–30** results.

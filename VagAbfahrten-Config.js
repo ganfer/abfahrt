@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -13,7 +13,7 @@ const DEFAULTS = {
   location: {
     autoSelectSavedStop: true,
     savedStopRadiusMeters: 200,
-    fallbackToLastStop: true,
+    fallbackMode: 'last',
   },
   columns: {
     line: { visible: true, width: 34 },
@@ -69,6 +69,10 @@ async function loadConfig() {
         ...DEFAULTS.location,
         ...(saved.fullscreen?.location || {}),
         ...(saved.location || {}),
+        fallbackMode: saved.location?.fallbackMode ||
+          (typeof saved.location?.fallbackToLastStop === 'boolean'
+            ? (saved.location.fallbackToLastStop ? 'last' : 'none')
+            : DEFAULTS.location.fallbackMode),
       },
       fullscreen: {
         ...DEFAULTS.fullscreen,
@@ -161,6 +165,7 @@ function pinStop(stop) {
     name: stop.name,
     displayName: existing?.displayName || '',
     pinned: true,
+    home: existing?.home === true,
   });
   writeSavedStops(filtered);
 }
@@ -330,7 +335,8 @@ async function managePinnedStops() {
     a.title = 'Fixierte Haltestellen';
     a.message = stops.length ? `${stops.length} Haltestelle(n) dauerhaft fixiert.` : 'Noch keine Haltestellen fixiert.';
     a.addAction('Haltestelle fixieren');
-    for (const stop of stops) a.addAction('📌 ' + (stop.displayName || stop.name));
+    const orderedStops = [...stops].sort((a, b) => Number(b.home === true) - Number(a.home === true));
+    for (const stop of orderedStops) a.addAction((stop.home === true ? '🏠 Home' : '📌 ' + (stop.displayName || stop.name)));
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -338,12 +344,13 @@ async function managePinnedStops() {
       await addPinnedStop();
       continue;
     }
-    const index = choice - 1;
-    const stop = stops[index];
+    const stop = orderedStops[choice - 1];
+    const index = stops.findIndex((s) => s.stopRef === stop.stopRef);
     const detail = new Alert();
     detail.title = stop.displayName || stop.name;
     detail.message = (stop.displayName ? 'TRIAS: ' + stop.name + '\n' : '') + stop.stopRef;
     detail.addAction('Anzeigename ändern');
+    detail.addAction(stop.home === true ? 'Home entfernen' : 'Als Home festlegen');
     detail.addDestructiveAction('Fixierung entfernen');
     detail.addCancelAction('Zurück');
     const action = await detail.present();
@@ -369,6 +376,17 @@ async function managePinnedStops() {
       }
     }
     if (action === 1) {
+      if (stop.home === true) {
+        stops[index] = { ...stop, home: false };
+        writeSavedStops(stops);
+        await notice('Home entfernt', stop.displayName || stop.name);
+      } else {
+        const updated = stops.map((item, i) => ({ ...item, home: i === index }));
+        writeSavedStops(updated);
+        await notice('Home festgelegt', '🏠 Home ist jetzt ' + (stop.displayName || stop.name) + '.');
+      }
+    }
+    if (action === 2) {
       stops.splice(index, 1);
       writeSavedStops(stops);
       await notice('Fixierung entfernt', stop.displayName || stop.name);
@@ -460,12 +478,14 @@ async function configureWidget(cfg) {
 
 async function configureLocation(cfg) {
   while (true) {
+    const fallbackLabels = { last: 'Letzte Haltestelle', home: '🏠 Home', none: 'Kein Fallback' };
+    const fallback = fallbackLabels[cfg.location.fallbackMode] || fallbackLabels.last;
     const a = new Alert();
     a.title = 'Standort konfigurieren';
-    a.message = `Automatische Auswahl: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}\nEntfernung: ${cfg.location.savedStopRadiusMeters} m\nFallback: ${cfg.location.fallbackToLastStop ? 'AN' : 'AUS'}`;
+    a.message = `Automatische Auswahl: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}\nEntfernung: ${cfg.location.savedStopRadiusMeters} m\nFallback: ${fallback}`;
     a.addAction(`Fixierte Haltestelle automatisch: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
     if (cfg.location.autoSelectSavedStop) a.addAction(`Entfernung: ${cfg.location.savedStopRadiusMeters} m`);
-    a.addAction(`Bei Standortfehler letzte Haltestelle: ${cfg.location.fallbackToLastStop ? 'AN' : 'AUS'}`);
+    a.addAction('Fallback: ' + fallback);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -478,7 +498,19 @@ async function configureLocation(cfg) {
       5000,
     );
     const fallbackChoice = cfg.location.autoSelectSavedStop ? 2 : 1;
-    if (choice === fallbackChoice) cfg.location.fallbackToLastStop = !cfg.location.fallbackToLastStop;
+    if (choice === fallbackChoice) {
+      const b = new Alert();
+      b.title = 'Fallback bei Standortfehler';
+      b.message = 'Home fällt automatisch auf die zuletzt verwendete Haltestelle zurück, falls kein Home festgelegt ist.';
+      b.addAction('Letzte Haltestelle');
+      b.addAction('🏠 Home');
+      b.addAction('Kein Fallback');
+      b.addCancelAction('Abbrechen');
+      const selected = await b.present();
+      if (selected === 0) cfg.location.fallbackMode = 'last';
+      if (selected === 1) cfg.location.fallbackMode = 'home';
+      if (selected === 2) cfg.location.fallbackMode = 'none';
+    }
   }
 }
 
