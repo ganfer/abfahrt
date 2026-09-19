@@ -114,6 +114,21 @@ test('release workflow creates checksummed Stable metadata without bypassing pro
   assert.doesNotMatch(workflow, /--target "\$GITHUB_SHA"/);
 });
 
+test('Stable metadata merge waits for successful CI and only merges generated release PRs', () => {
+  const workflow = read('.github/workflows/release-metadata-merge.yml');
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows: \["CI"\]/);
+  assert.match(workflow, /conclusion == 'success'/);
+  assert.match(workflow, /event == 'pull_request'/);
+  assert.match(workflow, /startsWith\(github\.event\.workflow_run\.head_branch, 'release\/v'\)/);
+  assert.match(workflow, /head_repository\.full_name == github\.repository/);
+  assert.match(workflow, /baseRefName == "main"/);
+  assert.match(workflow, /README\.md release-manifest\.json/);
+  assert.match(workflow, /gh pr merge/);
+  assert.match(workflow, /--match-head-commit "\$HEAD_SHA"/);
+  assert.doesNotMatch(workflow, /--admin/);
+});
+
 test('screenshot workflow updates protected main through a pull request', () => {
   const workflow = read('.github/workflows/widget-screenshot.yml');
   assert.match(workflow, /BRANCH="automation\/widget-screenshot"/);
