@@ -4,22 +4,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const managed = ['Abfahrt.js', 'Abfahrt-Config.js'];
+const managed = ['abfahrt.js', 'abfahrt-Config.js'];
 function version(source) {
   const match = source.match(/const APP_VERSION = ['"]([^'"]+)['"]/);
   return match ? match[1] : null;
 }
-test('project uses the hard Abfahrt identity without legacy application names', () => {
+test('project uses the hard abfahrt identity without legacy application names', () => {
   const rootFiles = fs.readdirSync(root);
-  assert.equal(rootFiles.includes('Abfahrt.js'), true);
-  assert.equal(rootFiles.includes('Abfahrt-Config.js'), true);
-  assert.equal(rootFiles.includes('Abfahrt-Install.js'), true);
+  assert.equal(rootFiles.includes('abfahrt.js'), true);
+  assert.equal(rootFiles.includes('abfahrt-Config.js'), true);
+  assert.equal(rootFiles.includes('abfahrt-Install.js'), true);
   assert.equal(rootFiles.some((name) => /^VagAbfahrten(?:-|\.|$)/.test(name)), false);
 
   const sources = [
-    read('Abfahrt.js'),
-    read('Abfahrt-Config.js'),
-    read('Abfahrt-Install.js'),
+    read('abfahrt.js'),
+    read('abfahrt-Config.js'),
+    read('abfahrt-Install.js'),
     read('README.md'),
   ].join('\n');
   assert.doesNotMatch(sources, /VagAbfahrten|ganfer\/vag-widget|\bVAG_[A-Z_]+/);
@@ -36,19 +36,19 @@ test('all managed scripts use the same semantic version', () => {
   assert.equal(new Set(versions.map((pair) => pair[1])).size, 1);
 });
 test('bootstrap installer is versionsless and Stable-first', () => {
-  const installer = read('Abfahrt-Install.js');
+  const installer = read('abfahrt-Install.js');
   assert.doesNotMatch(installer, /^const APP_VERSION\s*=/m);
   assert.match(installer, /releases\/latest/);
-  assert.match(installer, /Abfahrt-Config\.js/);
+  assert.match(installer, /abfahrt-Config\.js/);
   assert.match(installer, /ABFAHRT_PENDING_INSTALL_REF/);
-  assert.match(installer, /aktuellen Abfahrt-Produktlinie/);
+  assert.match(installer, /aktuellen abfahrt-Produktlinie/);
   assert.doesNotMatch(installer, /Compatibility bridge|kompatiblen Bootstrap-Fallback/);
 });
 
 test('README quick installer stays copy-pasteable in Scriptable', () => {
-  const installer = read('Abfahrt-Install.js');
+  const installer = read('abfahrt-Install.js');
   const readme = read('README.md');
-  const oneLine = 'await eval(await new Request("https://raw.githubusercontent.com/ganfer/abfahrt/main/Abfahrt-Install.js").loadString())';
+  const oneLine = 'await eval(await new Request("https://raw.githubusercontent.com/ganfer/abfahrt/main/abfahrt-Install.js").loadString())';
 
   assert.match(installer, /\(async \(\) => \{/);
   assert.doesNotMatch(installer, /^await main\(\);$/m);
@@ -65,12 +65,12 @@ test('README quick installer stays copy-pasteable in Scriptable', () => {
 });
 
 test('config owns the managed installation lifecycle', () => {
-  const config = read('Abfahrt-Config.js');
+  const config = read('abfahrt-Config.js');
   assert.match(config, /const MANAGED_FILES = \[/);
   assert.match(config, /const MANAGED_KEYCHAIN_KEYS = \[/);
   assert.match(config, /const INSTALLER_FILE_NAMES = \[/);
-  assert.match(config, /Abfahrt\.js/);
-  assert.match(config, /Abfahrt-Config\.js/);
+  assert.match(config, /abfahrt\.js/);
+  assert.match(config, /abfahrt-Config\.js/);
   assert.match(config, /downloadManagedFiles/);
   assert.match(config, /release-manifest\.json/);
   assert.match(config, /sha256Hex/);
@@ -78,13 +78,13 @@ test('config owns the managed installation lifecycle', () => {
 });
 
 test('obsolete helper and legacy installer are not part of the repository architecture', () => {
-  assert.equal(fs.existsSync(path.join(root, 'Abfahrt-Refresh.js')), false);
-  assert.equal(fs.existsSync(path.join(root, 'Abfahrt-Init.js')), false);
-  assert.equal(fs.existsSync(path.join(root, 'Abfahrt-Install.js')), true);
+  assert.equal(fs.existsSync(path.join(root, 'abfahrt-Refresh.js')), false);
+  assert.equal(fs.existsSync(path.join(root, 'abfahrt-Init.js')), false);
+  assert.equal(fs.existsSync(path.join(root, 'abfahrt-Install.js')), true);
 });
 
 test('README Development version matches scripts', () => {
-  const runtimeVersion = version(read('Abfahrt.js'));
+  const runtimeVersion = version(read('abfahrt.js'));
   const escaped = runtimeVersion.split('.').join('\\.');
   assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
 });
