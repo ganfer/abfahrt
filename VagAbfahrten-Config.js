@@ -817,6 +817,85 @@ async function configureUpdates(cfg) {
   }
 }
 
+function diagnosticSnapshot(cfg) {
+  const pinned = savedStops().filter((stop) => stop.pinned === true);
+  return {
+    channel: cfg.updates.channel === 'development' ? 'Development' : 'Stable',
+    key: Keychain.contains('TRIAS_REQUESTOR_REF') && Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '' ? 'vorhanden' : 'fehlt',
+    lastStop: Keychain.contains('VAG_LAST_STOP_REF') && Keychain.get('VAG_LAST_STOP_REF').trim() !== '' ? 'vorhanden' : 'nicht gesetzt',
+    pinned: pinned.length,
+    home: pinned.some((stop) => stop.home === true) ? 'gesetzt' : 'nicht gesetzt',
+  };
+}
+
+async function probeEndpoint(url, headers = {}) {
+  try {
+    const req = new Request(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
+    req.timeoutInterval = 8;
+    req.headers = headers;
+    await req.loadString();
+    const status = req.response ? req.response.statusCode : 0;
+    return status >= 200 && status < 500 ? `erreichbar (HTTP ${status})` : `Fehler (HTTP ${status || '?'})`;
+  } catch (_) {
+    return 'nicht erreichbar';
+  }
+}
+
+function storageDiagnosticLines() {
+  const cloud = FileManager.iCloud();
+  const local = FileManager.local();
+  const inspect = (label, fm, name) => {
+    const path = fm.joinPath(fm.documentsDirectory(), name);
+    if (!fm.fileExists(path)) return `${label}: fehlt`;
+    try {
+      const version = versionFromSource(fm.readString(path));
+      return `${label}: ${version ? 'v' + version : 'Version unbekannt'}`;
+    } catch (_) {
+      return `${label}: vorhanden, nicht lesbar`;
+    }
+  };
+  return [
+    `Laufender Code: v${APP_VERSION}`,
+    `Script.name(): ${Script.name()}`,
+    'VagAbfahrten-Config.js',
+    inspect('  iCloud', cloud, 'VagAbfahrten-Config.js'),
+    inspect('  Lokal', local, 'VagAbfahrten-Config.js'),
+    'VagAbfahrten.js',
+    inspect('  iCloud', cloud, 'VagAbfahrten.js'),
+    inspect('  Lokal', local, 'VagAbfahrten.js'),
+  ];
+}
+
+async function buildDiagnostics(cfg) {
+  const d = diagnosticSnapshot(cfg);
+  const github = await probeEndpoint(RELEASE_API_URL, { Accept: 'application/vnd.github+json' });
+  const trias = await probeEndpoint(TRIAS_ENDPOINT);
+  return [
+    'VAG Widget Diagnose',
+    ...storageDiagnosticLines(),
+    `Update-Kanal: ${d.channel}`,
+    `TRIAS-Key: ${d.key}`,
+    `TRIAS-Endpunkt: ${trias}`,
+    `GitHub/Updater: ${github}`,
+    `Letzte Haltestelle: ${d.lastStop}`,
+    `Fixierte Haltestellen: ${d.pinned}`,
+    `Home: ${d.home}`,
+  ].join('\n');
+}
+
+async function configureDiagnostics(cfg) {
+  const report = await buildDiagnostics(cfg);
+  const a = new Alert();
+  a.title = 'Diagnose';
+  a.message = report;
+  a.addAction('Diagnose kopieren');
+  a.addCancelAction('Zurück');
+  if (await a.present() === 0) {
+    Pasteboard.copyString(report);
+    await notice('Diagnose kopiert', 'Der Diagnosebericht wurde kopiert. Keys, Stop-IDs, Haltestellennamen und Koordinaten werden nicht ausgegeben.');
+  }
+}
+
 async function main() {
   const cfg = await loadConfig();
 
@@ -831,6 +910,7 @@ async function main() {
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
     menu.addAction('Updates');
+    menu.addAction('Diagnose');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -842,11 +922,12 @@ async function main() {
     if (choice === 2) await configureLocation(cfg);
     if (choice === 3) await managePinnedStops();
     if (choice === 4) await configureUpdates(cfg);
-    if (choice === 5) {
+    if (choice === 5) await configureDiagnostics(cfg);
+    if (choice === 6) {
       await save(cfg);
       break;
     }
-    if (choice === 6) {
+    if (choice === 7) {
       await reset();
       break;
     }
