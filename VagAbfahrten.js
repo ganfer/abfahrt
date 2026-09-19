@@ -74,6 +74,8 @@ const DEFAULT_FULLSCREEN_CONFIG = {
   fontSize: 16,
 };
 
+const DEFAULT_FILTER_CONFIG = { widget: true, fullscreen: true };
+
 const DEFAULT_LOCATION_CONFIG = {
   autoSelectSavedStop: true,
   savedStopRadiusMeters: 200,
@@ -100,6 +102,7 @@ function mergeWidgetConfig(saved) {
     refreshAfterLocationChange: typeof s.refreshAfterLocationChange === 'boolean'
       ? s.refreshAfterLocationChange
       : d.refreshAfterLocationChange,
+    filters: { ...DEFAULT_FILTER_CONFIG, ...(s.filters || {}) },
     location: {
       ...DEFAULT_LOCATION_CONFIG,
       ...(s.fullscreen?.location || {}),
@@ -587,7 +590,7 @@ function addDepartureRow(w, r, place, c) {
     const column = row.addStack();
     column.size = new Size(Math.max(1, columns.departureTime.width), height);
     column.centerAlignContent();
-    const clock = column.addText(fmtClock(r.at));
+    const clock = column.addText(fmtClock(r.at) + (r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'));
     clock.font = Font.systemFont(WIDGET_CONFIG.fontSize.departureTime);
     clock.textColor = new Color(r.cancelled ? c.dim : c.fg);
     clock.lineLimit = 1;
@@ -673,7 +676,9 @@ async function defaultWidget(key, present, tapParameter) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
     Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
-  const stopRefs = hasLastStop ? [Keychain.get(LAST_STOP_REF_KEY)] : DEFAULT_STOPS;
+  const lastRef = hasLastStop ? Keychain.get(LAST_STOP_REF_KEY) : '';
+  const activePin = hasLastStop ? activePinnedStop(lastRef) : null;
+  const stopRefs = activePin ? stopRefsFor(activePin) : hasLastStop ? [lastRef] : DEFAULT_STOPS;
   const title =
     hasLastStop && Keychain.contains(LAST_STOP_NAME_KEY)
       ? Keychain.get(LAST_STOP_NAME_KEY)
@@ -681,11 +686,12 @@ async function defaultWidget(key, present, tapParameter) {
 
   try {
     const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.rows) || 5));
-    const rows = withDelay(events, Date.now());
-    const sub = events.length
-      ? `${events.length} Ereignisse gelesen`
+    const filteredEvents = applyPinnedFilter(events, activePin, 'widget');
+    const rows = withDelay(filteredEvents, Date.now());
+    const sub = filteredEvents.length
+      ? `${filteredEvents.length} Ereignisse gelesen`
       : 'API antwortete ohne Events';
-    const w = buildWidget(title, rows.length ? null : sub, rows, cancelledCount(events, Date.now()), tapParameter);
+    const w = buildWidget(title, rows.length ? null : sub, rows, cancelledCount(filteredEvents, Date.now()), tapParameter);
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
@@ -744,6 +750,24 @@ function stopDistanceMeters(stop, location) {
   return distanceMeters(location.latitude, location.longitude, stop.latitude, stop.longitude);
 }
 
+function stopRefsFor(stop) { return [...new Set([stop.stopRef, ...(Array.isArray(stop.stopRefs) ? stop.stopRefs : [])].filter(Boolean))]; }
+function stopRole(stop) {
+  if (stop.home === true || stop.role === 'home') return { icon: '🏠', label: 'Home' };
+  const roles = { work: ['💼','Arbeit'], love: ['❤️','Love'], pub: ['🍺','Kneipe'], favorite: ['⭐️','Favorit'], transfer: ['🚉','Umstieg'] };
+  if (stop.role === 'custom') return { icon: stop.roleIcon || '📍', label: stop.roleLabel || 'Eigene Rolle' };
+  const role = roles[stop.role] || ['📌','Fixiert']; return { icon: role[0], label: role[1] };
+}
+function activePinnedStop(stopRef, pinned = savedStops()) { return pinned.find((stop) => stop.pinned === true && stopRefsFor(stop).includes(stopRef)) || null; }
+function eventMatchesFilter(event, stop) {
+  const f = stop?.filter; if (!f || f.enabled === false) return true;
+  const lines = Array.isArray(f.lines) ? f.lines.map(normalizeStopName) : [];
+  const dirs = Array.isArray(f.destinations) ? f.destinations.map(normalizeStopName) : [];
+  if (!lines.length && !dirs.length) return true;
+  const match = (!lines.length || lines.includes(normalizeStopName(event.line))) && (!dirs.length || dirs.some((v) => normalizeStopName(event.destination).includes(v)));
+  return f.mode === 'blacklist' ? !match : match;
+}
+function applyPinnedFilter(events, stop, surface) { return !stop || WIDGET_CONFIG.filters?.[surface] === false ? events : events.filter((e) => eventMatchesFilter(e, stop)); }
+
 function pinnedStopFor(stop, pinned) {
   return pinned.find((s) => s.pinned === true && sameStop(s, stop)) || null;
 }
@@ -753,7 +777,7 @@ function homeStop(pinned = savedStops()) {
 }
 
 function pinnedLabel(stop) {
-  return (stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name);
+  return stopRole(stop).icon + ' ' + (stop.displayName || stop.name);
 }
 
 function requestWidgetRefresh() {
@@ -953,7 +977,9 @@ async function presentDeparturesTable(key, context = null) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
     Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
-  const stopRefs = hasLastStop ? [Keychain.get(LAST_STOP_REF_KEY)] : DEFAULT_STOPS;
+  const lastRef = hasLastStop ? Keychain.get(LAST_STOP_REF_KEY) : '';
+  const activePin = hasLastStop ? activePinnedStop(lastRef) : null;
+  const stopRefs = activePin ? stopRefsFor(activePin) : hasLastStop ? [lastRef] : DEFAULT_STOPS;
   const title =
     hasLastStop && Keychain.contains(LAST_STOP_NAME_KEY)
       ? Keychain.get(LAST_STOP_NAME_KEY)
@@ -961,8 +987,9 @@ async function presentDeparturesTable(key, context = null) {
 
   try {
     const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
+    const filteredEvents = applyPinnedFilter(events, activePin, 'fullscreen');
     const now = Date.now();
-    const rows = events
+    const rows = filteredEvents
       .filter((e) => (e.realtimeTime || e.plannedTime) >= now)
       .map((e) => {
         const at = e.realtimeTime || e.plannedTime;
@@ -984,7 +1011,7 @@ async function presentDeparturesTable(key, context = null) {
       { key: 'line', label: 'Linie', value: (r) => r.line || '–', cls: 'line' },
       { key: 'destination', label: 'Richtung', value: (r) => compactDestination(r.destination, place), cls: 'destination' },
       { key: 'platform', label: 'Gleis', value: (r) => r.platform || '–', cls: 'platform' },
-      { key: 'departureTime', label: 'Abfahrt', value: (r) => fmtClock(r.at), cls: 'time' },
+      { key: 'departureTime', label: 'Abfahrt', value: (r) => fmtClock(r.at) + (r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'), cls: 'time' },
       {
         key: 'countdown',
         label: 'Restzeit',
