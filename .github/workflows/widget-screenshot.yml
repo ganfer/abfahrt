@@ -4,14 +4,14 @@ on:
   pull_request:
     paths:
       - 'abfahrt.js'
-      - 'abfahrt-Config.js'
+      - 'abfahrt-config.js'
       - 'scripts/render-widget-preview.mjs'
       - '.github/workflows/widget-screenshot.yml'
   push:
     branches: [main]
     paths:
       - 'abfahrt.js'
-      - 'abfahrt-Config.js'
+      - 'abfahrt-config.js'
       - 'scripts/render-widget-preview.mjs'
       - '.github/workflows/widget-screenshot.yml'
   workflow_dispatch:
