@@ -34,8 +34,10 @@ for (const file of VERSION_FILES) {
 }
 
 const readme = fs.readFileSync('README.md', 'utf8');
-const currentMatch = readme.match(/Current version:\s*\*\*v(\d+\.\d+\.\d+)\*\*/i);
-if (!currentMatch) throw new Error('README current version konnte nicht gefunden werden.');
-fs.writeFileSync('README.md', readme.replace(currentMatch[0], currentMatch[0].replace(currentMatch[1], next)));
+const currentLine = readme.split('\n').find((line) => line.includes('Current version:'));
+if (!currentLine) throw new Error('README current version konnte nicht gefunden werden.');
+const updatedLine = currentLine.replace(/v\d+\.\d+\.\d+/, `v${next}`);
+if (updatedLine === currentLine) throw new Error('README Versionsnummer konnte nicht ersetzt werden.');
+fs.writeFileSync('README.md', readme.replace(currentLine, updatedLine));
 
 console.log(`Automatischer Versions-Bump: v${base.major}.${base.minor}.${base.patch} -> v${next}`);
