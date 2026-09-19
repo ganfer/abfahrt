@@ -433,22 +433,22 @@ async function configureFullscreen(cfg) {
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
-    if (choice === 0) cfg.fullscreen.rows = await askNumber('Fullscreen – Abfahrten', 'Wie viele Abfahrten sollen angezeigt werden?', cfg.fullscreen.rows, 1, 30);
+    if (choice === 0) cfg.fullscreen.rows = await askNumber('Vollbild – Abfahrten', 'Wie viele Abfahrten sollen angezeigt werden?', cfg.fullscreen.rows, 1, 30);
     if (choice >= 1 && choice <= 5) {
       const key = ['line', 'destination', 'platform', 'departureTime', 'countdown'][choice - 1];
       const col = cfg.fullscreen.columns[key];
       const b = new Alert();
       b.title = labels[key];
-      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} px`;
+      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} pt`;
       b.addAction(col.visible ? 'Spalte ausblenden' : 'Spalte einblenden');
       b.addAction('Breite ändern');
       b.addCancelAction('Zurück');
       const sub = await b.present();
       if (sub === 0) col.visible = !col.visible;
-      if (sub === 1) col.width = await askNumber(labels[key] + ' – Breite', 'Breite in Pixeln für die Fullscreen-Tabelle.', col.width, 40, 400);
+      if (sub === 1) col.width = await askNumber(labels[key] + ' – Breite', 'Breite in Punkten für die Vollbild-Tabelle.', col.width, 40, 400);
     }
-    if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Fullscreen – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
-    if (choice === 7) await configureSurfaceFilter(cfg, 'fullscreen', 'Fullscreen');
+    if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Vollbild – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
+    if (choice === 7) await configureSurfaceFilter(cfg, 'fullscreen', 'Vollbild');
   }
 }
 
@@ -718,7 +718,7 @@ async function exportConfig(cfg) {
   };
   const text = JSON.stringify(backup, null, 2);
   Pasteboard.copyString(text);
-  await notice('Backup kopiert', 'Konfiguration und angepinnte Haltestellen wurden als JSON in die Zwischenablage kopiert. TRIAS-Key, letzte Haltestelle, Verlauf und Development-Status sind nicht enthalten.');
+  await notice('Backup kopiert', 'Konfiguration und angepinnte Haltestellen wurden als JSON in die Zwischenablage kopiert. TRIAS-Key, letzte Haltestelle, zuletzt verwendete Haltestellen und Development-Status sind nicht enthalten.');
 }
 
 async function importConfig() {
