@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.0.17';
+const APP_VERSION = '1.0.18';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -340,7 +340,7 @@ function stopMenuLabel(stop) { return roleForStop(stop).icon + ' ' + (stop.displ
 async function configureStopRole(stops,index) { const stop=stops[index],a=new Alert(); a.title='Rolle · '+(stop.displayName||stop.name); a.addAction('🏠 Home'); for(const role of STOP_ROLES)a.addAction(role.icon+' '+role.label); a.addAction('Eigenes Emoji / Rolle'); a.addCancelAction('Zurück'); const x=await a.present(); if(x===-1)return; if(x===0){for(let i=0;i<stops.length;i++)stops[i]={...stops[i],home:i===index,role:i===index?'home':(stops[i].role==='home'?'favorite':stops[i].role)};} else if(x<=STOP_ROLES.length){stops[index]={...stop,home:false,role:STOP_ROLES[x-1].key,roleIcon:'',roleLabel:''};} else {const b=new Alert();b.title='Eigene Rolle';b.addTextField('Emoji',stop.roleIcon||'📍');b.addTextField('Bezeichnung',stop.roleLabel||'');b.addAction('Übernehmen');b.addCancelAction('Abbrechen');if(await b.present()===0)stops[index]={...stop,home:false,role:'custom',roleIcon:b.textFieldValue(0).trim()||'📍',roleLabel:b.textFieldValue(1).trim()||'Eigene Rolle'};} writeSavedStops(stops); }
 async function configureStopGroup(stops,index) { const stop=stops[index],refs=[...new Set([stop.stopRef,...(Array.isArray(stop.stopRefs)?stop.stopRefs:[])].filter(Boolean))],a=new Alert();a.title='Haltestellengruppe';a.message=refs.join('\n');a.addAction('StopRef hinzufügen');if(refs.length>1)a.addDestructiveAction('Zusätzliche StopRefs entfernen');a.addCancelAction('Zurück');const x=await a.present();if(x===0){const b=new Alert();b.title='StopRef hinzufügen';b.addTextField('StopRef');b.addAction('Hinzufügen');b.addCancelAction('Abbrechen');if(await b.present()===0){const ref=b.textFieldValue(0).trim();if(ref){stops[index]={...stop,stopRefs:[...new Set([...refs,ref])]};writeSavedStops(stops);}}}if(x===1&&refs.length>1){stops[index]={...stop,stopRefs:[stop.stopRef]};writeSavedStops(stops);} }
 async function configureStopFilter(stops,index) { const stop=stops[index],f={enabled:false,mode:'whitelist',lines:[],destinations:[],...(stop.filter||{})},a=new Alert();a.title='Filter · '+(stop.displayName||stop.name);a.message=(f.enabled?'Aktiv':'Aus')+' · '+(f.mode==='blacklist'?'Blacklist':'Whitelist')+'\nLinien: '+(f.lines.join(', ')||'alle')+'\nRichtungen: '+(f.destinations.join(', ')||'alle');a.addAction(f.enabled?'Filter deaktivieren':'Filter aktivieren');a.addAction('Modus: '+(f.mode==='blacklist'?'Blacklist':'Whitelist'));a.addAction('Linien bearbeiten');a.addAction('Richtungen bearbeiten');a.addCancelAction('Zurück');const x=await a.present();if(x===0)f.enabled=!f.enabled;if(x===1)f.mode=f.mode==='blacklist'?'whitelist':'blacklist';if(x===2||x===3){const b=new Alert(),isLines=x===2;b.title=isLines?'Linienfilter':'Richtungsfilter';b.message='Kommagetrennt. Leer = keine Einschränkung.';b.addTextField('Werte',(isLines?f.lines:f.destinations).join(', '));b.addAction('Übernehmen');b.addCancelAction('Abbrechen');if(await b.present()===0){const values=b.textFieldValue(0).split(',').map((v)=>v.trim()).filter(Boolean);if(isLines)f.lines=values;else f.destinations=values;}}stops[index]={...stop,filter:f};writeSavedStops(stops); }
-async function configureGlobalFilters(cfg) { const a=new Alert();a.title='Filter';a.message='Haltestellenfilter getrennt für Widget und Fullscreen anwenden.';a.addAction('Widget: '+(cfg.filters.widget?'an':'aus'));a.addAction('Fullscreen: '+(cfg.filters.fullscreen?'an':'aus'));a.addCancelAction('Zurück');const x=await a.present();if(x===0)cfg.filters.widget=!cfg.filters.widget;if(x===1)cfg.filters.fullscreen=!cfg.filters.fullscreen; }
+async function configureSurfaceFilter(cfg, surface, label) { const a=new Alert(); a.title='Filter · '+label; a.message='Die pro Haltestelle konfigurierten Whitelist-/Blacklist-Filter für '+label+' anwenden.'; a.addAction('Filter: '+(cfg.filters[surface]?'AN':'AUS')); a.addCancelAction('Zurück'); const x=await a.present(); if(x===0)cfg.filters[surface]=!cfg.filters[surface]; }
 
 async function managePinnedStops() {
   // One-time migration: discard old rolling-history entries and retain pins.
@@ -425,6 +425,7 @@ async function configureFullscreen(cfg) {
     a.addAction('Abfahrtszeit');
     a.addAction('Restzeit');
     a.addAction('Schriftgröße');
+    a.addAction('Filter');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -443,6 +444,7 @@ async function configureFullscreen(cfg) {
       if (sub === 1) col.width = await askNumber(labels[key] + ' – Breite', 'Breite in Pixeln für die Fullscreen-Tabelle.', col.width, 40, 400);
     }
     if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Fullscreen – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
+    if (choice === 7) await configureSurfaceFilter(cfg, 'fullscreen', 'Fullscreen');
   }
 }
 
@@ -460,6 +462,7 @@ async function configureWidget(cfg) {
     a.addAction('Abstände');
     a.addAction('Schriftgrößen');
     a.addAction(`Widget nach Standortwechsel aktualisieren: ${cfg.refreshAfterLocationChange ? 'AN' : 'AUS'}`);
+    a.addAction('Filter');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -481,6 +484,7 @@ async function configureWidget(cfg) {
       cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
     }
     if (choice === 8) cfg.refreshAfterLocationChange = !cfg.refreshAfterLocationChange;
+    if (choice === 9) await configureSurfaceFilter(cfg, 'widget', 'Widget');
   }
 }
 
@@ -997,12 +1001,14 @@ async function configureDeveloperOptions(cfg) {
     a.title = 'Entwickleroptionen';
     a.message = 'Diagnose und Wiederherstellung für Entwicklung und Fehlerbehebung.';
     a.addAction('Diagnose');
+    a.addAction('Backup & Wiederherstellung');
     a.addDestructiveAction('Recovery · Installation reparieren');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
     if (choice === 0) await configureDiagnostics(cfg);
-    if (choice === 1) await recoverFromMain();
+    if (choice === 1) { const imported = await configureBackup(cfg); if (imported) Object.assign(cfg, imported); }
+    if (choice === 2) await recoverFromMain();
   }
 }
 
@@ -1019,9 +1025,7 @@ async function main() {
     menu.addAction('Fullscreen');
     menu.addAction('Standort');
     menu.addAction('Haltestellen');
-    menu.addAction('Filter');
     menu.addAction('Updates');
-    menu.addAction('Backup & Wiederherstellung');
     menu.addAction('Entwickleroptionen');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -1041,11 +1045,9 @@ async function main() {
       await save(cfg, false);
     }
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) { await configureGlobalFilters(cfg); await save(cfg, false); }
-    if (choice === 5) { await configureUpdates(cfg); await save(cfg, false); }
-    if (choice === 6) { const imported = await configureBackup(cfg); if (imported) Object.assign(cfg, imported); }
-    if (choice === 7) await configureDeveloperOptions(cfg);
-    if (choice === 8) { await reset(); break; }
+    if (choice === 4) { await configureUpdates(cfg); await save(cfg, false); }
+    if (choice === 5) { await configureDeveloperOptions(cfg); await save(cfg, false); }
+    if (choice === 6) { await reset(); break; }
 
   }
 
