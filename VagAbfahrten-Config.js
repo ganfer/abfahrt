@@ -7,6 +7,8 @@ const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
+const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/gtfs-data/data/gtfs/';
+const GTFS_CACHE_DIR = 'VagAbfahrten-GTFS';
 const DEFAULTS = {
   rows: 5,
   refreshAfterLocationChange: true,
@@ -19,6 +21,7 @@ const DEFAULTS = {
     channel: 'stable',
   },
   filters: { widget: true, fullscreen: true },
+  offline: { enabled: true, pinned: true, history: true },
   columns: {
     line: { visible: true, width: 34 },
     destination: { visible: true, width: 105 },
@@ -71,6 +74,7 @@ async function loadConfig() {
         : DEFAULTS.refreshAfterLocationChange,
       updates: { ...DEFAULTS.updates, ...(saved.updates || {}) },
       filters: { ...DEFAULTS.filters, ...(saved.filters || {}) },
+      offline: { ...DEFAULTS.offline, ...(saved.offline || {}) },
       location: {
         ...DEFAULTS.location,
         ...(saved.fullscreen?.location || {}),
@@ -540,6 +544,122 @@ function summary(cfg) {
   return `${cfg.rows} Widget-Abfahrten\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nFullscreen: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
 }
 
+
+function canonicalGtfsStopRef(ref) {
+  const parts = String(ref || '').trim().split(':');
+  return parts.length >= 3 ? parts.slice(0, 3).join(':') : String(ref || '').trim();
+}
+function offlineManager() { return FileManager.local(); }
+function offlineDir() {
+  const manager = offlineManager();
+  return manager.joinPath(manager.documentsDirectory(), GTFS_CACHE_DIR);
+}
+function ensureOfflineDir() {
+  const manager = offlineManager();
+  const dir = offlineDir();
+  if (!manager.fileExists(dir)) manager.createDirectory(dir, true);
+  return dir;
+}
+function offlineFile(name) { return offlineManager().joinPath(offlineDir(), name); }
+function readOfflineJson(name) {
+  try {
+    const manager = offlineManager(), path = offlineFile(name);
+    return manager.fileExists(path) ? JSON.parse(manager.readString(path)) : null;
+  } catch (_) { return null; }
+}
+async function downloadJson(url) {
+  const req = new Request(url + '?t=' + Date.now());
+  req.timeoutInterval = 30;
+  req.headers = { 'User-Agent': 'vag-widget/' + APP_VERSION, Accept: 'application/json' };
+  const raw = await req.loadString();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status < 200 || status >= 300) throw new Error('HTTP ' + (status || '?'));
+  return { raw, value: JSON.parse(raw) };
+}
+function offlineWantedStops(cfg) {
+  const all = [];
+  if (cfg.offline?.pinned) all.push(...savedStops().filter((stop) => stop.pinned === true));
+  if (cfg.offline?.history) all.push(...recentStops().slice(0, 20));
+  const refs = new Set();
+  for (const stop of all) {
+    const stopRefs = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
+    for (const ref of stopRefs) if (ref) refs.add(canonicalGtfsStopRef(ref));
+  }
+  return [...refs];
+}
+async function syncOfflineData(cfg) {
+  if (!cfg.offline?.enabled) {
+    await notice('Offline-Fahrplan ist aus', 'Aktiviere den Offline-Fahrplan zuerst.');
+    return;
+  }
+  const wanted = offlineWantedStops(cfg);
+  if (!wanted.length) {
+    await notice('Keine Haltestellen', 'Es gibt keine ausgewählten fixierten oder zuletzt verwendeten Haltestellen.');
+    return;
+  }
+  try {
+    const manifest = await downloadJson(GTFS_RAW_BASE_URL + 'manifest.json');
+    const index = await downloadJson(GTFS_RAW_BASE_URL + 'index.json');
+    const found = wanted.filter((ref) => index.value.stops?.[ref]);
+    const missing = wanted.filter((ref) => !index.value.stops?.[ref]);
+    const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
+    const manager = offlineManager();
+    ensureOfflineDir();
+    manager.writeString(offlineFile('manifest.json'), manifest.raw);
+    manager.writeString(offlineFile('index.json'), JSON.stringify({
+      schemaVersion: index.value.schemaVersion,
+      stops: Object.fromEntries(found.map((ref) => [ref, index.value.stops[ref]])),
+    }));
+    for (const shard of shards) {
+      const data = await downloadJson(GTFS_RAW_BASE_URL + shard + '.json');
+      manager.writeString(offlineFile(shard + '.json'), data.raw);
+    }
+    const keep = new Set(['manifest.json', 'index.json', ...shards.map((s) => s + '.json')]);
+    for (const name of manager.listContents(offlineDir())) {
+      if (!keep.has(name)) manager.remove(manager.joinPath(offlineDir(), name));
+    }
+    const stamp = manifest.value.sourceImportedAt || manifest.value.generatedAt || 'unbekannt';
+    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} gespeicherte Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missing.length ? '\n\nNicht zugeordnet: ' + missing.length : ''}`);
+  } catch (e) {
+    await notice('Offline-Update fehlgeschlagen', 'Die bisherigen Offline-Daten bleiben erhalten.\n\n' + e.message);
+  }
+}
+async function deleteOfflineData(showNotice = true) {
+  const manager = offlineManager(), dir = offlineDir();
+  if (manager.fileExists(dir)) manager.remove(dir);
+  if (showNotice) await notice('Offline-Daten gelöscht', 'Der lokale GTFS-Cache wurde gelöscht.');
+}
+function offlineStatus(cfg) {
+  const manifest = readOfflineJson('manifest.json');
+  const index = readOfflineJson('index.json');
+  const wanted = offlineWantedStops(cfg);
+  const available = wanted.filter((ref) => index?.stops?.[ref]).length;
+  const stamp = manifest?.sourceImportedAt || manifest?.generatedAt || 'keine Daten';
+  return { wanted: wanted.length, available, stamp };
+}
+async function configureOffline(cfg) {
+  while (true) {
+    const status = offlineStatus(cfg);
+    const a = new Alert();
+    a.title = 'Offline-Fahrplan';
+    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nFixierte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nHistorie (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
+    a.addAction(`Offline-Fahrplan ${cfg.offline.enabled ? 'ausschalten' : 'einschalten'}`);
+    a.addAction(`Fixierte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
+    a.addAction(`Historie: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
+    a.addAction('Offline-Daten aktualisieren');
+    a.addDestructiveAction('Offline-Daten löschen');
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) cfg.offline.enabled = !cfg.offline.enabled;
+    if (choice === 1) cfg.offline.pinned = !cfg.offline.pinned;
+    if (choice === 2) cfg.offline.history = !cfg.offline.history;
+    if (choice === 3) await syncOfflineData(cfg);
+    if (choice === 4) await deleteOfflineData();
+    await save(cfg, false);
+  }
+}
+
 async function save(cfg, showNotice = true) {
   fm.writeString(configPath, JSON.stringify(cfg, null, 2));
   if (showNotice) {
@@ -618,6 +738,7 @@ async function configureBackup(cfg) {
 
 async function reset() {
   if (fm.fileExists(configPath)) fm.remove(configPath);
+  await deleteOfflineData(false);
   await notice('Zurückgesetzt', 'Die persönliche Konfiguration wurde gelöscht. Das Widget verwendet wieder die Standardwerte.');
 }
 
@@ -1051,6 +1172,7 @@ async function main() {
     menu.addAction('Fullscreen');
     menu.addAction('Standort');
     menu.addAction('Haltestellen');
+    menu.addAction('Offline-Fahrplan');
     menu.addAction('Updates');
     menu.addAction('Entwickleroptionen');
     menu.addCancelAction('Beenden');
@@ -1070,8 +1192,9 @@ async function main() {
       await save(cfg, false);
     }
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) { await configureUpdates(cfg); await save(cfg, false); }
-    if (choice === 5) { const result = await configureDeveloperOptions(cfg); if (result === 'uninstalled') break; await save(cfg, false); }
+    if (choice === 4) { await configureOffline(cfg); await save(cfg, false); }
+    if (choice === 5) { await configureUpdates(cfg); await save(cfg, false); }
+    if (choice === 6) { const result = await configureDeveloperOptions(cfg); if (result === 'uninstalled') break; await save(cfg, false); }
 
   }
 
