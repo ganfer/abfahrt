@@ -36,7 +36,7 @@ A new installation needs only one bootstrap file:
 1. copy **`VagAbfahrten-Install.js`** to Scriptable,
 2. run it once,
 3. the bootstrap resolves the **latest Stable GitHub Release** and loads the released Config,
-4. `VagAbfahrten-Config.js` installs and verifies the managed Runtime + Config files from that exact release tag and removes the bootstrap installer.
+4. `VagAbfahrten-Config.js` installs and verifies the managed `VagAbfahrten.js` + `VagAbfahrten-Config.js` files from that exact release tag and removes the bootstrap installer.
 
 The bootstrap itself is deliberately **versionless**. It is not part of `APP_VERSION`; Stable always means the latest deliberately published GitHub Release, never the current `main` branch.
 
