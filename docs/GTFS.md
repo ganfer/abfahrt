@@ -2,7 +2,7 @@
 
 VagAbfahrten prepares scheduled public-transport data from the statewide
 MobiData BW/NVBW `bwgesamt` GTFS feed. The generated snapshot is intended as
-an offline fallback for the configured **angepinnte stops and recently used stops**.
+an offline fallback for the configured **pinned stops and recently used stops**.
 
 ## Architecture
 
@@ -46,6 +46,6 @@ Attribution: **Datenpaket: MobiData BW; NVBW**
 License: Datenlizenz Deutschland – Namensnennung – Version 2.0.
 
 Scriptable downloads only the shard(s) required by the currently configured
-angepinnte and recently used stops. TRIAS remains primary; the local GTFS cache
+pinned and recently used stops. TRIAS remains primary; the local GTFS cache
 is used only when the TRIAS departure request fails. Automatic refresh is
 best-effort and keeps an existing cache intact if a download fails.
