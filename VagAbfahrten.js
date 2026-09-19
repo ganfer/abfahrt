@@ -1178,7 +1178,6 @@ async function presentDeparturesTable(key, context = null) {
       .slice(0, WIDGET_CONFIG.fullscreen.rows);
 
     const fs = WIDGET_CONFIG.fullscreen;
-    const place = splitStopName(title).place;
     const defs = [
       { key: 'line', label: 'Linie', value: (r) => r.line || '–', cls: 'line' },
       { key: 'destination', label: 'Richtung', value: (r) => r.destination || '–', cls: 'destination' },
@@ -1235,8 +1234,8 @@ async function presentDeparturesTable(key, context = null) {
   .meta { margin: 6px 0 22px; color: #9a9a9a; font-size: 13px; }
   .table-wrap { overflow: hidden; border: 1px solid #2c2c2e; border-radius: 14px; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  th { padding: 11px 8px; text-align: left; color: #9a9a9a; font-size: 12px; font-weight: 600; background: #181818; border-bottom: 1px solid #2c2c2e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  td { padding: 14px 8px; font-size: ${Number(fs.fontSize) || 16}px; border-bottom: 1px solid #252525; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  th { padding: 11px 6px; text-align: left; color: #9a9a9a; font-size: 12px; font-weight: 600; background: #181818; border-bottom: 1px solid #2c2c2e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td { padding: 14px 6px; font-size: ${Number(fs.fontSize) || 16}px; border-bottom: 1px solid #252525; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
   td:not(.destination) { white-space: nowrap; }
   tr:last-child td { border-bottom: 0; }
   .line { font-weight: 700; }
