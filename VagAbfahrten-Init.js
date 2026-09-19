@@ -7,7 +7,6 @@
 const FILES = [
   ['VagAbfahrten.js', ["const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();']],
   ['VagAbfahrten-Config.js', ["const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();']],
-  ['VagAbfahrten-Refresh.js', ["const MAIN_SCRIPT = 'VagAbfahrten';", 'await main();']],
 ];
 const BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/';
 
@@ -61,7 +60,7 @@ async function main() {
 
     await show(
       'Initialisierung abgeschlossen',
-      'Widget, Config und Refresh-Helfer wurden installiert. Die Fullscreen-Anzeige ist im Widget-Skript integriert.\n\nDieses Initialisierungsskript wurde automatisch gelöscht. Künftige Updates startest du über VagAbfahrten-Config → Update.',
+      'Widget und Config wurden installiert. Die Fullscreen-Anzeige ist im Widget-Skript integriert.\n\nDieses Initialisierungsskript wurde automatisch gelöscht. Künftige Updates startest du über VagAbfahrten-Config → Update.',
     );
   } catch (e) {
     await show(
