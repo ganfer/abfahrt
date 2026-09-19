@@ -97,13 +97,23 @@ test('GTFS workflow rebuilds when the builder changes in a push', () => {
   assert.match(workflow, /builderChanged=\$BUILDER_CHANGED/);
 });
 
-test('release workflow creates checksummed Stable metadata before tagging', () => {
+test('release workflow creates checksummed Stable metadata without bypassing protected main', () => {
   const workflow = read('.github/workflows/release.yml');
   assert.match(workflow, /release-manifest\.json/);
   assert.match(workflow, /createHash\('sha256'\)/);
   assert.match(workflow, /git rev-parse HEAD/);
   assert.match(workflow, /--target "\$TARGET"/);
+  assert.match(workflow, /RELEASE_BRANCH="release\/v\$VERSION"/);
+  assert.match(workflow, /gh pr create/);
+  assert.doesNotMatch(workflow, /git push origin HEAD:main/);
   assert.doesNotMatch(workflow, /--target "\$GITHUB_SHA"/);
+});
+
+test('screenshot workflow updates protected main through a pull request', () => {
+  const workflow = read('.github/workflows/widget-screenshot.yml');
+  assert.match(workflow, /BRANCH="automation\/widget-screenshot"/);
+  assert.match(workflow, /gh pr create/);
+  assert.doesNotMatch(workflow, /^\s*git push\s*$/m);
 });
 
 test('README and screenshot workflow keep the preview contract', () => {
