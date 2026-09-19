@@ -83,7 +83,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   src.replace(
     'await main();',
-    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef, widgetLayoutProfile, withDelay };',
+    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef, widgetLayoutProfile, withDelay, mergeWidgetConfig };',
   ),
   sandbox,
 );
@@ -146,15 +146,30 @@ test('widget and config await iCloud config downloads', () => {
   assert.match(config, /await fm\.downloadFileFromiCloud\(configPath\)/);
 });
 
-test('widget row slicing supports larger widget families', () => {
-  const source = read('abfahrt.js');
-  assert.match(source, /slice\(0, Math\.max\(1, Math\.min\(16, Number\(limit\)/);
-  assert.match(source, /family === 'large'/);
-  assert.match(source, /family === 'extraLarge'/);
-  assert.doesNotMatch(source, /\.slice\(0, 5\);/);
+test('config exposes independent Small, Medium, Large and Extra Large settings', () => {
+  const config = read('abfahrt-config.js');
+  assert.match(config, /async function configureWidgetGeneral\(cfg\)/);
+  assert.match(config, /async function configureWidgetVariant\(cfg, key, label\)/);
+  assert.match(config, /a\.addAction\('Small'\)/);
+  assert.match(config, /a\.addAction\('Medium'\)/);
+  assert.match(config, /a\.addAction\('Large'\)/);
+  assert.match(config, /a\.addAction\('Extra Large'\)/);
+  assert.match(config, /Spaltenüberschriften:/);
+  assert.match(config, /normalizeConfig\(backup\.config\)/);
 });
 
-test('large widget families derive more rows without changing the medium preference', () => {
+test('widget row slicing supports independently configured families', () => {
+  const source = read('abfahrt.js');
+  assert.match(source, /slice\(0, Math\.max\(1, Math\.min\(16, Number\(limit\)/);
+  assert.match(source, /const supported = \['small', 'medium', 'large', 'extraLarge'\]/);
+  assert.doesNotMatch(source, /baseRows \+ 5|baseRows \+ 9/);
+});
+
+test('widget families use independent default profiles', () => {
+  sandbox.config.widgetFamily = 'small';
+  assert.equal(T.widgetLayoutProfile().rows, 3);
+  assert.equal(T.widgetLayoutProfile().columns.platform.visible, false);
+
   sandbox.config.widgetFamily = 'medium';
   assert.equal(T.widgetLayoutProfile().rows, 5);
   assert.equal(T.widgetLayoutProfile().showColumnHeader, false);
@@ -166,15 +181,60 @@ test('large widget families derive more rows without changing the medium prefere
   sandbox.config.widgetFamily = 'extraLarge';
   assert.equal(T.widgetLayoutProfile().rows, 14);
   assert.equal(T.widgetLayoutProfile().showColumnHeader, true);
+  assert.equal(T.widgetLayoutProfile().columns.destination.width, 150);
 
   sandbox.config.widgetFamily = 'medium';
 });
 
-test('large widget layout adds column headers and family-aware row height', () => {
+test('legacy widget settings migrate only into Medium', () => {
+  const migrated = T.mergeWidgetConfig({
+    rows: 7,
+    refreshAfterLocationChange: false,
+    columns: { platform: { visible: false, width: 31 } },
+    spacing: { rows: 6 },
+    fontSize: { destination: 14 },
+    badgeHeight: 25,
+  });
+
+  assert.equal(migrated.widget.medium.rows, 7);
+  assert.equal(migrated.widget.medium.columns.platform.visible, false);
+  assert.equal(migrated.widget.medium.columns.platform.width, 31);
+  assert.equal(migrated.widget.medium.spacing.rows, 6);
+  assert.equal(migrated.widget.medium.fontSize.destination, 14);
+  assert.equal(migrated.widget.medium.badgeHeight, 25);
+  assert.equal(migrated.widget.common.refreshAfterLocationChange, false);
+
+  assert.equal(migrated.widget.small.rows, 3);
+  assert.equal(migrated.widget.large.rows, 10);
+  assert.equal(migrated.widget.extraLarge.rows, 14);
+  assert.equal('rows' in migrated, false);
+  assert.equal('columns' in migrated, false);
+});
+
+test('new widget schema keeps each family independent', () => {
+  const merged = T.mergeWidgetConfig({
+    widget: {
+      common: { refreshAfterLocationChange: false },
+      small: { rows: 2 },
+      medium: { rows: 4 },
+      large: { rows: 8, showColumnHeader: false },
+      extraLarge: { rows: 12 },
+    },
+  });
+
+  assert.equal(merged.widget.small.rows, 2);
+  assert.equal(merged.widget.medium.rows, 4);
+  assert.equal(merged.widget.large.rows, 8);
+  assert.equal(merged.widget.large.showColumnHeader, false);
+  assert.equal(merged.widget.extraLarge.rows, 12);
+  assert.equal(merged.widget.common.refreshAfterLocationChange, false);
+});
+
+test('larger widget layout uses the selected family layout', () => {
   const source = read('abfahrt.js');
-  assert.match(source, /function addWidgetColumnHeader\(w, c\)/);
+  assert.match(source, /function addWidgetColumnHeader\(w, c, layout\)/);
   assert.match(source, /line: 'Linie'[\s\S]*destination: 'Richtung'[\s\S]*platform: 'Gleis'[\s\S]*departureTime: 'Abfahrt'[\s\S]*countdown: 'Restzeit'/);
-  assert.match(source, /familyHeightBonus = family === 'extraLarge' \? 4 : family === 'large' \? 2 : 0/);
+  assert.match(source, /const height = Math\.max\(16, layout\.badgeHeight\)/);
   assert.match(source, /if \(profile\.showColumnHeader\)/);
 });
 
