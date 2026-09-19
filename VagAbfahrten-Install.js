@@ -97,4 +97,6 @@ async function main() {
   Script.complete();
 }
 
-await main();
+(async () => {
+  await main();
+})();
