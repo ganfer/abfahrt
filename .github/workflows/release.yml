@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-main
@@ -99,14 +100,19 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add README.md release-manifest.json
             git commit -m "docs: mark v$VERSION as Stable"
-            git push origin HEAD:main
           fi
 
-      - name: Resolve release target
+      - name: Publish release metadata branch
         if: steps.existing.outputs.exists == 'false'
         id: target
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         shell: bash
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          RELEASE_BRANCH="release/v$VERSION"
+          git push --force origin HEAD:"refs/heads/$RELEASE_BRANCH"
+          echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create tag and GitHub Release
         if: steps.existing.outputs.exists == 'false'
@@ -115,3 +121,24 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           TARGET: ${{ steps.target.outputs.sha }}
         run: gh release create "$TAG" --target "$TARGET" --title "$TAG" --generate-notes
+
+      - name: Open Stable metadata pull request
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_BRANCH: ${{ steps.target.outputs.branch }}
+        shell: bash
+        run: |
+          EXISTING="$(gh pr list --base main --head "$RELEASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            echo "Stable metadata PR #$EXISTING already exists."
+          elif git diff --quiet origin/main...HEAD -- README.md release-manifest.json; then
+            echo "No Stable metadata changes need to be merged back to main."
+          else
+            gh pr create \
+              --base main \
+              --head "$RELEASE_BRANCH" \
+              --title "docs: sync Stable v$VERSION metadata" \
+              --body "Sync the generated Stable metadata for v$VERSION back to the protected main branch."
+          fi
