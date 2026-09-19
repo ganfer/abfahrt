@@ -2,87 +2,103 @@
 
 **Current version: v1.0.0**
 
-Scriptable iOS widget for **VAG Freiburg departures** (TRIAS API of EFA-BW).
+Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API.
 
-## Features
+## What it does
 
-- Default view: **Brauerei Ganter** (both platforms), planned time + delay, colour-coded countdown, cancellations as `entfällt`.
-- **Tap the widget** → Scriptable opens, resolves nearby stops via GPS, stores the selected stop and opens the fullscreen departures view.
-- After a location change, `VagAbfahrten.js` can start a second **non-interactive refresh run** of itself. This is configurable under **Widget** and does not re-enter GPS/fullscreen logic.
-- **GPS nearby mode**: set the widget parameter to `nearby` when the TRIAS key is stored in Keychain, or `<key>|nearby` otherwise. The widget tap preserves that mode in the Scriptable URL, so the foreground run can call `Location.current()`, query nearby stops through TRIAS `LocationInformationRequest`, let you pick one, and show departures.
-- Works on Wi-Fi and mobile data because it talks to EFA-BW directly.
-
-## Setup
-
-1. Install Scriptable.
-2. Create a new script, paste `VagAbfahrten.js`, and name it exactly `VagAbfahrten`.
-3. Add a Scriptable widget and select that script.
-4. Store the TRIAS requestor key either in the widget parameter or once in Keychain using the script's setup mode.
-5. For GPS nearby mode, set the widget parameter to `nearby` if the key is in Keychain.
-
-## Location flow
+The Home Screen widget shows departures for the currently active stop. By default, before any stop has been selected, it falls back to **Brauerei Ganter**. A tap opens Scriptable and runs the interactive location flow:
 
 ```text
 Home Screen widget
-  -> tap VagAbfahrten
-  -> Location.current()
-  -> TRIAS LocationInformationRequest
-  -> nearby stop picker
-  -> selected stop stored in Keychain
-  -> VagAbfahrten?parameter=refresh (non-interactive second run)
-  -> fullscreen departures for the same stored stop
+  → GPS location
+  → EFA-BW nearby-stop search
+  → automatic pinned-stop selection OR stop picker
+  → active stop stored in Keychain
+  → optional immediate widget refresh
+  → fullscreen departures
 ```
 
-Widget and fullscreen therefore share one active stop in Keychain. The refresh parameter exits through a dedicated widget-only path before GPS or fullscreen logic. This preserves the working second execution point without a separate helper file.
+Pinned stops can be selected automatically when they are within the configured radius (default **200 m**). The picker marks pinned and recently used stops and shows their distance when TRIAS provides usable coordinates. If GPS or the nearby search fails, the last active stop can be used as a fallback.
+
+## Installation
+
+The recommended installation path is **`VagAbfahrten-Init.js`**. Run it once in Scriptable. It installs the runtime and Config scripts and then removes itself.
+
+The installed scripts are:
+
+- **`VagAbfahrten.js`** — Home Screen widget, GPS/location flow, TRIAS requests, immediate refresh path and fullscreen view.
+- **`VagAbfahrten-Config.js`** — personal settings, pinned stops and integrated updater.
+
+The TRIAS requestor key can be stored once in the iOS Keychain. It does not need to be kept in the widget parameter.
+
+## Configuration
+
+Run **`VagAbfahrten-Config`** in Scriptable.
+
+### Widget
+
+Configure the number of departures, visible columns, widths, spacing, font sizes and **Widget sofort aktualisieren** after a location change. The refresh uses a second non-interactive execution of `VagAbfahrten.js` with `parameter=refresh`; that path exits before GPS or fullscreen logic.
+
+### Fullscreen
+
+Configure the number of departures, visible columns, widths and font size independently of the compact widget.
+
+### Standort
+
+Configure automatic pinned-stop selection and its radius. The radius is relevant only while automatic selection is enabled. You can also enable the fallback to the last active stop when GPS or the TRIAS nearby lookup is unavailable.
+
+### Fixierte Haltestellen
+
+Stops can be pinned from recent history or found through the TRIAS stop search. A pinned stop can have a custom display name.
+
+Personal settings are stored in **`VagAbfahrten.config.json`** in Scriptable's iCloud directory. Runtime and Config await an iCloud download before reading the file. If it is missing or invalid, built-in defaults are used.
+
+## Display and status
+
+Both compact and fullscreen views use realtime data when available. Delays and cancellations are highlighted. Common transport/API failures are translated into concise user-facing messages; the compact widget shows the time of the failed refresh and fullscreen shows the time of the last attempt.
+
+## Updates and versioning
+
+Runtime, Config and installer share **`APP_VERSION`**. The Config title shows the installed version.
+
+Use **Config → Auf Updates prüfen** to install the current runtime and Config from the GitHub `main` branch. The updater validates downloaded files before replacing local copies and preserves:
+
+- `VagAbfahrten.config.json`
+- the TRIAS Keychain entry
+- the active/last stop
+- pinned and recent stops
+
+Retired helper scripts such as `VagAbfahrten-Display.js` and `VagAbfahrten-Refresh.js` are cleaned from Scriptable storage by the current updater.
+
+## Defaults
+
+| Setting | Default |
+| --- | --- |
+| Widget departures | 5 |
+| Fullscreen departures | 8 |
+| Automatic pinned stop | On |
+| Automatic-selection radius | 200 m |
+| Last-stop fallback | On |
+| Immediate widget refresh after location change | On |
+
+TRIAS departure result requests are sized to the configured view and clamped to **1–30** results.
+
+## Troubleshooting
+
+If the widget reports that the TRIAS key was rejected, verify the Keychain value. If GPS is unavailable, check Scriptable's Location permission; with the fallback enabled, an existing last stop can still be opened. If EFA-BW cannot be reached or its response cannot be parsed, the UI shows a concise error while location-specific diagnostic dialogs retain additional technical detail.
+
+If an update appears stale, run **Config → Auf Updates prüfen** again. The updater uses cache-busted GitHub downloads and validates all managed files before writing them.
 
 ## Development
+
+Run the regression suite with:
 
 ```sh
 node --test test/widget.test.js
 ```
 
-The tests cover parsing, TRIAS XML builders, delay math, parameter handling, the Scriptable URL handoff, and the foreground query-parameter path.
+The suite checks important source contracts around TRIAS request construction/parsing, platform extraction, configured result counts, iCloud config loading, location/refresh behavior, updater wiring and user-facing error states.
 
 ## License
 
 MIT.
-
-
-## Update aus GitHub
-
-Updates werden über `VagAbfahrten-Config.js` → **Auf Updates prüfen** installiert. Die Config zeigt ihre installierte Version an und liest vor dem Update die Versionskennung aus dem aktuellen `main`-Branch. Dabei werden `VagAbfahrten.js` und `VagAbfahrten-Config.js` aus dem `main`-Branch aktualisiert.
-
-Alle verwalteten Dateien werden vor dem Überschreiben validiert. Die Validierung verwendet eindeutige Inhaltsmarker statt einer Mindest-Dateigröße, sodass auch kleine Hilfsskripte sicher aktualisiert werden können. Die Fullscreen-Anzeige ist direkt in `VagAbfahrten.js` integriert; ein separates `VagAbfahrten-Display.js` wird nicht mehr benötigt.
-
-Der TRIAS-Key und die zuletzt ausgewählte Haltestelle liegen im iOS-Keychain und werden durch ein Script-Update nicht verändert.
-
-> **Hinweis:** Beim nächsten Update über die Config wird eine eventuell noch vorhandene alte `VagAbfahrten-Display.js` automatisch aus dem Scriptable-Speicher entfernt.
-
-
-## Widget-Konfiguration
-
-Für persönliche Layout-Einstellungen gibt es `VagAbfahrten-Config.js`. Das Skript wird direkt in Scriptable gestartet und führt per Dialog durch die Konfiguration.
-
-Konfigurierbar sind:
-
-- Anzahl der sichtbaren Abfahrten
-- Sichtbarkeit und Breite von Linie, Richtung, Gleis, Abfahrtszeit und Restzeit
-- Spalten- und Zeilenabstand
-- Schriftgrößen
-- optionaler Widget-Refresh nach einem Standortwechsel
-- gemeinsame Standortlogik mit automatischer fixierter Haltestelle und konfigurierbarem Radius (Standard 200 m)
-- Zurücksetzen auf die Standardwerte
-
-Die Einstellungen werden separat als `VagAbfahrten.config.json` im Scriptable-iCloud-Ordner gespeichert. `VagAbfahrten.js` lädt diese Datei automatisch; fehlt sie oder ist sie ungültig, werden die eingebauten Standardwerte verwendet.
-
-Der GitHub-Updater aktualisiert `VagAbfahrten.js` und `VagAbfahrten-Config.js`, **nicht** aber `VagAbfahrten.config.json`. Persönliche Einstellungen bleiben bei Updates daher erhalten.
-
-
-### Standort-Fallback
-
-Unter **Config → Standort** kann der Fallback auf die zuletzt verwendete Haltestelle aktiviert oder deaktiviert werden (Standard: **AN**). Wenn GPS nicht verfügbar ist, die TRIAS-Ortssuche fehlschlägt oder keine auswertbare Haltestelle liefert, kann die Fullscreen-Ansicht mit der zuletzt verwendeten Haltestelle fortfahren. Existiert noch keine zuletzt verwendete Haltestelle, bleibt die normale Fehlerdiagnose erhalten.
-
-
-## Versionierung
-
-Widget, Config und Installer tragen eine gemeinsame `APP_VERSION`. Ab **v1.0.0** wird diese Version im Config-Assistenten angezeigt und vom integrierten Updater mit der Version des `main`-Branches verglichen. Persönliche Einstellungen und Keychain-Daten sind von der Script-Version unabhängig.
