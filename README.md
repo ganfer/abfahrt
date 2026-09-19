@@ -1,6 +1,6 @@
 # vag-widget
 
-**Current version: v1.0.0**
+**Current version: v1.0.1**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API.
 
@@ -18,7 +18,7 @@ Home Screen widget
   → fullscreen departures
 ```
 
-Pinned stops can be selected automatically when they are within the configured radius (default **200 m**). The picker marks pinned and recently used stops and shows their distance when TRIAS provides usable coordinates. If GPS or the nearby search fails, the last active stop can be used as a fallback.
+Pinned stops can be selected automatically when they are within the configured radius (default **200 m**). The picker marks pinned and recently used stops and shows their distance when TRIAS provides usable coordinates. At the bottom of the GPS picker, **Fixierte Haltestellen** opens all pinned stops for direct selection; choosing one uses the same active-stop, widget-refresh and fullscreen flow as a live nearby stop. If GPS or the nearby search fails, the last active stop can be used as a fallback.
 
 ## Installation
 
@@ -96,7 +96,7 @@ Every push to `main` and every pull request runs the GitHub Actions CI pipeline 
 Run the same regression suite locally with:
 
 ```sh
-node --test test/widget.test.js
+node --test test/*.test.js
 ```
 
 The suite checks important source contracts around TRIAS request construction/parsing, platform extraction, configured result counts, iCloud config loading, location/refresh behavior, updater wiring and user-facing error states.
