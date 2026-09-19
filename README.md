@@ -1,7 +1,7 @@
 # Abfahrt
 
-**Development version: v1.1.11**  
-**Stable version: v1.1.10**
+**Development version: v2.0.0**  
+**Stable version: v2.0.0**
 
 Scriptable iOS widget for **public transport departures** using the EFA-BW TRIAS API, with realtime information, pinned stops, GPS selection and an offline GTFS timetable fallback.
 
@@ -136,7 +136,7 @@ Two update channels are available:
 - **Stable** (default) resolves the latest manually published GitHub Release and installs runtime and Config from its exact `vX.Y.Z` tag.
 - **Development** follows `main`. It resolves the current main commit SHA and downloads all managed files from that exact commit.
 
-The updater validates downloaded source markers and versions before replacing installed scripts. Stable releases created with the current release workflow also include `release-manifest.json`; Config verifies the SHA-256 checksum of every managed file against that manifest. Older Stable releases without a manifest remain supported for migration. A successful update relaunches Config so the newly written code becomes active. **Was ist neu?** shows Stable release notes; Development identifies the current main commit.
+The updater validates downloaded source markers and versions before replacing installed scripts. Stable releases include `release-manifest.json`; Config verifies the SHA-256 checksum of every managed file against that manifest. A successful update relaunches Config so the newly written code becomes active. **Was ist neu?** shows Stable release notes; Development identifies the current main commit.
 
 ### Entwickleroptionen
 

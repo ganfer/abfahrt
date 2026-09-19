@@ -69,7 +69,13 @@ if (!changed.some((file) => UPDATE_RELEVANT.includes(file))) {
   process.exit(0);
 }
 
-const baseSource = execFileSync('git', ['show', `origin/${baseRef}:Abfahrt.js`], { encoding: 'utf8' });
+let baseSource;
+try {
+  baseSource = execFileSync('git', ['show', `origin/${baseRef}:Abfahrt.js`], { encoding: 'utf8' });
+} catch (_) {
+  console.log(`Basisbranch ${baseRef} enthält die neue Abfahrt.js noch nicht; harter Rename auf v${version} akzeptiert.`);
+  process.exit(0);
+}
 const baseVersion = parseVersion(baseSource, `origin/${baseRef}:Abfahrt.js`);
 if (compareVersions(version, baseVersion) <= 0) {
   console.error('Version bump required:');

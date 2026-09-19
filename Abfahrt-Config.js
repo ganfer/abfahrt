@@ -2,9 +2,9 @@
 //
 // Interactive configuration assistant for Abfahrt.
 
-const APP_VERSION = '1.1.11';
+const APP_VERSION = '2.0.0';
 const CONFIG_FILE_NAME = 'Abfahrt.config.json';
-const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
+const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS'; // contains pinned stops
 const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/gtfs-data/data/gtfs/';
@@ -827,7 +827,7 @@ const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF';
 const PENDING_INSTALL_VERSION_KEY = 'ABFAHRT_PENDING_INSTALL_VERSION';
 const PENDING_INSTALLER_NAME_KEY = 'ABFAHRT_PENDING_INSTALLER_NAME';
 
-const INSTALLER_FILE_NAMES = ['Abfahrt-Install.js', 'Abfahrt-Init.js'];
+const INSTALLER_FILE_NAMES = ['Abfahrt-Install.js'];
 const MANAGED_FILES = [
   {
     name: 'Abfahrt.js',

@@ -23,7 +23,13 @@ if (!changed.some((file) => UPDATE_RELEVANT.includes(file))) {
   process.exit(0);
 }
 
-const baseSource = execFileSync('git', ['show', `origin/${baseRef}:Abfahrt.js`], { encoding: 'utf8' });
+let baseSource;
+try {
+  baseSource = execFileSync('git', ['show', `origin/${baseRef}:Abfahrt.js`], { encoding: 'utf8' });
+} catch (_) {
+  console.log('Basisbranch enthält die neue Abfahrt.js noch nicht; vorhandene Rename-Version wird beibehalten.');
+  process.exit(0);
+}
 const base = version(baseSource, `origin/${baseRef}:Abfahrt.js`);
 const current = version(fs.readFileSync('Abfahrt.js', 'utf8'), 'Abfahrt.js');
 const automatic = `${base.major}.${base.minor}.${base.patch + 1}`;
