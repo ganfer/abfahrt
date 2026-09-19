@@ -5,12 +5,12 @@
 | Component | Responsibility |
 | --- | --- |
 | `abfahrt.js` | Runtime, TRIAS requests/parsing, GPS stop selection, compact Scriptable widget, fullscreen departures and offline fallback consumption. |
-| `abfahrt-Config.js` | User configuration plus the central package lifecycle: install, Stable/Development update, repair, uninstall, validation, pinned stops, filters, diagnostics, backup/restore and offline-data maintenance. |
-| `abfahrt-Install.js` | Small versionless bootstrap. It resolves the latest Stable GitHub Release, installs the released Config and hands the remaining installation lifecycle to Config. |
+| `abfahrt-config.js` | User configuration plus the central package lifecycle: install, Stable/Development update, repair, uninstall, validation, pinned stops, filters, diagnostics, backup/restore and offline-data maintenance. |
+| `abfahrt-install.js` | Small versionless bootstrap. It resolves the latest Stable GitHub Release, installs the released Config and hands the remaining installation lifecycle to Config. |
 | `scripts/build-gtfs.py` | Builds the compact offline timetable snapshot from the statewide GTFS feed. |
 | `gtfs-data` branch | Generated offline timetable data. Kept separate from application source and force-refreshed by the scheduled pipeline. |
 
-`abfahrt-Refresh.js` was an old helper from the earlier multi-script flow and is no longer part of the managed installation. Refresh is now handled by the integrated runtime.
+`abfahrt-refresh.js` was an old helper from the earlier multi-script flow and is no longer part of the managed installation. Refresh is now handled by the integrated runtime.
 
 ## Runtime flow
 
