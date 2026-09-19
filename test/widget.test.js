@@ -203,7 +203,7 @@ test('updater compares remote and installed versions before installing', () => {
   assert.ok(source.includes("!development && compareVersions(remoteVersion, APP_VERSION) <= 0"));
   assert.ok(source.includes("'Kein Update verfügbar'"));
   assert.ok(source.includes("confirm.title = development ? `Development ${source.label} installieren` : `Update v${remoteVersion} verfügbar`"));
-  assert.ok(source.includes("!development && downloadedVersions[0] !== remoteVersion"));
+  assert.ok(source.includes("downloadManagedFiles(ref, development ? null : remoteVersion, manifest)"));
 });
 
 
@@ -223,7 +223,7 @@ test('updater resolves the latest GitHub Release and downloads that exact tag', 
   assert.ok(source.includes("https://raw.githubusercontent.com/ganfer/vag-widget/"));
   assert.ok(source.includes("source = development ? await latestDevelopment() : await latestRelease()"));
   assert.ok(source.includes("const ref = development ? source.ref : source.tag"));
-  assert.ok(source.includes("downloadUpdateFile(file, ref)"));
+  assert.ok(source.includes("downloadManagedFiles(ref, development ? null : remoteVersion, manifest)"));
   assert.ok(!source.includes("raw.githubusercontent.com/ganfer/vag-widget/main/"));
 });
 
