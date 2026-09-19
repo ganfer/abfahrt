@@ -593,7 +593,12 @@ function offlineWantedStopGroups(cfg) {
         .map(canonicalGtfsStopRef)
     )];
     if (!refs.length) continue;
-    const key = canonicalGtfsStopRef(stop.stopRef) || normalizeStopName(stop.name);
+    const normalizedName = normalizeStopName(stop.name || stop.displayName);
+    const existingKey = [...groups.entries()].find(([, group]) =>
+      group.refs.some((ref) => refs.includes(ref)) ||
+      (normalizedName && normalizeStopName(group.sourceName) === normalizedName)
+    )?.[0];
+    const key = existingKey || normalizedName || canonicalGtfsStopRef(stop.stopRef);
     if (!groups.has(key)) groups.set(key, {
       name: stop.displayName || stop.name || 'Unbenannte Haltestelle',
       sourceName: stop.name || stop.displayName || '',
