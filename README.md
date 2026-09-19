@@ -106,3 +106,8 @@ The suite checks important source contracts around TRIAS request construction/pa
 ## License
 
 MIT.
+
+
+### Update channels
+
+The Config offers two update channels. **Stable** (default) installs only the latest manually published GitHub Release. **Development** follows the current `main` branch. Development first resolves the current `main` commit SHA and then downloads all managed files from that exact commit, avoiding mixed revisions while `main` changes. Stable releases are intentionally published manually through the Release workflow; merging to `main` no longer publishes a Stable release automatically.
