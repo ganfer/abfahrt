@@ -256,6 +256,13 @@ def build(zip_path: Path, out_dir: Path):
             )
 
         source_imported_at = os.environ.get("GTFS_IMPORTED_AT", "").strip()
+        if source_imported_at.startswith('"') and source_imported_at.endswith('"'):
+            try:
+                decoded = json.loads(source_imported_at)
+                if isinstance(decoded, str):
+                    source_imported_at = decoded
+            except json.JSONDecodeError:
+                pass
         manifest = {
             "schemaVersion": SCHEMA_VERSION,
             "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
