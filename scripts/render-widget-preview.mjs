@@ -127,16 +127,13 @@ const html = `<!doctype html>
     box-shadow: 0 12px 26px rgba(0,0,0,.35);
   }
   .widget-header {
-    min-height: 46px;
+    min-height: 40px;
     padding: 6px 8px;
     border-radius: 12px;
-    background: radial-gradient(circle at 10% 15%, rgba(48,209,88,.14), transparent 38%), #17171a;
-  }
-  .widget-topline {
     display: flex;
     align-items: center;
     gap: 7px;
-    min-height: 28px;
+    background: radial-gradient(circle at 10% 15%, rgba(48,209,88,.14), transparent 38%), #17171a;
   }
   .stop-badge {
     width: 28px;
@@ -150,24 +147,22 @@ const html = `<!doctype html>
     font-size: 16px;
     font-weight: 800;
   }
-  .widget-title { min-width: 0; flex: 1; font-size: 15px; line-height: 18px; font-weight: 750; color: ${palette.fg}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pin { color: #ffd60a; font-size: 14px; line-height: 1; }
-  .widget-meta {
-    margin-top: 2px;
-    padding-left: 35px;
+  .widget-title { min-width: 0; flex: 1 1 auto; font-size: 15px; line-height: 18px; font-weight: 750; color: ${palette.fg}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .widget-status {
+    flex: 0 1 auto;
     display: flex;
     align-items: center;
     gap: 4px;
     min-width: 0;
+    color: ${palette.dim};
     font-size: 8px;
     line-height: 10px;
     font-weight: 500;
-    color: ${palette.dim};
     white-space: nowrap;
-    overflow: hidden;
   }
   .live-dot { flex: 0 0 auto; font-size: 6px; color: #30d158; }
-  .meta-text { overflow: hidden; text-overflow: ellipsis; }
+  .updated { color: #d8d8dc; font-weight: 700; }
+  .pin { flex: 0 0 auto; color: #ffd60a; font-size: 14px; line-height: 1; }
   .rows { margin-top: 7px; display: flex; flex-direction: column; gap: ${rowGap}px; }
   .departure-row {
     display: grid;
@@ -220,12 +215,10 @@ const html = `<!doctype html>
     <div class="city">Freiburg</div>
     <section class="widget" aria-label="public transport departures widget preview">
       <div class="widget-header">
-        <div class="widget-topline">
-          <div class="stop-badge">H</div>
-          <div class="widget-title">Bertoldsbrunnen</div>
-          <div class="pin">★</div>
-        </div>
-        <div class="widget-meta"><span class="live-dot">●</span><span class="meta-text">Freiburg · Live · 4 Steige · akt. 12:42</span></div>
+        <div class="stop-badge">H</div>
+        <div class="widget-title">Bertoldsbrunnen</div>
+        <div class="widget-status"><span class="live-dot">●</span><span>Live</span><span>·</span><span>4 Steige</span><span>·</span><span class="updated">akt. 12:42</span></div>
+        <div class="pin">★</div>
       </div>
       <div class="rows">${rowHtml}</div>
     </section>

@@ -133,8 +133,10 @@ test('README and screenshot workflow keep the preview contract', () => {
   assert.doesNotMatch(triggerSection, /docs\/assets\/widget-preview\.png/, 'generated screenshot must not retrigger its own workflow');
   assert.match(renderer, /extractObject\('DEFAULT_WIDGET_CONFIG'\)/);
   assert.match(renderer, /widget-header/);
-  assert.match(renderer, /widget-topline/);
-  assert.match(renderer, /widget-meta/);
+  assert.match(renderer, /widget-status/);
+  assert.match(renderer, /class="updated">akt\. 12:42/);
+  assert.doesNotMatch(renderer, /widget-topline/);
+  assert.doesNotMatch(renderer, /widget-meta/);
   assert.doesNotMatch(renderer, /chip live/);
   assert.doesNotMatch(renderer, /Tippen für Details/);
   assert.match(renderer, /departure-row\$\{index === 0 \? ' featured' : ''\}/);
