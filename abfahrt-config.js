@@ -93,6 +93,7 @@ const DEFAULTS = {
     fontSize: 16,
     destinationWrap: true,
     destinationLines: 2,
+    sortBy: 'departureTime',
   },
 };
 
@@ -516,10 +517,17 @@ async function configureFullscreen(cfg) {
     countdown: 'Restzeit',
   };
 
+  const sortLabels = {
+    departureTime: 'Abfahrtszeit',
+    platform: 'Gleis',
+    destination: 'Richtung',
+    line: 'Linie',
+  };
+
   while (true) {
     const a = new Alert();
     a.title = 'Vollbild konfigurieren';
-    a.message = `${cfg.fullscreen.rows} Abfahrten · Schrift ${cfg.fullscreen.fontSize} pt\nRichtung: ${cfg.fullscreen.destinationWrap !== false ? 'Umbruch bis ' + (cfg.fullscreen.destinationLines || 2) + ' Zeilen' : 'eine Zeile'}\n` +
+    a.message = `${cfg.fullscreen.rows} Abfahrten · Schrift ${cfg.fullscreen.fontSize} pt\nSortierung: ${sortLabels[cfg.fullscreen.sortBy] || sortLabels.departureTime}\nRichtung: ${cfg.fullscreen.destinationWrap !== false ? 'Umbruch bis ' + (cfg.fullscreen.destinationLines || 2) + ' Zeilen' : 'eine Zeile'}\n` +
       Object.keys(labels).map((key) =>
         `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? 'Breitenwert ' + cfg.fullscreen.columns[key].width : 'aus'}`
       ).join('\n');
@@ -533,6 +541,7 @@ async function configureFullscreen(cfg) {
     a.addAction('Filter');
     a.addAction(`Richtung umbrechen: ${cfg.fullscreen.destinationWrap !== false ? 'AN' : 'AUS'}`);
     a.addAction(`Max. Richtungszeilen: ${Math.max(1, Math.min(4, Number(cfg.fullscreen.destinationLines) || 2))}`);
+    a.addAction(`Sortierung: ${sortLabels[cfg.fullscreen.sortBy] || sortLabels.departureTime}`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -560,6 +569,21 @@ async function configureFullscreen(cfg) {
       1,
       4,
     );
+    if (choice === 10) {
+      const b = new Alert();
+      b.title = 'Vollbild – Sortierung';
+      b.message = 'Innerhalb von Gleis, Richtung oder Linie bleibt die Abfahrtszeit der zweite Sortierschlüssel.';
+      b.addAction('Abfahrtszeit');
+      b.addAction('Gleis');
+      b.addAction('Richtung');
+      b.addAction('Linie');
+      b.addCancelAction('Abbrechen');
+      const selected = await b.present();
+      if (selected === 0) cfg.fullscreen.sortBy = 'departureTime';
+      if (selected === 1) cfg.fullscreen.sortBy = 'platform';
+      if (selected === 2) cfg.fullscreen.sortBy = 'destination';
+      if (selected === 3) cfg.fullscreen.sortBy = 'line';
+    }
   }
 }
 
