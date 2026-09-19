@@ -1,41 +1,257 @@
-# Architecture
+# Architektur
 
-## Components
+Diese Seite beschreibt, wie die zentralen Komponenten von abfahrt zusammenspielen. Eine feinere Aufschlüsselung der einzelnen logischen Module findest du unter [Module und Komponenten](MODULES.md).
 
-| Component | Responsibility |
+## Komponenten
+
+| Komponente | Verantwortung |
 | --- | --- |
-| `abfahrt.js` | Runtime, TRIAS requests/parsing, GPS stop selection, compact Scriptable widget, fullscreen departures and offline fallback consumption. |
-| `abfahrt-config.js` | User configuration plus the central package lifecycle: install, Stable/Development update, repair, uninstall, validation, pinned stops, filters, diagnostics, backup/restore and offline-data maintenance. |
-| `abfahrt-install.js` | Small versionless bootstrap. It resolves the latest Stable GitHub Release, installs the released Config and hands the remaining installation lifecycle to Config. |
-| `scripts/build-gtfs.py` | Builds the compact offline timetable snapshot from the statewide GTFS feed. |
-| `gtfs-data` branch | Generated offline timetable data. Kept separate from application source and force-refreshed by the scheduled pipeline. |
+| `abfahrt.js` | Runtime: TRIAS-Anfragen und Parsing, Standortlogik, Haltestellenauswahl, Filter, Widget, Vollbild und Nutzung des Offline-Fallbacks |
+| `abfahrt-config.js` | Benutzerkonfiguration und zentraler Paket-Lifecycle: Installation, Stable-/Development-Updates, Repair, Uninstall, Pins, Filter, Diagnose, Backup/Wiederherstellung und Offline-Datenpflege |
+| `abfahrt-install.js` | kleiner versionsloser Bootstrap, der das aktuelle Stable Release ermittelt und die Installation an die veröffentlichte Config übergibt |
+| `scripts/build-gtfs.py` | erzeugt den kompakten Offline-Fahrplansnapshot aus dem landesweiten GTFS-Datensatz |
+| `gtfs-data`-Branch | enthält ausschließlich die generierten Offline-Fahrplandaten und wird vom geplanten Workflow ersetzt |
+| `scripts/render-widget-preview.mjs` | rendert eine deterministische Widget-Vorschau für README und Pull Requests |
 
-`abfahrt-refresh.js` was an old helper from the earlier multi-script flow and is no longer part of the managed installation. Refresh is now handled by the integrated runtime.
+Der frühere Helfer `abfahrt-refresh.js` gehört nicht mehr zur Architektur. Aktualisierung und interaktiver Standortwechsel sind inzwischen in die Runtime integriert.
 
-## Runtime flow
+## Grundprinzip
 
-The Home Screen widget is passive: it renders the last active stop, or Bertoldsbrunnen when no stop has been selected yet. Tapping it opens `abfahrt` in Scriptable, where the foreground flow requests GPS, resolves nearby stops, optionally auto-selects an eligible pinned stop, persists the selected stop and opens the fullscreen departures table.
+abfahrt trennt zwei Situationen klar voneinander:
 
-TRIAS remains the primary departure source. If a TRIAS request fails and the requested stop is eligible for the local cache, the runtime can use scheduled GTFS data as a fallback.
+1. **passives Widget**
+2. **interaktive Nutzung im Vordergrund**
 
-## Persistence
+Das Home-Screen-Widget zeigt die Abfahrten der gespeicherten aktiven Haltestelle. Es fordert nicht bei jedem Widget-Refresh einen GPS-Standort an.
 
-The TRIAS requestor key and small runtime state are stored in iOS Keychain. Personal layout settings are stored in `abfahrt.config.json`. Offline GTFS shards are stored below the Scriptable documents directory.
+Erst beim Antippen wird `abfahrt` interaktiv in Scriptable geöffnet. Dann kann der Standort abgefragt, eine nahe Haltestelle gesucht und die aktive Auswahl geändert werden.
 
-Diagnostics are designed to avoid exposing the requestor key, stop references, stop names and coordinates.
+Das ist ein zentrales Designziel: schnelle Information auf dem Home Screen, Standortlogik nur dann, wenn der Nutzer sie tatsächlich benötigt.
 
-## Updates
+## Laufzeitfluss
 
-Stable resolves the latest published GitHub Release and installs Runtime + Config from that exact tag. Development resolves the current `main` commit and downloads all managed files from that exact commit.
+```text
+Home-Screen-Widget
+      │
+      ├── aktive Haltestelle vorhanden
+      │       └── Abfahrten laden und Widget rendern
+      │
+      └── keine Auswahl vorhanden
+              └── initiale Standardhaltestelle Bertoldsbrunnen
 
-The bootstrap installer is not an app-versioned component. Runtime and Config are the managed application files and share `APP_VERSION`.
+Widget-Tap / manueller Start
+      │
+      ▼
+Scriptable im Vordergrund
+      │
+      ▼
+GPS anfragen
+      │
+      ▼
+TRIAS Nearby-Suche
+      │
+      ├── passende angepinnte Haltestelle im Radius
+      │       └── automatisch wählen
+      │
+      ├── mehrere sinnvolle Treffer
+      │       └── Auswahl anzeigen
+      │
+      └── Standort-/Suchfehler
+              └── konfigurierter Fallback / Pins
+      │
+      ▼
+aktive Haltestelle speichern
+      │
+      ├── optional Widget aktualisieren
+      └── Vollbild-Abfahrten anzeigen
+```
 
-For current Stable releases, the Release workflow creates `release-manifest.json` with SHA-256 hashes for Runtime and Config. Config resolves the exact release tag, validates source markers/version and verifies downloaded bytes against that manifest before replacing the managed scripts. Releases from before manifest support use the previous marker/version validation as a compatibility path.
+## Datenquellen
 
-A bootstrap installation stores a short pending-install handoff in Keychain and launches the released Config. Config then downloads the complete managed set, writes it with rollback protection, removes installer artifacts and clears the handoff state. The same central managed-file definition is reused by updates, Recovery and Uninstall.
+### Primär: TRIAS
 
-## CI contracts
+Die primäre Datenquelle ist die TRIAS-1.2-Schnittstelle von MobiData BW / EFA-BW.
 
-The normal CI runs syntax checks, regression tests and repository/version consistency checks on Node 22. For internal pull requests it can automatically bump the Development patch version when updater-relevant files change.
+abfahrt verwendet im Wesentlichen:
 
-The separate widget screenshot workflow renders a deterministic smartphone preview for documentation. See [SCREENSHOTS.md](SCREENSHOTS.md).
+- `StopEventRequest` für Abfahrten
+- `LocationInformationRequest` für Haltestellensuche und Nearby-Suche
+
+Weitere Details: [TRIAS und Requester-Key](TRIAS.md)
+
+### Fallback: GTFS
+
+Wenn eine TRIAS-Abfahrtsanfrage fehlschlägt und für die angefragte Haltestelle lokale Daten verfügbar sind, kann die Runtime auf GTFS-Sollfahrplandaten zurückfallen.
+
+Der Offline-Pfad ist bewusst **kein zweiter Live-Dienst**. Er liefert geplante Fahrten ohne Echtzeitprognose.
+
+Weitere Details: [Offline-GTFS](GTFS.md)
+
+## Internes Abfahrtsmodell
+
+TRIAS- und Offline-Daten werden vor der Darstellung in vergleichbare interne Datensätze überführt.
+
+Dadurch können Widget und Vollbild dieselben Anzeige- und Filterfunktionen verwenden, unabhängig davon, ob die Zeile aus Live- oder Sollfahrplandaten stammt.
+
+Typische Felder sind:
+
+- Linie
+- Richtung/Ziel
+- geplante Abfahrtszeit
+- erwartete Abfahrtszeit
+- Verspätung
+- Gleis
+- Ausfallstatus
+- Kennzeichnung Live/Plan
+
+## Haltestellenmodell
+
+Eine reale Haltestelle kann aus mehreren TRIAS-StopRefs bestehen. abfahrt behandelt eine angepinnte Haltestelle deshalb als logische Gruppe.
+
+Ein Pin kann enthalten:
+
+- Anzeigename
+- Rolle
+- Koordinaten
+- eine oder mehrere StopRefs
+- Linienfilter
+- Richtungsfilter
+
+Dadurch lassen sich mehrere Steige derselben Haltestelle gemeinsam abfragen und darstellen.
+
+## Standort- und Fallbacklogik
+
+Bei erfolgreicher GPS-Suche werden nahe Haltestellen über TRIAS geladen.
+
+Ist die automatische Auswahl aktiviert, prüft abfahrt, ob eine angepinnte Haltestelle innerhalb des konfigurierten Radius liegt. Trifft das zu, wird sie bevorzugt.
+
+Bei Fehlern stehen abhängig von der Konfiguration zur Verfügung:
+
+- letzte aktive Haltestelle
+- Home
+- kein automatischer Fallback
+- manuelle Auswahl aus angepinnten Haltestellen
+
+Die Oberfläche soll technische Fehler dabei nicht als Diagnoseansicht präsentieren, sondern möglichst direkt eine nutzbare Alternative anbieten.
+
+## Persistenz
+
+### iOS-Keychain
+
+Im Keychain liegen Secrets und kleine Laufzeitdaten, darunter:
+
+- TRIAS-Requester-Key
+- letzte aktive Haltestelle
+- angepinnte Haltestellen
+- zuletzt verwendete Haltestellen
+- Installations-/Update-Handoffs
+
+### `abfahrt.config.json`
+
+Die Datei enthält persönliche Oberflächen- und Verhaltenseinstellungen.
+
+Dazu gehören unter anderem:
+
+- Widget-Layouts
+- Vollbild-Layout
+- Filteraktivierung
+- Standortverhalten
+- Update-Kanal
+
+### Offline-Cache
+
+GTFS-Manifest, Index und benötigte Shards werden im Scriptable-Dokumentbereich abgelegt.
+
+Ein neuer Cache ersetzt den alten erst, wenn alle benötigten Downloads erfolgreich waren.
+
+## Datenschutzprinzipien
+
+Die Diagnose ist so gestaltet, dass sie bei Supportfällen nützlich bleibt, ohne persönliche Daten unnötig offenzulegen.
+
+Nicht ausgegeben werden:
+
+- Requester-Key
+- StopRefs
+- Haltestellennamen
+- Koordinaten
+
+Backups schließen Secrets und flüchtigen Runtime-Status ebenfalls aus.
+
+## Update-Architektur
+
+### Stable
+
+Stable löst das zuletzt veröffentlichte GitHub Release auf und installiert Runtime und Config aus genau dessen Tag.
+
+Aktuelle Releases enthalten `release-manifest.json` mit SHA-256-Prüfsummen für die verwalteten Dateien.
+
+Vor dem Ersetzen wird geprüft:
+
+- erwarteter Dateiname
+- Quellmarker
+- Version
+- bei unterstützten Releases SHA-256 gegen das Manifest
+
+### Development
+
+Development folgt `main`, lädt aber nicht einfach nacheinander „die neuesten“ Dateien.
+
+Zuerst wird der aktuelle Commit-SHA von `main` aufgelöst. Danach werden alle verwalteten Dateien exakt aus diesem Commit geladen. So kann kein Mischstand aus zwei verschiedenen Commits entstehen.
+
+## Installations-Lifecycle
+
+Der Ein-Zeilen-Installer lädt `abfahrt-install.js` aus `main`. Dieser Bootstrap ist absichtlich versionslos.
+
+```text
+Bootstrap
+  → latest Stable Release auflösen
+  → veröffentlichte Config laden und prüfen
+  → Pending-Install-Handoff im Keychain speichern
+  → Config starten
+  → Runtime + Config vollständig laden
+  → Dateien validieren
+  → atomar/mit Rollback-Schutz schreiben
+  → Installer-Artefakte entfernen
+  → Handoff löschen
+```
+
+Die zentrale Definition der verwalteten Dateien wird auch für Updates, Recovery und Deinstallation wiederverwendet.
+
+## Recovery
+
+Recovery ist absichtlich vom normalen Update-Kanal getrennt.
+
+Es lädt Runtime und Config aus dem aktuellen `main` und dient dazu, eine beschädigte oder inkonsistente Installation wiederherzustellen. Persönliche Einstellungen und Haltestellendaten bleiben erhalten.
+
+## Deinstallation
+
+Die vollständige Deinstallation entfernt sowohl verwaltete Script-Dateien als auch zugehörige lokale Daten und den Requester-Key.
+
+Damit bleibt nach einer bestätigten Komplett-Deinstallation keine versteckte abfahrt-Konfiguration zurück.
+
+## CI-Verträge
+
+Die normale CI läuft mit Node 22 und prüft:
+
+- Syntax
+- Regressionstests
+- Versionskonsistenz
+- notwendige Versionssprünge
+- zentrale Repository-Verträge
+
+Bei internen Pull Requests kann sie einen erforderlichen Patch-Versionssprung automatisch eintragen.
+
+Die Widget-Vorschau wird in einem eigenen Workflow erzeugt. Details dazu: [SCREENSHOTS.md](SCREENSHOTS.md)
+
+## Release-Modell
+
+Ein Merge nach `main` ist **kein** automatisches Stable Release.
+
+Stable-Releases werden bewusst über den manuellen Release-Workflow erzeugt. Dieser:
+
+1. liest die aktuelle `APP_VERSION`,
+2. erzeugt das Prüfsummenmanifest,
+3. aktualisiert die stabile Versionsangabe im README,
+4. erstellt einen dedizierten Release-Branch,
+5. veröffentlicht Tag und GitHub Release,
+6. öffnet einen Pull Request, der die generierten Stable-Metadaten nach `main` zurückführt.
