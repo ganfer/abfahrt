@@ -170,15 +170,16 @@ test('GPS picker exposes pinned stops and shares the selection flow', () => {
 test('Home superpin is exposed in runtime and fallback flow', () => {
   const source = read('VagAbfahrten.js');
   assert.match(source, /function homeStop\(/);
-  assert.match(source, /stop\.home === true \? '🏠 '/);
+  assert.match(source, /if \(stop\.home === true \|\| stop\.role === 'home'\)/);
+  assert.match(source, /icon: '🏠'/);
   assert.match(source, /mode === 'home'/);
   assert.match(source, /Stattdessen wird 🏠 Home verwendet/);
 });
 
 test('config supports one Home stop and three fallback modes', () => {
   const source = read('VagAbfahrten-Config.js');
-  assert.match(source, /Als Home festlegen/);
-  assert.match(source, /Home entfernen/);
+  assert.match(source, /a\.addAction\('🏠 Home'\)/);
+  assert.match(source, /home:i===index/);
   assert.match(source, /fallbackMode: 'last'/);
   assert.match(source, /cfg\.location\.fallbackMode = 'home'/);
   assert.match(source, /cfg\.location\.fallbackMode = 'none'/);
@@ -198,10 +199,10 @@ test('updater compares remote and installed versions before installing', () => {
 test('Home keeps the configured stop display name', () => {
   const runtime = read('VagAbfahrten.js');
   const config = read('VagAbfahrten-Config.js');
-  assert.ok(runtime.includes("(stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name)"));
+  assert.ok(runtime.includes("return stopRole(stop).icon + ' ' + (stop.displayName || stop.name)"));
   assert.ok(runtime.includes('name: home.displayName || home.name'));
   assert.ok(runtime.includes('name: selectedPin.displayName || selectedPin.name'));
-  assert.ok(config.includes("(stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name)"));
+  assert.ok(config.includes("return roleForStop(stop).icon + ' ' + (stop.displayName || stop.name)"));
 });
 
 
