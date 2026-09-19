@@ -29,9 +29,9 @@ This keeps first installation consistent with the default **Stable** update chan
 
 The TRIAS requestor key is stored in the iOS Keychain and does not need to be kept in the widget parameter.
 
-## Offline timetable groundwork
+## Offline timetable fallback
 
-The repository includes a daily pipeline for preparing statewide MobiData BW/NVBW GTFS schedule data for a future offline fallback. Generated data is published separately on the `gtfs-data` branch; the application will later download only the shards needed by pinned stops.
+The repository includes a daily pipeline for preparing statewide MobiData BW/NVBW GTFS schedule data. TRIAS remains the primary source; if a TRIAS departure request fails, Scriptable can fall back to locally cached GTFS timetable data for configured angepinnte and recently used stops. Only the required shards are cached, and they can be refreshed automatically or manually. Generated source data is published separately on the `gtfs-data` branch.
 
 See [docs/GTFS.md](docs/GTFS.md) for the data format, mapping strategy, source and attribution.
 
@@ -43,9 +43,9 @@ Run **`VagAbfahrten-Config`** in Scriptable. Changes are saved automatically whe
 
 Configure departure count, columns, widths, spacing, font sizes, immediate refresh after a location change and whether per-stop filters are applied to the Widget.
 
-### Fullscreen
+### Vollbild
 
-Configure departure count, columns, widths, font size and whether per-stop filters are applied to the Fullscreen view.
+Configure departure count, columns, widths, font size and whether per-stop filters are applied to the Vollbild view.
 
 ### Standort
 
@@ -53,7 +53,7 @@ Configure automatic selection of a pinned stop and its radius (default **200 m**
 
 ### Haltestellen
 
-Stops can be pinned from recent history or found through TRIAS search. A pinned stop can have a custom display name and a role such as **Home, Work, Love, Pub, Favorite or Transfer**; custom roles can use their own emoji and label. Exactly one pinned stop can be Home.
+Haltestellen can be angepinnt from the recently used list or found through TRIAS search. An angepinnte Haltestelle can have a custom display name and a role such as **Home, Work, Love, Pub, Favorite or Transfer**; custom roles can use their own emoji and label. Exactly one angepinnte Haltestelle can be Home.
 
 A logical pinned stop can contain multiple TRIAS StopRefs so related platforms or stop points can be queried together. Additional StopRefs can be maintained manually.
 
@@ -74,11 +74,11 @@ Developer options contain:
 
 - **Diagnose** — privacy-safe status report without key values, StopRefs, stop names or coordinates.
 - **Backup & Wiederherstellung** — exports/imports personal configuration and pinned stops; secrets and transient runtime state are excluded.
-- **Alle Einstellungen zurücksetzen** — restores configuration defaults while retaining pinned stops, history and the TRIAS key.
+- **Alle Einstellungen zurücksetzen** — restores configuration defaults and clears the derived offline cache while retaining angepinnte stops, recently used stops and the TRIAS key.
 - **Recovery · Installation reparieren** — bypasses normal channel checks and restores runtime and Config from the exact current main commit while preserving personal data.
-- **Deinstallieren · Alles löschen** — after explicit confirmation removes configuration, pinned/recent stop data, update provenance, the TRIAS key and the managed scripts from Scriptable iCloud/local storage.
+- **Deinstallieren · Alles löschen** — after explicit confirmation removes configuration, angepinnte/recent stop data, last-stop state, offline cache, update provenance, the TRIAS key and the managed scripts from Scriptable iCloud/local storage.
 
-Personal settings are stored in **`VagAbfahrten.config.json`**. Pinned/recent stops and runtime state use Keychain entries.
+Personal settings are stored in **`VagAbfahrten.config.json`**. Angepinnte/recent stops and runtime state use Keychain entries.
 
 ## Display and status
 
@@ -103,7 +103,7 @@ Stable releases are created manually through the Release workflow. Merging to `m
 | --- | --- |
 | Widget departures | 5 |
 | Fullscreen departures | 8 |
-| Automatic pinned stop | On |
+| Automatic angepinnte stop | On |
 | Automatic-selection radius | 200 m |
 | Location fallback | Last stop |
 | Immediate widget refresh | On |
