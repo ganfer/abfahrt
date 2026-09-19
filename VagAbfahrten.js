@@ -28,13 +28,13 @@ const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
-const REFRESH_HELPER_SCRIPT = 'VagAbfahrten-Refresh';
 
 // User-facing widget layout configuration. Widths are points inside the
 // medium Scriptable widget. Hide columns you do not need and give the freed
 // space to another visible column.
 const DEFAULT_WIDGET_CONFIG = {
   rows: 5,
+  refreshAfterLocationChange: true,
   columns: {
     line: { visible: true, width: 34 },
     destination: { visible: true, width: 105 },
@@ -66,10 +66,11 @@ const DEFAULT_FULLSCREEN_CONFIG = {
     countdown: { visible: true, width: 92 },
   },
   fontSize: 16,
-  location: {
-    autoSelectSavedStop: true,
-    savedStopRadiusMeters: 200,
-  },
+};
+
+const DEFAULT_LOCATION_CONFIG = {
+  autoSelectSavedStop: true,
+  savedStopRadiusMeters: 200,
 };
 
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
@@ -89,6 +90,14 @@ function mergeWidgetConfig(saved) {
     spacing: { ...d.spacing, ...(s.spacing || {}) },
     fontSize: { ...d.fontSize, ...(s.fontSize || {}) },
     badgeHeight: Number.isFinite(s.badgeHeight) ? s.badgeHeight : d.badgeHeight,
+    refreshAfterLocationChange: typeof s.refreshAfterLocationChange === 'boolean'
+      ? s.refreshAfterLocationChange
+      : d.refreshAfterLocationChange,
+    location: {
+      ...DEFAULT_LOCATION_CONFIG,
+      ...(s.fullscreen?.location || {}),
+      ...(s.location || {}),
+    },
     fullscreen: {
       ...DEFAULT_FULLSCREEN_CONFIG,
       ...(s.fullscreen || {}),
@@ -96,7 +105,6 @@ function mergeWidgetConfig(saved) {
         key,
         { ...DEFAULT_FULLSCREEN_CONFIG.columns[key], ...(s.fullscreen?.columns?.[key] || {}) },
       ])),
-      location: { ...DEFAULT_FULLSCREEN_CONFIG.location, ...(s.fullscreen?.location || {}) },
     },
   };
 }
@@ -720,9 +728,11 @@ function pinnedStopFor(stop, pinned) {
 }
 
 function requestWidgetRefresh() {
-  // Run a tiny, non-interactive helper after the selected stop was persisted.
-  // Keeping this out of VagAbfahrten avoids re-entering GPS/fullscreen logic.
-  Safari.open('scriptable:///run/' + encodeURIComponent(REFRESH_HELPER_SCRIPT));
+  if (!WIDGET_CONFIG.refreshAfterLocationChange) return;
+  // Start a second, explicitly non-interactive run of this script. The
+  // "refresh" parameter exits through the widget-only path before GPS or
+  // fullscreen logic can run.
+  Safari.open('scriptable:///run/' + encodeURIComponent(Script.name()) + '?parameter=refresh');
 }
 
 function rememberStop(stop) {
@@ -795,8 +805,8 @@ async function nearbyFlow(key) {
   const pinned = savedStops().filter((s) => s.pinned === true);
   const recent = recentStops();
 
-  if (WIDGET_CONFIG.fullscreen.location.autoSelectSavedStop) {
-    const radius = Math.max(0, Number(WIDGET_CONFIG.fullscreen.location.savedStopRadiusMeters) || 200);
+  if (WIDGET_CONFIG.location.autoSelectSavedStop) {
+    const radius = Math.max(0, Number(WIDGET_CONFIG.location.savedStopRadiusMeters) || 200);
     const candidates = stops
       .map((stop) => ({ stop, pin: pinnedStopFor(stop, pinned), distance: stopDistanceMeters(stop, loc) }))
       .filter((item) => item.pin && item.distance !== null && item.distance <= radius)
