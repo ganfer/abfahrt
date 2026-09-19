@@ -41,7 +41,7 @@ jobs:
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release $TAG already exists; nothing to publish."
+            echo "Release $TAG already exists; release creation will be skipped, metadata sync will still be checked."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -123,17 +123,26 @@ jobs:
         run: gh release create "$TAG" --target "$TARGET" --title "$TAG" --generate-notes
 
       - name: Open Stable metadata pull request
-        if: steps.existing.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
-          RELEASE_BRANCH: ${{ steps.target.outputs.branch }}
         shell: bash
         run: |
+          RELEASE_BRANCH="release/v$VERSION"
+
+          if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH" >/dev/null 2>&1; then
+            echo "::error::Stable metadata branch $RELEASE_BRANCH does not exist."
+            exit 1
+          fi
+
+          git fetch origin \
+            "refs/heads/main:refs/remotes/origin/main" \
+            "refs/heads/$RELEASE_BRANCH:refs/remotes/origin/$RELEASE_BRANCH"
+
           EXISTING="$(gh pr list --base main --head "$RELEASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
           if [ -n "$EXISTING" ]; then
             echo "Stable metadata PR #$EXISTING already exists."
-          elif git diff --quiet origin/main...HEAD -- README.md release-manifest.json; then
+          elif git diff --quiet "origin/main...origin/$RELEASE_BRANCH" -- README.md release-manifest.json; then
             echo "No Stable metadata changes need to be merged back to main."
           else
             gh pr create \
