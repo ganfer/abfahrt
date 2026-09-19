@@ -123,23 +123,33 @@ function mergeWidgetLayout(defaults, saved) {
 function normalizeConfig(saved) {
   const value = saved || {};
   const widget = value.widget || {};
+  const {
+    rows: legacyRows,
+    columns: legacyColumns,
+    spacing: legacySpacing,
+    fontSize: legacyFontSize,
+    badgeHeight: legacyBadgeHeight,
+    refreshAfterLocationChange: legacyRefreshAfterLocationChange,
+    widget: _legacyWidget,
+    ...rest
+  } = value;
   const legacyMedium = {
-    rows: value.rows,
-    columns: value.columns,
-    spacing: value.spacing,
-    fontSize: value.fontSize,
-    badgeHeight: value.badgeHeight,
+    rows: legacyRows,
+    columns: legacyColumns,
+    spacing: legacySpacing,
+    fontSize: legacyFontSize,
+    badgeHeight: legacyBadgeHeight,
   };
   const hasLegacyWidgetLayout =
-    Number.isFinite(value.rows) ||
-    Boolean(value.columns) ||
-    Boolean(value.spacing) ||
-    Boolean(value.fontSize) ||
-    Number.isFinite(value.badgeHeight);
+    Number.isFinite(legacyRows) ||
+    Boolean(legacyColumns) ||
+    Boolean(legacySpacing) ||
+    Boolean(legacyFontSize) ||
+    Number.isFinite(legacyBadgeHeight);
 
   return {
     ...clone(DEFAULTS),
-    ...value,
+    ...rest,
     widget: {
       common: {
         ...DEFAULTS.widget.common,
