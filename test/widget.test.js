@@ -89,18 +89,22 @@ vm.runInContext(
 );
 const T = sandbox.__test;
 
-test('compact widget mirrors the dynamic fullscreen visual language', () => {
+test('compact widget uses a two-level header and keeps the data area uncluttered', () => {
   const source = read('abfahrt.js');
 
-  assert.match(source, /function addWidgetChip\(/);
-  assert.match(source, /realtimeAvailable \? 'Live' : 'Plan'/);
+  assert.match(source, /header\.layoutVertically\(\)/);
+  assert.match(source, /const topLine = header\.addStack\(\)/);
+  assert.match(source, /const metaLine = header\.addStack\(\)/);
+  assert.match(source, /const statusLabel = realtimeAvailable \? 'Live' : 'Plan'/);
   assert.match(source, /platforms\.length \+ ' Steige'/);
   assert.match(source, /activePin\.home === true \? '🏠' : '★'/);
+  assert.match(source, /metaParts\.push\('akt\. ' \+ fmtClock\(Date\.now\(\)\)\)/);
   assert.match(source, /highlight: index === 0/);
-  assert.match(source, /row\.backgroundColor = new Color\('#18181b'\)/);
+  assert.match(source, /row\.backgroundColor = new Color\('#151517'\)/);
+  assert.doesNotMatch(source, /function addWidgetChip\(/);
+  assert.doesNotMatch(source, /Tippen für Details/);
   assert.ok(source.includes("const clock = column.addText(fmtClock(r.at));"));
   assert.doesNotMatch(source, /fmtClock\(r\.at\) \+ \(r\.realtimeTime/);
-  assert.match(source, /Tippen für Details/);
 });
 
 test('widget tap starts the integrated foreground flow', () => {
@@ -325,7 +329,7 @@ test('stop roles, groups and filters are wired into runtime', () => {
 test('realtime display distinguishes realtime, delay and timetable-only data', () => {
   const runtime = read('abfahrt.js');
   assert.match(runtime, /realtimeAvailable \? 'Live' : 'Plan'/);
-  assert.match(runtime, /realtimeAvailable[\s\S]*'● Echtzeit'[\s\S]*'° Fahrplan'/);
+  assert.match(runtime, /dot\.textColor = new Color\(realtimeAvailable \? '#30d158' : '#8e8e93'\)/);
   assert.ok(runtime.includes("const clock = column.addText(fmtClock(r.at));"));
   assert.match(runtime, /r\.delayMin >= DELAY_HEAVY_MIN \? c\.late : r\.delayMin > 0 \? c\.delay : c\.ok/);
   assert.match(runtime, /if \(r\.cancelled\) right = 'entfällt'/);
