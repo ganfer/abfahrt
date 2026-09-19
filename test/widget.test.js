@@ -119,3 +119,18 @@ test('widget row slicing uses configured row count', () => {
   assert.match(source, /slice\(0, Math\.max\(1, Math\.min\(8, Number\(WIDGET_CONFIG\.rows\)/);
   assert.doesNotMatch(source, /\.slice\(0, 5\);/);
 });
+
+
+test('runtime maps technical failures to user-facing errors', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /function friendlyError\(error\)/);
+  assert.match(source, /TRIAS-Key wurde abgelehnt/);
+  assert.match(source, /Keine Verbindung zu EFA-BW/);
+  assert.match(source, /Antwort von EFA-BW konnte nicht gelesen werden/);
+});
+
+test('fullscreen failure shows last attempt time', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /Abfahrten nicht verfügbar/);
+  assert.match(source, /Letzter Versuch:/);
+});

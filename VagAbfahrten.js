@@ -606,6 +606,15 @@ function addDepartureRow(w, r, place, c) {
   }
 }
 
+function friendlyError(error) {
+  const message = String(error?.message || error || '').trim();
+  if (/timeout|timed out|Zeitüberschreitung/i.test(message)) return 'Verbindung zu EFA-BW dauert zu lange';
+  if (/HTTP 401|HTTP 403|Requestor|Key/i.test(message)) return 'TRIAS-Key wurde abgelehnt';
+  if (/network|offline|Internet|connection/i.test(message)) return 'Keine Verbindung zu EFA-BW';
+  if (/parse|XML/i.test(message)) return 'Antwort von EFA-BW konnte nicht gelesen werden';
+  return message || 'Abfahrten konnten nicht geladen werden';
+}
+
 function buildWidget(title, subtitle, rows, cancelledN, errorText) {
   const c = palette();
   const w = new ListWidget();
@@ -671,7 +680,7 @@ async function defaultWidget(key, present, tapParameter) {
     else Script.setWidget(w);
     Script.complete();
   } catch (e) {
-    const w = buildWidget(title, null, [], 0, e.message, tapParameter);
+    const w = buildWidget(title, null, [], 0, friendlyError(e), tapParameter);
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
@@ -981,7 +990,11 @@ async function presentDeparturesTable(key, context = null) {
     await web.loadHTML(html);
     await web.present(true);
   } catch (e) {
-    await showLocationDiagnostics(['Abfahrtsübersicht konnte nicht geladen werden.'], e.message);
+    const alert = new Alert();
+    alert.title = 'Abfahrten nicht verfügbar';
+    alert.message = friendlyError(e) + '\n\nLetzter Versuch: ' + fmtClock(Date.now());
+    alert.addAction('OK');
+    await alert.present();
   }
   Script.complete();
 }
