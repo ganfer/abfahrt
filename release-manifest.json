@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "version": "1.1.10",
+  "files": [
+    {
+      "name": "VagAbfahrten.js",
+      "sha256": "d77490e9883e6cc2b6ef9b625d607e23361c0a952bdfbb8e551c18df93215c57"
+    },
+    {
+      "name": "VagAbfahrten-Config.js",
+      "sha256": "74026af20f9cd59e5236c4b721fc8e082cd26e3cb9b091bc88671b1c007659d9"
+    }
+  ]
+}
