@@ -42,3 +42,17 @@ test('README Development version matches scripts', () => {
   const escaped = runtimeVersion.split('.').join('\\.');
   assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
 });
+
+test('README and screenshot workflow keep the preview contract', () => {
+  const readme = read('README.md');
+  const workflow = read('.github/workflows/widget-screenshot.yml');
+  const renderer = read('scripts/render-widget-preview.mjs');
+
+  assert.match(readme, /docs\/assets\/widget-preview\.png/);
+  assert.equal(fs.existsSync(path.join(root, 'docs/assets/widget-preview.png')), true);
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /push:/);
+  assert.match(workflow, /browser-actions\/setup-chrome@v2/);
+  assert.match(workflow, /docs\/assets\/widget-preview\.png/);
+  assert.match(renderer, /extractObject\('DEFAULT_WIDGET_CONFIG'\)/);
+});
