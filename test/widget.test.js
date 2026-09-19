@@ -89,22 +89,22 @@ vm.runInContext(
 );
 const T = sandbox.__test;
 
-test('compact widget uses a two-level header and keeps the data area uncluttered', () => {
+test('compact widget keeps status inline between stop name and pin', () => {
   const source = read('abfahrt.js');
 
-  assert.match(source, /header\.layoutVertically\(\)/);
-  assert.match(source, /const topLine = header\.addStack\(\)/);
-  assert.match(source, /const metaLine = header\.addStack\(\)/);
+  assert.match(source, /header\.layoutHorizontally\(\)/);
+  assert.match(source, /const statusStack = header\.addStack\(\)/);
   assert.match(source, /const statusLabel = realtimeAvailable \? 'Live' : 'Plan'/);
   assert.match(source, /platforms\.length \+ ' Steige'/);
   assert.match(source, /activePin\.home === true \? '🏠' : '★'/);
-  assert.match(source, /metaParts\.push\('akt\. ' \+ fmtClock\(Date\.now\(\)\)\)/);
+  assert.match(source, /const updated = statusStack\.addText\('akt\. ' \+ fmtClock\(Date\.now\(\)\)\)/);
+  assert.match(source, /updated\.font = Font\.boldSystemFont\(8\)/);
+  assert.match(source, /updated\.textColor = new Color\(errorText \? c\.late : '#d8d8dc'\)/);
   assert.match(source, /highlight: index === 0/);
   assert.match(source, /row\.backgroundColor = new Color\('#151517'\)/);
-  assert.doesNotMatch(source, /function addWidgetChip\(/);
+  assert.doesNotMatch(source, /const metaLine = header\.addStack\(\)/);
   assert.doesNotMatch(source, /Tippen für Details/);
   assert.ok(source.includes("const clock = column.addText(fmtClock(r.at));"));
-  assert.doesNotMatch(source, /fmtClock\(r\.at\) \+ \(r\.realtimeTime/);
 });
 
 test('widget tap starts the integrated foreground flow', () => {
