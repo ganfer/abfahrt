@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.1.4';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -573,6 +573,9 @@ async function downloadJson(url) {
   req.headers = { 'User-Agent': 'vag-widget/' + APP_VERSION, Accept: 'application/json' };
   const raw = await req.loadString();
   const status = req.response ? req.response.statusCode : 0;
+  if (status === 404 && url.startsWith(GTFS_RAW_BASE_URL)) {
+    throw new Error('Offline-Fahrplandaten sind noch nicht verfügbar. Der GTFS-Datenbestand wurde auf GitHub noch nicht veröffentlicht.');
+  }
   if (status < 200 || status >= 300) throw new Error('HTTP ' + (status || '?'));
   return { raw, value: JSON.parse(raw) };
 }
