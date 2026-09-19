@@ -441,7 +441,7 @@ async function configureFullscreen(cfg) {
       const col = cfg.fullscreen.columns[key];
       const b = new Alert();
       b.title = labels[key];
-      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} px`;
+      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} pt`;
       b.addAction(col.visible ? 'Spalte ausblenden' : 'Spalte einblenden');
       b.addAction('Breite ändern');
       b.addCancelAction('Zurück');
