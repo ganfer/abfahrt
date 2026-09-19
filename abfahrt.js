@@ -830,6 +830,9 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
   const header = w.addStack();
   header.layoutHorizontally();
   header.centerAlignContent();
+  header.backgroundColor = new Color('#17171a');
+  header.cornerRadius = 12;
+  header.setPadding(7, 8, 7, 8);
 
   const badge = header.addStack();
   badge.size = new Size(30, 30);
