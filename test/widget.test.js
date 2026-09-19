@@ -39,6 +39,18 @@ class FakeXMLParser {
   }
 }
 
+function fakeStack() {
+  return {
+    layoutHorizontally() {},
+    layoutVertically() {},
+    centerAlignContent() {},
+    setPadding() {},
+    addSpacer() {},
+    addText(t) { return { text: t }; },
+    addStack() { return fakeStack(); },
+  };
+}
+
 const sandbox = {
   args: { widgetParameter: 'test-key', queryParameters: {} },
   config: { runsInWidget: true },
@@ -54,10 +66,11 @@ const sandbox = {
   Device: { isUsingDarkAppearance: () => true },
   Font: { boldSystemFont: () => ({}), systemFont: () => ({}), mediumSystemFont: () => ({}) },
   Color: class { constructor(c) { this.c = c; } },
+  Size: class { constructor(width, height) { this.width = width; this.height = height; } },
   ListWidget: class {
     constructor() { this.texts = []; }
     addText(t) { const el = { text: t }; this.texts.push(t); return el; }
-    addStack() { return { layoutHorizontally() {}, addSpacer() {}, addText(t) { return { text: t }; } }; }
+    addStack() { return fakeStack(); }
     addSpacer() {}
     setPadding() {}
     set backgroundColor(v) { this.bg = v; }
@@ -76,8 +89,22 @@ vm.runInContext(
 );
 const T = sandbox.__test;
 
+test('compact widget mirrors the dynamic fullscreen visual language', () => {
+  const source = read('abfahrt.js');
+
+  assert.match(source, /function addWidgetChip\(/);
+  assert.match(source, /realtimeAvailable \? 'Live' : 'Plan'/);
+  assert.match(source, /platforms\.length \+ ' Steige'/);
+  assert.match(source, /activePin\.home === true \? '🏠' : '★'/);
+  assert.match(source, /highlight: index === 0/);
+  assert.match(source, /row\.backgroundColor = new Color\('#18181b'\)/);
+  assert.ok(source.includes("const clock = column.addText(fmtClock(r.at));"));
+  assert.doesNotMatch(source, /fmtClock\(r\.at\) \+ \(r\.realtimeTime/);
+  assert.match(source, /Tippen für Details/);
+});
+
 test('widget tap starts the integrated foreground flow', () => {
-  const w = T.buildWidget('Test', null, [], 0, null, 'nearby');
+  const w = T.buildWidget('Test', null, [], 0, null);
   assert.equal(w.urlValue, 'scriptable:///run/abfahrt');
 });
 
