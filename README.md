@@ -6,7 +6,7 @@ Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API
 
 ## What it does
 
-The Home Screen widget shows departures for the currently active stop. By default, before any stop has been selected, it falls back to **Brauerei Ganter**. A tap opens Scriptable and runs the interactive location flow:
+The Home Screen widget shows departures for the currently active stop. By default, before any stop has been selected, it falls back to **Bertoldsbrunnen**. A tap opens Scriptable and runs the interactive location flow:
 
 ```text
 Home Screen widget
