@@ -339,3 +339,23 @@ test('user-facing pinned-stop terminology is consistent', () => {
   assert.doesNotMatch(config, /Fixierte Haltestellen/);
   assert.doesNotMatch(runtime, /Fixierte Haltestellen/);
 });
+
+
+test('fullscreen keeps destinations readable and honors configurable column proportions', () => {
+  const runtime = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+
+  assert.ok(runtime.includes("value: (r) => r.destination || '–'"));
+  assert.match(runtime, /const widthSum = defs\.reduce/);
+  assert.match(runtime, /<colgroup>\$\{colgroup\}<\/colgroup>/);
+  assert.match(runtime, /destination-wrap/);
+  assert.match(runtime, /-webkit-line-clamp: \$\{destinationLines\}/);
+  assert.match(runtime, /destinationWrap: true/);
+  assert.match(runtime, /destinationLines: 2/);
+
+  assert.match(config, /destinationWrap: true/);
+  assert.match(config, /destinationLines: 2/);
+  assert.match(config, /Richtung umbrechen:/);
+  assert.match(config, /Max\. Richtungszeilen:/);
+  assert.match(config, /Breitenwert ändern/);
+});
