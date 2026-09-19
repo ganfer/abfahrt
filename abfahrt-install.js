@@ -6,7 +6,7 @@
 
 const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/abfahrt/releases/latest';
 const RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/';
-const CONFIG_NAME = 'abfahrt-Config.js';
+const CONFIG_NAME = 'abfahrt-config.js';
 const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF';
 const PENDING_INSTALL_VERSION_KEY = 'ABFAHRT_PENDING_INSTALL_VERSION';
 const PENDING_INSTALLER_NAME_KEY = 'ABFAHRT_PENDING_INSTALLER_NAME';
@@ -73,7 +73,7 @@ async function main() {
     Keychain.set(PENDING_INSTALL_REF_KEY, release.tag);
     Keychain.set(PENDING_INSTALL_VERSION_KEY, release.version);
     Keychain.set(PENDING_INSTALLER_NAME_KEY, Script.name());
-    Safari.open('scriptable:///run?scriptName=' + encodeURIComponent('abfahrt-Config'));
+    Safari.open('scriptable:///run?scriptName=' + encodeURIComponent('abfahrt-config'));
     Script.complete();
     return;
   } catch (e) {
