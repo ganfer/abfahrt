@@ -180,10 +180,25 @@ test('foreground location failures stay user-friendly and hide technical diagnos
 test('GPS picker exposes pinned stops and shares the selection flow', () => {
   const source = read('abfahrt.js');
   assert.match(source, /picker\.addAction\('📌 Angepinnte Haltestellen'\)/);
-  assert.match(source, /pinnedPicker\.title = 'Angepinnte Haltestellen'/);
-  assert.ok(source.includes('selectedPin = orderedPinned[pinnedIdx]'));
-  assert.match(source, /rememberStop\(\{ \.\.\.selected, name: selectedPin\?\.displayName \|\| selected\.name \}\)/);
+  assert.match(source, /async function choosePinnedStop\(key, options = \{\}\)/);
+  assert.match(source, /picker\.title = options\.title \|\| 'Angepinnte Haltestellen'/);
+  assert.match(source, /rememberStop\(\{[\s\S]*stopRef: selectedPin\.stopRef,[\s\S]*name: selectedPin\.displayName \|\| selectedPin\.name/);
   assert.match(source, /requestWidgetRefresh\(\);[\s\S]*await presentDeparturesTable\(key\);/);
+});
+
+test('location failures offer pinned stops before automatic fallback or errors', () => {
+  const source = read('abfahrt.js');
+  const gps = source.indexOf("title: 'Standort nicht verfügbar'");
+  const gpsFallback = source.indexOf("fallbackToLastStop(key, 'GPS ist nicht verfügbar.')");
+  const lookup = source.indexOf("title: 'Haltestellensuche nicht verfügbar'");
+  const lookupFallback = source.indexOf("fallbackToLastStop(key, 'Die Haltestellensuche konnte nicht geladen werden.')");
+  const empty = source.indexOf("title: 'Keine Haltestellen in der Nähe'");
+  const emptyFallback = source.indexOf("fallbackToLastStop(key, 'In der Nähe wurden keine Haltestellen gefunden.')");
+
+  assert.ok(gps !== -1 && gps < gpsFallback);
+  assert.ok(lookup !== -1 && lookup < lookupFallback);
+  assert.ok(empty !== -1 && empty < emptyFallback);
+  assert.match(source, /Wähle stattdessen eine angepinnte Haltestelle/);
 });
 
 
