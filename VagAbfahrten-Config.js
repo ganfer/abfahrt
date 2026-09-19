@@ -596,26 +596,43 @@ async function downloadUpdateFile(file) {
 }
 
 async function updateScripts() {
-  let remoteVersion = null;
+  let remoteVersion;
   try {
     remoteVersion = await latestVersion();
-  } catch (_) {
-    // The normal update download below still provides the detailed error.
+  } catch (e) {
+    await notice('Update-Prüfung fehlgeschlagen', 'Die aktuelle Version auf GitHub konnte nicht ermittelt werden.\n\n' + e.message);
+    return;
   }
+
+  const comparison = compareVersions(remoteVersion, APP_VERSION);
+  if (comparison <= 0) {
+    await notice(
+      'Kein Update verfügbar',
+      `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nDu verwendest bereits die aktuelle Version.`,
+    );
+    return;
+  }
+
   const confirm = new Alert();
-  confirm.title = 'Skripte aktualisieren';
-  confirm.message = `Installiert die aktuelle Version aus dem main-Branch.\n\nInstalliert: v${APP_VERSION}${remoteVersion ? '\nVerfügbar: v' + remoteVersion : ''}\n\nDeine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
-  confirm.addAction('Update starten');
+  confirm.title = `Update v${remoteVersion} verfügbar`;
+  confirm.message = `Installiert: v${APP_VERSION}\nVerfügbar: v${remoteVersion}\n\nWidget und Config werden aus dem main-Branch aktualisiert. Deine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
+  confirm.addAction('Update installieren');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
 
   try {
     // Validate all managed files before replacing anything. File identity is
-    // checked with explicit markers instead of an arbitrary minimum size, so
-    // small helper scripts are first-class managed files.
+    // checked with explicit markers instead of an arbitrary minimum size.
     const downloads = [];
     for (const file of UPDATE_FILES) {
       downloads.push({ file, source: await downloadUpdateFile(file) });
+    }
+
+    const downloadedVersions = downloads
+      .map((item) => versionFromSource(item.source))
+      .filter(Boolean);
+    if (!downloadedVersions.length || downloadedVersions.some((version) => version !== remoteVersion)) {
+      throw new Error('Die heruntergeladenen Skripte haben unterschiedliche Versionsstände.');
     }
 
     const written = [];
@@ -626,8 +643,7 @@ async function updateScripts() {
         written.push(`• ${item.file.name} [${target.label}]`);
       }
     }
-    // Remove retired helper/display scripts. Refresh and fullscreen rendering
-    // now both live in VagAbfahrten.js.
+
     for (const store of [FileManager.iCloud(), FileManager.local()]) {
       for (const retired of ['VagAbfahrten-Display.js', 'VagAbfahrten-Refresh.js']) {
         const oldPath = store.joinPath(store.documentsDirectory(), retired);
@@ -637,8 +653,11 @@ async function updateScripts() {
         }
       }
     }
-    const installedVersion = versionFromSource(downloads[0].source) || remoteVersion || APP_VERSION;
-    await notice('Update abgeschlossen', `Version v${installedVersion} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
+
+    await notice(
+      'Update abgeschlossen',
+      `Version v${remoteVersion} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.',
+    );
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
   }
