@@ -32,6 +32,11 @@ test('config updater validates versioned managed files', () => {
   assert.match(config, /const APP_VERSION = '/);
   assert.match(config, /file\.markers\.every/);
 });
+
+test('obsolete refresh helper is not part of the repository architecture', () => {
+  assert.equal(fs.existsSync(path.join(root, 'VagAbfahrten-Refresh.js')), false);
+});
+
 test('README Development version matches scripts', () => {
   const runtimeVersion = version(read('VagAbfahrten.js'));
   const escaped = runtimeVersion.split('.').join('\\.');
