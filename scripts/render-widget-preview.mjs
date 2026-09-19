@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const runtimePath = path.join(root, 'VagAbfahrten.js');
+const runtimePath = path.join(root, 'Abfahrt.js');
 const source = fs.readFileSync(runtimePath, 'utf8');
 
 function argument(name, fallback) {
@@ -13,7 +13,7 @@ function argument(name, fallback) {
 function extractObject(constName) {
   const marker = `const ${constName} = `;
   const markerIndex = source.indexOf(marker);
-  if (markerIndex < 0) throw new Error(`${constName} not found in VagAbfahrten.js`);
+  if (markerIndex < 0) throw new Error(`${constName} not found in Abfahrt.js`);
   const start = source.indexOf('{', markerIndex + marker.length);
   if (start < 0) throw new Error(`${constName} object start not found`);
 
@@ -89,7 +89,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VAG Widget preview</title>
+<title>Abfahrt preview</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 430px; height: 932px; overflow: hidden; }
@@ -176,7 +176,7 @@ const html = `<!doctype html>
     <div class="status"><span>12:42</span><span>● ᯤ ▰</span></div>
     <div class="day">Samstag, 19. September</div>
     <div class="city">Freiburg</div>
-    <section class="widget" aria-label="VAG departures widget preview">
+    <section class="widget" aria-label="public transport departures widget preview">
       <div class="widget-title">Bertoldsbrunnen</div>
       <div class="widget-subtitle">Freiburg</div>
       <div class="rows">${rowHtml}</div>

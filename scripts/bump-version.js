@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
-const VERSION_FILES = ['VagAbfahrten.js', 'VagAbfahrten-Config.js'];
+const VERSION_FILES = ['Abfahrt.js', 'Abfahrt-Config.js'];
 const UPDATE_RELEVANT = VERSION_FILES;
 
 function version(source, label) {
@@ -23,9 +23,9 @@ if (!changed.some((file) => UPDATE_RELEVANT.includes(file))) {
   process.exit(0);
 }
 
-const baseSource = execFileSync('git', ['show', `origin/${baseRef}:VagAbfahrten.js`], { encoding: 'utf8' });
-const base = version(baseSource, `origin/${baseRef}:VagAbfahrten.js`);
-const current = version(fs.readFileSync('VagAbfahrten.js', 'utf8'), 'VagAbfahrten.js');
+const baseSource = execFileSync('git', ['show', `origin/${baseRef}:Abfahrt.js`], { encoding: 'utf8' });
+const base = version(baseSource, `origin/${baseRef}:Abfahrt.js`);
+const current = version(fs.readFileSync('Abfahrt.js', 'utf8'), 'Abfahrt.js');
 const automatic = `${base.major}.${base.minor}.${base.patch + 1}`;
 const manuallyBumped = current.major > base.major || current.minor > base.minor || (current.major === base.major && current.minor === base.minor && current.patch > base.patch);
 const next = manuallyBumped ? `${current.major}.${current.minor}.${current.patch}` : automatic;

@@ -2,8 +2,8 @@ const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
 const VERSION_FILES = [
-  'VagAbfahrten.js',
-  'VagAbfahrten-Config.js',
+  'Abfahrt.js',
+  'Abfahrt-Config.js',
 ];
 const UPDATE_RELEVANT = VERSION_FILES;
 
@@ -69,8 +69,8 @@ if (!changed.some((file) => UPDATE_RELEVANT.includes(file))) {
   process.exit(0);
 }
 
-const baseSource = execFileSync('git', ['show', `origin/${baseRef}:VagAbfahrten.js`], { encoding: 'utf8' });
-const baseVersion = parseVersion(baseSource, `origin/${baseRef}:VagAbfahrten.js`);
+const baseSource = execFileSync('git', ['show', `origin/${baseRef}:Abfahrt.js`], { encoding: 'utf8' });
+const baseVersion = parseVersion(baseSource, `origin/${baseRef}:Abfahrt.js`);
 if (compareVersions(version, baseVersion) <= 0) {
   console.error('Version bump required:');
   console.error(`  ${baseRef}: v${baseVersion}`);
