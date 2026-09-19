@@ -1144,7 +1144,7 @@ async function nearbyFlow(key) {
   let selectedPin = null;
   if (pinned.length && idx === pinnedMenuIndex) {
     const pinnedPicker = new Alert();
-    pinnedPicker.title = 'Fixierte Haltestellen';
+    pinnedPicker.title = 'Angepinnte Haltestellen';
     pinnedPicker.message = 'Wähle eine angepinnte Haltestelle.';
     const orderedPinned = [...pinned].sort((a, b) => Number(b.home === true) - Number(a.home === true));
     for (const stop of orderedPinned) {
