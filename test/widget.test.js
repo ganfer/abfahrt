@@ -83,7 +83,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   src.replace(
     'await main();',
-    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef, widgetLayoutProfile, withDelay, mergeWidgetConfig, compareFullscreenRows };',
+    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef, widgetLayoutProfile, withDelay, mergeWidgetConfig, compareFullscreenRows, groupFullscreenRows };',
   ),
   sandbox,
 );
@@ -576,6 +576,59 @@ test('fullscreen sorting supports time, platform, destination and line', () => {
       .map((r) => r.at),
     [1000, 3000],
   );
+});
+
+test('fullscreen grouping adds headings for platform, destination and line sorting', () => {
+  const rows = [
+    { line: '10', destination: 'Zoo', platform: '2', at: 2000 },
+    { line: '2', destination: 'Altstadt', platform: '1', at: 3000 },
+    { line: '2', destination: 'Altstadt', platform: '1', at: 1000 },
+    { line: '1', destination: 'Bahnhof', platform: '', at: 500 },
+  ];
+
+  const platformRows = rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'platform'));
+  const platformGroups = Array.from(T.groupFullscreenRows(platformRows, 'platform'), (group) => ({
+    label: group.label,
+    times: Array.from(group.rows, (row) => row.at),
+  }));
+  assert.deepEqual(platformGroups, [
+    { label: 'Gleis 1', times: [1000, 3000] },
+    { label: 'Gleis 2', times: [2000] },
+    { label: 'Ohne Gleisangabe', times: [500] },
+  ]);
+
+  const destinationRows = rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'destination'));
+  const destinationGroups = Array.from(T.groupFullscreenRows(destinationRows, 'destination'), (group) => group.label);
+  assert.deepEqual(destinationGroups, ['Richtung Altstadt', 'Richtung Bahnhof', 'Richtung Zoo']);
+
+  const lineRows = rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'line'));
+  const lineGroups = Array.from(T.groupFullscreenRows(lineRows, 'line'), (group) => ({
+    label: group.label,
+    times: Array.from(group.rows, (row) => row.at),
+  }));
+  assert.deepEqual(lineGroups, [
+    { label: 'Linie 1', times: [500] },
+    { label: 'Linie 2', times: [1000, 3000] },
+    { label: 'Linie 10', times: [2000] },
+  ]);
+
+  const timeGroups = Array.from(T.groupFullscreenRows(
+    rows.toSorted((a, b) => T.compareFullscreenRows(a, b, 'departureTime')),
+    'departureTime',
+  ));
+  assert.equal(timeGroups.length, 1);
+  assert.equal(timeGroups[0].label, '');
+});
+
+test('fullscreen renders group headings only for grouped sort modes', () => {
+  const runtime = read('abfahrt.js');
+  assert.match(runtime, /const groupedRows = groupFullscreenRows\(rows, fs\.sortBy\)/);
+  assert.match(runtime, /class="group-row"/);
+  assert.match(runtime, /class="group-title"/);
+  assert.match(runtime, /class="group-count"/);
+  assert.match(runtime, /Ohne Gleisangabe/);
+  assert.match(runtime, /Ohne Richtungsangabe/);
+  assert.match(runtime, /Ohne Linienangabe/);
 });
 
 test('fullscreen uses dynamic status cards and keeps departure times fully visible', () => {
