@@ -31,6 +31,39 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Update Stable version in README
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const version = process.env.VERSION;
+          const path = 'README.md';
+          const source = fs.readFileSync(path, 'utf8');
+          const pattern = /^(\*\*Stable version: v)\d+\.\d+\.\d+(\*\*)$/m;
+          if (!pattern.test(source)) {
+            console.error('README Stable version line could not be found.');
+            process.exit(1);
+          }
+          fs.writeFileSync(path, source.replace(pattern, `$1${version}$2`));
+          NODE
+
+      - name: Commit Stable version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "README Stable version is already v$VERSION."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md
+            git commit -m "docs: mark v$VERSION as Stable"
+            git push origin HEAD:main
+          fi
+
       - name: Check whether release already exists
         id: existing
         env:
