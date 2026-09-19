@@ -274,11 +274,11 @@ async function searchStops(query) {
 async function addPinnedStop() {
   const history = recentStops();
   const menu = new Alert();
-  menu.title = 'Haltestelle fixieren';
+  menu.title = 'Haltestelle anpinnen';
   menu.message = history.length
     ? 'Wähle eine zuletzt verwendete Haltestelle oder suche nach einer anderen.'
-    : 'Noch keine Historie vorhanden. Suche nach einer Haltestelle.';
-  if (history.length) menu.addAction('Aus Historie wählen');
+    : 'Noch keine zuletzt verwendeten Haltestellen vorhanden. Suche nach einer Haltestelle.';
+  if (history.length) menu.addAction('Aus zuletzt verwendeten wählen');
   menu.addAction('Haltestelle suchen');
   menu.addCancelAction('Abbrechen');
   const source = await menu.present();
@@ -287,8 +287,8 @@ async function addPinnedStop() {
   if (history.length && source === 0) {
     const pinned = savedStops().filter((s) => s.pinned === true);
     const picker = new Alert();
-    picker.title = 'Aus Historie fixieren';
-    picker.message = 'Zuletzt verwendete Haltestellen · 📌 = bereits fixiert';
+    picker.title = 'Zuletzt verwendete anpinnen';
+    picker.message = 'Zuletzt verwendete Haltestellen · 📌 = bereits angepinnt';
     for (const stop of history) {
       const isPinned = pinned.some((s) =>
         s.stopRef === stop.stopRef || normalizeStopName(s.name) === normalizeStopName(stop.name)
@@ -299,13 +299,13 @@ async function addPinnedStop() {
     const choice = await picker.present();
     if (choice === -1) return;
     pinStop(history[choice]);
-    await notice('Fixiert', history[choice].name + ' wurde fixiert.');
+    await notice('Angepinnt', history[choice].name + ' wurde angepinnt.');
     return;
   }
 
   const a = new Alert();
   a.title = 'Haltestelle suchen';
-  a.message = 'Suche nach einer Haltestelle, die dauerhaft fixiert werden soll.';
+  a.message = 'Suche nach einer Haltestelle, die dauerhaft angepinnt werden soll.';
   a.addTextField('Haltestelle', '');
   a.addAction('Suchen');
   a.addCancelAction('Abbrechen');
@@ -322,8 +322,8 @@ async function addPinnedStop() {
     const refs = new Set(pinned.map((s) => s.stopRef));
     const names = new Set(pinned.map((s) => normalizeStopName(s.name)));
     const picker = new Alert();
-    picker.title = 'Haltestelle fixieren';
-    picker.message = `${results.length} Treffer für „${query}“ · 📌 = bereits fixiert`;
+    picker.title = 'Haltestelle anpinnen';
+    picker.message = `${results.length} Treffer für „${query}“ · 📌 = bereits angepinnt`;
     for (const stop of results) {
       const isPinned = refs.has(stop.stopRef) || names.has(normalizeStopName(stop.name));
       picker.addAction((isPinned ? '📌 ' : '') + stop.name);
@@ -332,7 +332,7 @@ async function addPinnedStop() {
     const choice = await picker.present();
     if (choice === -1) return;
     pinStop(results[choice]);
-    await notice('Fixiert', results[choice].name + ' wurde fixiert.');
+    await notice('Angepinnt', results[choice].name + ' wurde angepinnt.');
   } catch (e) {
     await notice('Suche fehlgeschlagen', e.message);
   }
@@ -354,9 +354,9 @@ async function managePinnedStops() {
   while (true) {
     const stops = savedStops().filter((s) => s.pinned === true);
     const a = new Alert();
-    a.title = 'Fixierte Haltestellen';
-    a.message = stops.length ? `${stops.length} Haltestelle(n) dauerhaft fixiert.` : 'Noch keine Haltestellen fixiert.';
-    a.addAction('Haltestelle fixieren');
+    a.title = 'Angepinnte Haltestellen';
+    a.message = stops.length ? `${stops.length} angepinnte Haltestelle${stops.length === 1 ? '' : 'n'}.` : 'Noch keine Haltestellen angepinnt.';
+    a.addAction('Haltestelle anpinnen');
     const orderedStops = [...stops].sort((a, b) => Number(b.home === true) - Number(a.home === true));
     for (const stop of orderedStops) a.addAction(stopMenuLabel(stop));
     a.addCancelAction('Zurück');
@@ -375,7 +375,7 @@ async function managePinnedStops() {
     detail.addAction('Rolle ändern');
     detail.addAction('Haltestellengruppe');
     detail.addAction('Filter');
-    detail.addDestructiveAction('Fixierung entfernen');
+    detail.addDestructiveAction('Pin entfernen');
     detail.addCancelAction('Zurück');
     const action = await detail.present();
     if (action === 0) {
@@ -402,7 +402,7 @@ async function managePinnedStops() {
     if (action === 1) await configureStopRole(stops, index);
     if (action === 2) await configureStopGroup(stops, index);
     if (action === 3) await configureStopFilter(stops, index);
-    if (action === 4) { stops.splice(index, 1); writeSavedStops(stops); await notice('Fixierung entfernt', stop.displayName || stop.name); }
+    if (action === 4) { stops.splice(index, 1); writeSavedStops(stops); await notice('Pin entfernt', stop.displayName || stop.name); }
   }
 }
 
@@ -417,10 +417,10 @@ async function configureFullscreen(cfg) {
 
   while (true) {
     const a = new Alert();
-    a.title = 'Fullscreen konfigurieren';
+    a.title = 'Vollbild konfigurieren';
     a.message = `${cfg.fullscreen.rows} Abfahrten · Schrift ${cfg.fullscreen.fontSize} pt\n` +
       Object.keys(labels).map((key) =>
-        `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? cfg.fullscreen.columns[key].width + ' px' : 'aus'}`
+        `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? cfg.fullscreen.columns[key].width + ' pt' : 'aus'}`
       ).join('\n');
     a.addAction('Anzahl Abfahrten');
     a.addAction('Linie');
@@ -499,7 +499,7 @@ async function configureLocation(cfg) {
     const a = new Alert();
     a.title = 'Standort konfigurieren';
     a.message = `Automatische Auswahl: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}\nEntfernung: ${cfg.location.savedStopRadiusMeters} m\nFallback: ${fallback}`;
-    a.addAction(`Fixierte Haltestelle automatisch: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
+    a.addAction(`Angepinnte Haltestelle automatisch: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
     if (cfg.location.autoSelectSavedStop) a.addAction(`Entfernung: ${cfg.location.savedStopRadiusMeters} m`);
     a.addAction('Fallback: ' + fallback);
     a.addCancelAction('Zurück');
@@ -508,7 +508,7 @@ async function configureLocation(cfg) {
     if (choice === 0) cfg.location.autoSelectSavedStop = !cfg.location.autoSelectSavedStop;
     if (cfg.location.autoSelectSavedStop && choice === 1) cfg.location.savedStopRadiusMeters = await askNumber(
       'Automatische Haltestelle – Entfernung',
-      'Maximale Entfernung in Metern, in der eine fixierte Haltestelle automatisch übernommen wird.',
+      'Maximale Entfernung in Metern, in der eine angepinnte Haltestelle automatisch übernommen wird.',
       cfg.location.savedStopRadiusMeters,
       25,
       5000,
@@ -541,7 +541,7 @@ function summary(cfg) {
   const columns = Object.keys(names)
     .map((key) => `${names[key]}: ${cfg.columns[key].visible ? cfg.columns[key].width + ' pt' : 'aus'}`)
     .join('\n');
-  return `${cfg.rows} Widget-Abfahrten\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nFullscreen: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
+  return `${cfg.rows} Widget-Abfahrten\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
 }
 
 
@@ -617,7 +617,7 @@ async function syncOfflineData(cfg) {
   const wantedEntries = offlineWantedStopEntries(cfg);
   const wanted = wantedEntries.map((item) => item.ref);
   if (!wanted.length) {
-    await notice('Keine Haltestellen', 'Es gibt keine ausgewählten fixierten oder zuletzt verwendeten Haltestellen.');
+    await notice('Keine Haltestellen', 'Es gibt keine ausgewählten angepinnten oder zuletzt verwendeten Haltestellen.');
     return;
   }
   try {
@@ -668,10 +668,10 @@ async function configureOffline(cfg) {
     const status = offlineStatus(cfg);
     const a = new Alert();
     a.title = 'Offline-Fahrplan';
-    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nFixierte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nHistorie (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
+    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nZuletzt verwendet (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
     a.addAction(`Offline-Fahrplan ${cfg.offline.enabled ? 'ausschalten' : 'einschalten'}`);
-    a.addAction(`Fixierte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
-    a.addAction(`Historie: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
+    a.addAction(`Angepinnte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
+    a.addAction(`Zuletzt verwendete: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
     a.addAction(`Automatische Aktualisierung: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}`);
     a.addAction('Offline-Daten aktualisieren');
     a.addDestructiveAction('Offline-Daten löschen');
@@ -706,13 +706,13 @@ async function exportConfig(cfg) {
   };
   const text = JSON.stringify(backup, null, 2);
   Pasteboard.copyString(text);
-  await notice('Backup kopiert', 'Konfiguration und fixierte Haltestellen wurden als JSON in die Zwischenablage kopiert. TRIAS-Key, letzte Haltestelle, Verlauf und Development-Status sind nicht enthalten.');
+  await notice('Backup kopiert', 'Konfiguration und angepinnte Haltestellen wurden als JSON in die Zwischenablage kopiert. TRIAS-Key, letzte Haltestelle, Verlauf und Development-Status sind nicht enthalten.');
 }
 
 async function importConfig() {
   const a = new Alert();
   a.title = 'Backup importieren';
-  a.message = 'Füge hier ein zuvor exportiertes VAG-Widget-Backup ein. Die aktuelle Konfiguration und die fixierten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
+  a.message = 'Füge hier ein zuvor exportiertes VAG-Widget-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
   a.addTextField('Backup JSON', Pasteboard.pasteString() || '');
   a.addAction('Importieren');
   a.addCancelAction('Abbrechen');
@@ -747,14 +747,14 @@ async function importConfig() {
   };
   await save(imported, false);
   writeSavedStops(backup.pinnedStops.map((stop) => ({ ...stop, pinned: true })));
-  await notice('Backup importiert', 'Konfiguration und fixierte Haltestellen wurden wiederhergestellt. Der TRIAS-Key und andere lokale Laufzeitdaten wurden nicht verändert.');
+  await notice('Backup importiert', 'Konfiguration und angepinnte Haltestellen wurden wiederhergestellt. Der TRIAS-Key und andere lokale Laufzeitdaten wurden nicht verändert.');
   return imported;
 }
 
 async function configureBackup(cfg) {
   const a = new Alert();
   a.title = 'Backup & Wiederherstellung';
-  a.message = 'Sichert persönliche Einstellungen und fixierte Haltestellen als JSON. Geheimnisse und Laufzeitdaten werden nicht exportiert.';
+  a.message = 'Sichert persönliche Einstellungen und angepinnte Haltestellen als JSON. Geheimnisse und Laufzeitdaten werden nicht exportiert.';
   a.addAction('Backup exportieren');
   a.addAction('Backup importieren');
   a.addCancelAction('Zurück');
@@ -954,7 +954,7 @@ async function updateScripts(cfg) {
     if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
     if (development) Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
     else if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
-    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nDie Config wird jetzt neu gestartet, damit der aktualisierte Code aktiv ist. Persönliche Config-Datei und fixierte Haltestellen wurden nicht verändert.');
+    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nDie Config wird jetzt neu gestartet, damit der aktualisierte Code aktiv ist. Persönliche Config-Datei und angepinnte Haltestellen wurden nicht verändert.');
     if (!development && source.notes) await notice(`Was ist neu? · ${source.tag}`, formatReleaseNotes(source.notes));
     relaunchConfig();
     return;
@@ -1076,7 +1076,7 @@ async function buildDiagnostics(cfg) {
     `TRIAS-Endpunkt: ${trias}`,
     `GitHub/Updater: ${github}`,
     `Letzte Haltestelle: ${d.lastStop}`,
-    `Fixierte Haltestellen: ${d.pinned}`,
+    `Angepinnte Haltestellen: ${d.pinned}`,
     `Home: ${d.home}`,
   ].join('\n');
 }
@@ -1098,7 +1098,7 @@ async function configureDiagnostics(cfg) {
 async function recoverFromMain() {
   const confirm = new Alert();
   confirm.title = 'Installation reparieren';
-  confirm.message = 'Widget und Config werden direkt aus dem aktuellen GitHub-main wiederhergestellt. Persönliche Konfiguration und fixierte Haltestellen bleiben erhalten.\n\nDiese Funktion umgeht die normale Stable-/Development-Updateprüfung.';
+  confirm.message = 'Widget und Config werden direkt aus dem aktuellen GitHub-main wiederhergestellt. Persönliche Konfiguration und angepinnte Haltestellen bleiben erhalten.\n\nDiese Funktion umgeht die normale Stable-/Development-Updateprüfung.';
   confirm.addDestructiveAction('Recovery starten');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -1147,7 +1147,7 @@ async function recoverFromMain() {
 async function uninstall() {
   const confirm = new Alert();
   confirm.title = 'VAG Widget deinstallieren?';
-  confirm.message = 'Löscht die Konfiguration, fixierte und zuletzt verwendete Haltestellen, Verlauf, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
+  confirm.message = 'Löscht die Konfiguration, angepinnte und zuletzt verwendete Haltestellen, Offline-Daten, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
   confirm.addDestructiveAction('Alles löschen');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() !== 0) return false;
@@ -1195,9 +1195,9 @@ async function main() {
     const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
     menu.title = `VAG Widget · v${APP_VERSION}`;
-    menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nFixierte Haltestellen: ${pinned}`;
+    menu.message = `Widget: ${cfg.rows} Abfahrten\nVollbild: ${cfg.fullscreen.rows} Abfahrten\nAngepinnte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
-    menu.addAction('Fullscreen');
+    menu.addAction('Vollbild');
     menu.addAction('Standort');
     menu.addAction('Haltestellen');
     menu.addAction('Offline-Fahrplan');
