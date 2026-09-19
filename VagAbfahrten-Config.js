@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.0.13';
+const APP_VERSION = '1.0.14';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -721,6 +721,10 @@ async function configureUpdateChannel(cfg) {
   if (choice === 1) cfg.updates.channel = 'development';
 }
 
+function relaunchConfig() {
+  Safari.open('scriptable:///run?scriptName=' + encodeURIComponent(Script.name()));
+}
+
 async function updateScripts(cfg) {
   const development = cfg.updates.channel === 'development';
   let source;
@@ -767,8 +771,10 @@ async function updateScripts(cfg) {
     if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
     if (development) Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
     else if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
-    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
+    await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert und verifiziert.\n\n` + written.join('\n') + '\n\nDie Config wird jetzt neu gestartet, damit der aktualisierte Code aktiv ist. Persönliche Config-Datei und fixierte Haltestellen wurden nicht verändert.');
     if (!development && source.notes) await notice(`Was ist neu? · ${source.tag}`, formatReleaseNotes(source.notes));
+    relaunchConfig();
+    return;
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
   }
