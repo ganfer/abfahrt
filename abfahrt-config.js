@@ -10,8 +10,67 @@ const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/gtfs-data/data/gtfs/';
 const GTFS_CACHE_DIR = 'abfahrt-gtfs';
 const DEFAULTS = {
-  rows: 5,
-  refreshAfterLocationChange: true,
+  widget: {
+    common: {
+      refreshAfterLocationChange: true,
+    },
+    small: {
+      rows: 3,
+      showColumnHeader: false,
+      columns: {
+        line: { visible: true, width: 30 },
+        destination: { visible: true, width: 70 },
+        platform: { visible: false, width: 24 },
+        departureTime: { visible: false, width: 38 },
+        countdown: { visible: true, width: 42 },
+      },
+      spacing: { columns: 4, rows: 3 },
+      fontSize: { line: 10, destination: 11, platform: 9, departureTime: 10, countdown: 11 },
+      badgeHeight: 20,
+    },
+    medium: {
+      rows: 5,
+      showColumnHeader: false,
+      columns: {
+        line: { visible: true, width: 34 },
+        destination: { visible: true, width: 105 },
+        platform: { visible: true, width: 28 },
+        departureTime: { visible: true, width: 42 },
+        countdown: { visible: true, width: 50 },
+      },
+      spacing: { columns: 6, rows: 3 },
+      fontSize: { line: 11, destination: 12, platform: 10, departureTime: 11, countdown: 12 },
+      badgeHeight: 22,
+    },
+    large: {
+      rows: 10,
+      showColumnHeader: true,
+      columns: {
+        line: { visible: true, width: 34 },
+        destination: { visible: true, width: 105 },
+        platform: { visible: true, width: 28 },
+        departureTime: { visible: true, width: 42 },
+        countdown: { visible: true, width: 50 },
+      },
+      spacing: { columns: 6, rows: 4 },
+      fontSize: { line: 11, destination: 12, platform: 10, departureTime: 11, countdown: 12 },
+      badgeHeight: 24,
+    },
+    extraLarge: {
+      rows: 14,
+      showColumnHeader: true,
+      columns: {
+        line: { visible: true, width: 38 },
+        destination: { visible: true, width: 150 },
+        platform: { visible: true, width: 34 },
+        departureTime: { visible: true, width: 48 },
+        countdown: { visible: true, width: 56 },
+      },
+      spacing: { columns: 8, rows: 4 },
+      fontSize: { line: 12, destination: 13, platform: 11, departureTime: 12, countdown: 13 },
+      badgeHeight: 26,
+    },
+  },
   location: {
     autoSelectSavedStop: true,
     savedStopRadiusMeters: 200,
@@ -22,16 +81,6 @@ const DEFAULTS = {
   },
   filters: { widget: true, fullscreen: true },
   offline: { enabled: true, pinned: true, history: true, autoUpdate: true },
-  columns: {
-    line: { visible: true, width: 34 },
-    destination: { visible: true, width: 105 },
-    platform: { visible: true, width: 28 },
-    departureTime: { visible: true, width: 42 },
-    countdown: { visible: true, width: 50 },
-  },
-  spacing: { columns: 6, rows: 3 },
-  fontSize: { line: 11, destination: 12, platform: 10, departureTime: 11, countdown: 12 },
-  badgeHeight: 22,
   fullscreen: {
     rows: 8,
     columns: {
@@ -54,50 +103,90 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function mergeWidgetLayout(defaults, saved) {
+  const value = saved || {};
+  return {
+    rows: Number.isFinite(value.rows) ? value.rows : defaults.rows,
+    showColumnHeader: typeof value.showColumnHeader === 'boolean'
+      ? value.showColumnHeader
+      : defaults.showColumnHeader,
+    columns: Object.fromEntries(Object.keys(defaults.columns).map((key) => [
+      key,
+      { ...defaults.columns[key], ...(value.columns?.[key] || {}) },
+    ])),
+    spacing: { ...defaults.spacing, ...(value.spacing || {}) },
+    fontSize: { ...defaults.fontSize, ...(value.fontSize || {}) },
+    badgeHeight: Number.isFinite(value.badgeHeight) ? value.badgeHeight : defaults.badgeHeight,
+  };
+}
+
+function normalizeConfig(saved) {
+  const value = saved || {};
+  const widget = value.widget || {};
+  const legacyMedium = {
+    rows: value.rows,
+    columns: value.columns,
+    spacing: value.spacing,
+    fontSize: value.fontSize,
+    badgeHeight: value.badgeHeight,
+  };
+  const hasLegacyWidgetLayout =
+    Number.isFinite(value.rows) ||
+    Boolean(value.columns) ||
+    Boolean(value.spacing) ||
+    Boolean(value.fontSize) ||
+    Number.isFinite(value.badgeHeight);
+
+  return {
+    ...clone(DEFAULTS),
+    ...value,
+    widget: {
+      common: {
+        ...DEFAULTS.widget.common,
+        ...(widget.common || {}),
+        refreshAfterLocationChange:
+          typeof widget.common?.refreshAfterLocationChange === 'boolean'
+            ? widget.common.refreshAfterLocationChange
+            : typeof value.refreshAfterLocationChange === 'boolean'
+              ? value.refreshAfterLocationChange
+              : DEFAULTS.widget.common.refreshAfterLocationChange,
+      },
+      small: mergeWidgetLayout(DEFAULTS.widget.small, widget.small),
+      medium: mergeWidgetLayout(
+        DEFAULTS.widget.medium,
+        widget.medium || (hasLegacyWidgetLayout ? legacyMedium : null),
+      ),
+      large: mergeWidgetLayout(DEFAULTS.widget.large, widget.large),
+      extraLarge: mergeWidgetLayout(DEFAULTS.widget.extraLarge, widget.extraLarge),
+    },
+    updates: { ...DEFAULTS.updates, ...(value.updates || {}) },
+    filters: { ...DEFAULTS.filters, ...(value.filters || {}) },
+    offline: { ...DEFAULTS.offline, ...(value.offline || {}) },
+    location: {
+      ...DEFAULTS.location,
+      ...(value.fullscreen?.location || {}),
+      ...(value.location || {}),
+      fallbackMode: value.location?.fallbackMode ||
+        (typeof value.location?.fallbackToLastStop === 'boolean'
+          ? (value.location.fallbackToLastStop ? 'last' : 'none')
+          : DEFAULTS.location.fallbackMode),
+    },
+    fullscreen: {
+      ...DEFAULTS.fullscreen,
+      ...(value.fullscreen || {}),
+      columns: Object.fromEntries(Object.keys(DEFAULTS.fullscreen.columns).map((key) => [
+        key,
+        { ...DEFAULTS.fullscreen.columns[key], ...(value.fullscreen?.columns?.[key] || {}) },
+      ])),
+    },
+  };
+}
+
 async function loadConfig() {
   if (!fm.fileExists(configPath)) return clone(DEFAULTS);
   try {
     if (!fm.isFileDownloaded(configPath)) await fm.downloadFileFromiCloud(configPath);
-    const saved = JSON.parse(fm.readString(configPath));
-    return {
-      ...clone(DEFAULTS),
-      ...saved,
-      columns: {
-        line: { ...DEFAULTS.columns.line, ...(saved.columns?.line || {}) },
-        destination: { ...DEFAULTS.columns.destination, ...(saved.columns?.destination || {}) },
-        platform: { ...DEFAULTS.columns.platform, ...(saved.columns?.platform || {}) },
-        departureTime: { ...DEFAULTS.columns.departureTime, ...(saved.columns?.departureTime || {}) },
-        countdown: { ...DEFAULTS.columns.countdown, ...(saved.columns?.countdown || {}) },
-      },
-      spacing: { ...DEFAULTS.spacing, ...(saved.spacing || {}) },
-      fontSize: { ...DEFAULTS.fontSize, ...(saved.fontSize || {}) },
-      refreshAfterLocationChange: typeof saved.refreshAfterLocationChange === 'boolean'
-        ? saved.refreshAfterLocationChange
-        : DEFAULTS.refreshAfterLocationChange,
-      updates: { ...DEFAULTS.updates, ...(saved.updates || {}) },
-      filters: { ...DEFAULTS.filters, ...(saved.filters || {}) },
-      offline: { ...DEFAULTS.offline, ...(saved.offline || {}) },
-      location: {
-        ...DEFAULTS.location,
-        ...(saved.fullscreen?.location || {}),
-        ...(saved.location || {}),
-        fallbackMode: saved.location?.fallbackMode ||
-          (typeof saved.location?.fallbackToLastStop === 'boolean'
-            ? (saved.location.fallbackToLastStop ? 'last' : 'none')
-            : DEFAULTS.location.fallbackMode),
-      },
-      fullscreen: {
-        ...DEFAULTS.fullscreen,
-        ...(saved.fullscreen || {}),
-        columns: {
-          line: { ...DEFAULTS.fullscreen.columns.line, ...(saved.fullscreen?.columns?.line || {}) },
-          destination: { ...DEFAULTS.fullscreen.columns.destination, ...(saved.fullscreen?.columns?.destination || {}) },
-          platform: { ...DEFAULTS.fullscreen.columns.platform, ...(saved.fullscreen?.columns?.platform || {}) },
-          departureTime: { ...DEFAULTS.fullscreen.columns.departureTime, ...(saved.fullscreen?.columns?.departureTime || {}) },
-          countdown: { ...DEFAULTS.fullscreen.columns.countdown, ...(saved.fullscreen?.columns?.countdown || {}) },
-        },
-      },
-    };
+    return normalizeConfig(JSON.parse(fm.readString(configPath)));
   } catch (_) {
     return clone(DEFAULTS);
   }
@@ -128,8 +217,8 @@ async function askNumber(title, message, value, min, max) {
   return parsed;
 }
 
-async function configureColumn(cfg, key, label) {
-  const col = cfg.columns[key];
+async function configureColumn(layout, key, label) {
+  const col = layout.columns[key];
   const a = new Alert();
   a.title = label;
   a.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width}`;
@@ -464,43 +553,99 @@ async function configureFullscreen(cfg) {
   }
 }
 
-async function configureWidget(cfg) {
+async function configureWidgetGeneral(cfg) {
   while (true) {
     const a = new Alert();
-    a.title = 'Widget konfigurieren';
-    a.message = `${cfg.rows} Abfahrten im Medium-Widget · Large und Extra Large zeigen automatisch mehr Abfahrten und Spaltenüberschriften`;
+    a.title = 'Widget · Allgemein';
+    a.message = 'Einstellungen, die für alle Widget-Größen gelten.';
+    a.addAction(`Nach Standortwechsel aktualisieren: ${cfg.widget.common.refreshAfterLocationChange ? 'AN' : 'AUS'}`);
+    a.addAction(`Haltestellenfilter anwenden: ${cfg.filters.widget !== false ? 'AN' : 'AUS'}`);
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) cfg.widget.common.refreshAfterLocationChange = !cfg.widget.common.refreshAfterLocationChange;
+    if (choice === 1) cfg.filters.widget = cfg.filters.widget === false;
+  }
+}
+
+async function configureWidgetVariant(cfg, key, label) {
+  const layout = cfg.widget[key];
+  const labels = {
+    line: 'Linie',
+    destination: 'Richtung',
+    platform: 'Gleis',
+    departureTime: 'Abfahrtszeit',
+    countdown: 'Restzeit',
+  };
+
+  while (true) {
+    const visible = Object.keys(labels)
+      .filter((columnKey) => layout.columns[columnKey].visible)
+      .map((columnKey) => labels[columnKey])
+      .join(', ');
+    const a = new Alert();
+    a.title = label + ' Widget';
+    a.message =
+      `${layout.rows} Abfahrten · Spaltenüberschriften: ${layout.showColumnHeader ? 'AN' : 'AUS'}\n` +
+      `Sichtbar: ${visible || 'keine Spalten'}`;
     a.addAction('Anzahl Abfahrten');
     a.addAction('Linie');
     a.addAction('Richtung');
     a.addAction('Gleis');
     a.addAction('Abfahrtszeit');
     a.addAction('Restzeit');
+    a.addAction(`Spaltenüberschriften: ${layout.showColumnHeader ? 'AN' : 'AUS'}`);
     a.addAction('Abstände');
     a.addAction('Schriftgrößen');
-    a.addAction(`Widget nach Standortwechsel aktualisieren: ${cfg.refreshAfterLocationChange ? 'AN' : 'AUS'}`);
-    a.addAction('Filter');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
-    if (choice === 0) cfg.rows = await askNumber('Anzahl Abfahrten', 'Wie viele Abfahrten soll das Medium-Widget anzeigen? Größere Widgets leiten daraus automatisch zusätzliche Zeilen ab.', cfg.rows, 1, 8);
-    if (choice === 1) await configureColumn(cfg, 'line', 'Linie');
-    if (choice === 2) await configureColumn(cfg, 'destination', 'Richtung');
-    if (choice === 3) await configureColumn(cfg, 'platform', 'Gleis');
-    if (choice === 4) await configureColumn(cfg, 'departureTime', 'Abfahrtszeit');
-    if (choice === 5) await configureColumn(cfg, 'countdown', 'Restzeit');
-    if (choice === 6) {
-      cfg.spacing.columns = await askNumber('Spaltenabstand', 'Abstand zwischen sichtbaren Spalten.', cfg.spacing.columns, 0, 20);
-      cfg.spacing.rows = await askNumber('Zeilenabstand', 'Abstand zwischen den Abfahrten.', cfg.spacing.rows, 0, 12);
+    if (choice === 0) layout.rows = await askNumber(
+      label + ' – Anzahl Abfahrten',
+      'Wie viele Abfahrten soll diese Widget-Größe anzeigen?',
+      layout.rows,
+      1,
+      16,
+    );
+    if (choice >= 1 && choice <= 5) {
+      const columnKey = ['line', 'destination', 'platform', 'departureTime', 'countdown'][choice - 1];
+      await configureColumn(layout, columnKey, labels[columnKey]);
     }
+    if (choice === 6) layout.showColumnHeader = !layout.showColumnHeader;
     if (choice === 7) {
-      cfg.fontSize.line = await askNumber('Linie – Schriftgröße', '', cfg.fontSize.line, 8, 18);
-      cfg.fontSize.destination = await askNumber('Richtung – Schriftgröße', '', cfg.fontSize.destination, 8, 18);
-      cfg.fontSize.platform = await askNumber('Gleis – Schriftgröße', '', cfg.fontSize.platform, 8, 18);
-      cfg.fontSize.departureTime = await askNumber('Abfahrtszeit – Schriftgröße', '', cfg.fontSize.departureTime, 8, 18);
-      cfg.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', cfg.fontSize.countdown, 8, 18);
+      layout.spacing.columns = await askNumber('Spaltenabstand', 'Abstand zwischen sichtbaren Spalten.', layout.spacing.columns, 0, 20);
+      layout.spacing.rows = await askNumber('Zeilenabstand', 'Abstand zwischen den Abfahrten.', layout.spacing.rows, 0, 12);
     }
-    if (choice === 8) cfg.refreshAfterLocationChange = !cfg.refreshAfterLocationChange;
-    if (choice === 9) await configureSurfaceFilter(cfg, 'widget', 'Widget');
+    if (choice === 8) {
+      layout.fontSize.line = await askNumber('Linie – Schriftgröße', '', layout.fontSize.line, 8, 18);
+      layout.fontSize.destination = await askNumber('Richtung – Schriftgröße', '', layout.fontSize.destination, 8, 18);
+      layout.fontSize.platform = await askNumber('Gleis – Schriftgröße', '', layout.fontSize.platform, 8, 18);
+      layout.fontSize.departureTime = await askNumber('Abfahrtszeit – Schriftgröße', '', layout.fontSize.departureTime, 8, 18);
+      layout.fontSize.countdown = await askNumber('Restzeit – Schriftgröße', '', layout.fontSize.countdown, 8, 18);
+    }
+  }
+}
+
+async function configureWidget(cfg) {
+  while (true) {
+    const a = new Alert();
+    a.title = 'Widget konfigurieren';
+    a.message =
+      `Small: ${cfg.widget.small.rows} · Medium: ${cfg.widget.medium.rows} · ` +
+      `Large: ${cfg.widget.large.rows} · Extra Large: ${cfg.widget.extraLarge.rows} Abfahrten`;
+    a.addAction('Allgemein');
+    a.addAction('Small');
+    a.addAction('Medium');
+    a.addAction('Large');
+    a.addAction('Extra Large');
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) await configureWidgetGeneral(cfg);
+    if (choice === 1) await configureWidgetVariant(cfg, 'small', 'Small');
+    if (choice === 2) await configureWidgetVariant(cfg, 'medium', 'Medium');
+    if (choice === 3) await configureWidgetVariant(cfg, 'large', 'Large');
+    if (choice === 4) await configureWidgetVariant(cfg, 'extraLarge', 'Extra Large');
   }
 }
 
@@ -543,17 +688,15 @@ async function configureLocation(cfg) {
 }
 
 function summary(cfg) {
-  const names = {
-    line: 'Linie',
-    destination: 'Richtung',
-    platform: 'Gleis',
-    departureTime: 'Abfahrt',
-    countdown: 'Restzeit',
-  };
-  const columns = Object.keys(names)
-    .map((key) => `${names[key]}: ${cfg.columns[key].visible ? cfg.columns[key].width + ' pt' : 'aus'}`)
-    .join('\n');
-  return `${cfg.rows} Medium-Widget-Abfahrten\nLarge/Extra Large: automatisch mehr Zeilen + Spaltenüberschriften\n\n${columns}\n\nSpaltenabstand: ${cfg.spacing.columns} pt\nZeilenabstand: ${cfg.spacing.rows} pt\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
+  const variantSummary = [
+    ['Small', cfg.widget.small],
+    ['Medium', cfg.widget.medium],
+    ['Large', cfg.widget.large],
+    ['Extra Large', cfg.widget.extraLarge],
+  ].map(([label, layout]) =>
+    `${label}: ${layout.rows} Abfahrten · ${layout.showColumnHeader ? 'mit' : 'ohne'} Spaltenüberschriften`
+  ).join('\n');
+  return `${variantSummary}\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
 }
 
 
@@ -777,22 +920,7 @@ async function importConfig() {
     return null;
   }
 
-  const imported = {
-    ...clone(DEFAULTS),
-    ...backup.config,
-    updates: { ...DEFAULTS.updates, ...(backup.config.updates || {}) },
-    filters: { ...DEFAULTS.filters, ...(backup.config.filters || {}) },
-    offline: { ...DEFAULTS.offline, ...(backup.config.offline || {}) },
-    location: { ...DEFAULTS.location, ...(backup.config.location || {}) },
-    columns: Object.fromEntries(Object.entries(DEFAULTS.columns).map(([key, value]) => [key, { ...value, ...(backup.config.columns?.[key] || {}) }])),
-    spacing: { ...DEFAULTS.spacing, ...(backup.config.spacing || {}) },
-    fontSize: { ...DEFAULTS.fontSize, ...(backup.config.fontSize || {}) },
-    fullscreen: {
-      ...DEFAULTS.fullscreen,
-      ...(backup.config.fullscreen || {}),
-      columns: Object.fromEntries(Object.entries(DEFAULTS.fullscreen.columns).map(([key, value]) => [key, { ...value, ...(backup.config.fullscreen?.columns?.[key] || {}) }])),
-    },
-  };
+  const imported = normalizeConfig(backup.config);
   await save(imported, false);
   writeSavedStops(backup.pinnedStops.map((stop) => ({ ...stop, pinned: true })));
   await notice('Backup importiert', 'Konfiguration und angepinnte Haltestellen wurden wiederhergestellt. Der TRIAS-Key und andere lokale Laufzeitdaten wurden nicht verändert.');
@@ -1425,7 +1553,7 @@ async function main() {
     const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
     menu.title = `abfahrt · v${APP_VERSION}`;
-    menu.message = `Widget: ${cfg.rows} Abfahrten\nVollbild: ${cfg.fullscreen.rows} Abfahrten\nAngepinnte Haltestellen: ${pinned}`;
+    menu.message = `Widget: S ${cfg.widget.small.rows} · M ${cfg.widget.medium.rows} · L ${cfg.widget.large.rows} · XL ${cfg.widget.extraLarge.rows}\nVollbild: ${cfg.fullscreen.rows} Abfahrten\nAngepinnte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
     menu.addAction('Vollbild');
     menu.addAction('Standort');
