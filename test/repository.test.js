@@ -41,7 +41,8 @@ test('bootstrap installer is versionsless and Stable-first', () => {
   assert.match(installer, /releases\/latest/);
   assert.match(installer, /Abfahrt-Config\.js/);
   assert.match(installer, /ABFAHRT_PENDING_INSTALL_REF/);
-  assert.match(installer, /Compatibility bridge/);
+  assert.match(installer, /aktuellen Abfahrt-Produktlinie/);
+  assert.doesNotMatch(installer, /Compatibility bridge|kompatiblen Bootstrap-Fallback/);
 });
 
 test('README quick installer stays copy-pasteable in Scriptable', () => {
