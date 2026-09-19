@@ -17,8 +17,14 @@
 const APP_VERSION = '1.0.1';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
-  'de:08311:30120:0:1',
-  'de:08311:30120:0:2',
+  'de:08311:30100:0:1',
+  'de:08311:30100:0:2',
+  'de:08311:30100:0:3',
+  'de:08311:30100:0:5',
+  'de:08311:30100:0:6',
+  'de:08311:30100:0:7',
+  'de:08311:30100:0:8',
+  'de:08311:30100:0:9',
 ];
 const REQUEST_TIMEOUT_MS = 12000;
 const NEARBY_RESULTS = 5;
@@ -667,7 +673,7 @@ async function defaultWidget(key, present, tapParameter) {
   const title =
     hasLastStop && Keychain.contains(LAST_STOP_NAME_KEY)
       ? Keychain.get(LAST_STOP_NAME_KEY)
-      : 'Brauerei Ganter';
+      : 'Bertoldsbrunnen';
 
   try {
     const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.rows) || 5));
@@ -919,7 +925,7 @@ async function presentDeparturesTable(key, context = null) {
   const title =
     hasLastStop && Keychain.contains(LAST_STOP_NAME_KEY)
       ? Keychain.get(LAST_STOP_NAME_KEY)
-      : 'Brauerei Ganter';
+      : 'Bertoldsbrunnen';
 
   try {
     const events = await fetchDepartures(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
