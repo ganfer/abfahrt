@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -995,6 +995,28 @@ async function recoverFromMain() {
   }
 }
 
+async function uninstall() {
+  const confirm = new Alert();
+  confirm.title = 'VAG Widget deinstallieren?';
+  confirm.message = 'Löscht die Konfiguration, fixierte und zuletzt verwendete Haltestellen, Verlauf, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
+  confirm.addDestructiveAction('Alles löschen');
+  confirm.addCancelAction('Abbrechen');
+  if (await confirm.present() !== 0) return false;
+
+  const keychainKeys = ['TRIAS_REQUESTOR_REF', SAVED_STOPS_KEY, RECENT_STOPS_KEY, DEVELOPMENT_REF_KEY];
+  for (const key of keychainKeys) if (Keychain.contains(key)) Keychain.remove(key);
+  if (fm.fileExists(configPath)) fm.remove(configPath);
+
+  for (const manager of [FileManager.iCloud(), FileManager.local()]) {
+    for (const file of ['VagAbfahrten.js', 'VagAbfahrten-Config.js', 'VagAbfahrten-Init.js']) {
+      const path = manager.joinPath(manager.documentsDirectory(), file);
+      if (manager.fileExists(path)) manager.remove(path);
+    }
+  }
+  await notice('Deinstalliert', 'Alle bekannten VAG-Widget-Daten einschließlich TRIAS-Key und Script-Dateien wurden gelöscht.');
+  return true;
+}
+
 async function configureDeveloperOptions(cfg) {
   while (true) {
     const a = new Alert();
@@ -1002,13 +1024,17 @@ async function configureDeveloperOptions(cfg) {
     a.message = 'Diagnose und Wiederherstellung für Entwicklung und Fehlerbehebung.';
     a.addAction('Diagnose');
     a.addAction('Backup & Wiederherstellung');
+    a.addAction('Alle Einstellungen zurücksetzen');
     a.addDestructiveAction('Recovery · Installation reparieren');
+    a.addDestructiveAction('Deinstallieren · Alles löschen');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
     if (choice === 0) await configureDiagnostics(cfg);
     if (choice === 1) { const imported = await configureBackup(cfg); if (imported) Object.assign(cfg, imported); }
-    if (choice === 2) await recoverFromMain();
+    if (choice === 2) { await reset(); Object.assign(cfg, clone(DEFAULTS)); }
+    if (choice === 3) await recoverFromMain();
+    if (choice === 4) { if (await uninstall()) return 'uninstalled'; }
   }
 }
 
@@ -1027,7 +1053,6 @@ async function main() {
     menu.addAction('Haltestellen');
     menu.addAction('Updates');
     menu.addAction('Entwickleroptionen');
-    menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
     const choice = await menu.present();
 
@@ -1046,8 +1071,7 @@ async function main() {
     }
     if (choice === 3) await managePinnedStops();
     if (choice === 4) { await configureUpdates(cfg); await save(cfg, false); }
-    if (choice === 5) { await configureDeveloperOptions(cfg); await save(cfg, false); }
-    if (choice === 6) { await reset(); break; }
+    if (choice === 5) { const result = await configureDeveloperOptions(cfg); if (result === 'uninstalled') break; await save(cfg, false); }
 
   }
 
