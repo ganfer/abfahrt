@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.0.5';
+const APP_VERSION = '1.0.6';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -592,7 +592,7 @@ async function latestRelease() {
   const tag = String(release?.tag_name || '');
   const match = tag.match(/^v(\d+\.\d+\.\d+)$/);
   if (!match) throw new Error('Das neueste GitHub Release hat keine gültige vX.Y.Z-Version.');
-  return { version: match[1], tag };
+  return { version: match[1], tag, notes: String(release?.body || '').trim() };
 }
 
 async function latestDevelopment() {
@@ -670,8 +670,40 @@ async function updateScripts(cfg) {
       }
     }
     await notice('Update abgeschlossen', `${development ? `Development ${source.label}` : `Version v${remoteVersion}`} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
+    if (!development && source.notes) await notice(`Was ist neu? · ${source.tag}`, formatReleaseNotes(source.notes));
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
+  }
+}
+
+function formatReleaseNotes(notes) {
+  const text = String(notes || '').trim();
+  if (!text) return 'Für dieses Release sind keine Release Notes hinterlegt.';
+  return text
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\[(.*?)\]\([^)]*\)/g, '$1')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\r/g, '')
+    .trim()
+    .slice(0, 3500);
+}
+
+async function showWhatsNew(cfg) {
+  if (cfg.updates.channel === 'development') {
+    try {
+      const development = await latestDevelopment();
+      await notice('Was ist neu? · Development', `Development folgt dem aktuellen main-Stand.\n\nAktueller Commit: ${development.label}\n\nFür Development-Builds gibt es keine Stable Release Notes.`);
+    } catch (e) {
+      await notice('Was ist neu? · Development', 'Development folgt dem aktuellen main-Stand. Für Development-Builds gibt es keine Stable Release Notes.');
+    }
+    return;
+  }
+
+  try {
+    const release = await latestRelease();
+    await notice(`Was ist neu? · ${release.tag}`, formatReleaseNotes(release.notes));
+  } catch (e) {
+    await notice('Release Notes nicht verfügbar', 'Die Release Notes konnten nicht geladen werden.\n\n' + e.message);
   }
 }
 
@@ -682,6 +714,7 @@ async function configureUpdates(cfg) {
     a.message = `Installiert: v${APP_VERSION}\nKanal: ${cfg.updates.channel === 'development' ? '🧪 Development' : '🛡 Stable'}`;
     a.addAction('Update-Kanal');
     a.addAction('Auf Updates prüfen');
+    a.addAction('Was ist neu?');
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -691,6 +724,7 @@ async function configureUpdates(cfg) {
       await updateScripts(cfg);
       return;
     }
+    if (choice === 2) await showWhatsNew(cfg);
   }
 }
 
