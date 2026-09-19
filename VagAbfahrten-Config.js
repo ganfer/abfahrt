@@ -482,6 +482,10 @@ const UPDATE_FILES = [
     name: 'VagAbfahrten-Config.js',
     marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
   },
+  {
+    name: 'VagAbfahrten-Refresh.js',
+    marker: "const MAIN_SCRIPT = 'VagAbfahrten';",
+  },
 ];
 
 function updateTargets(fileName) {

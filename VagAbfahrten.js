@@ -28,6 +28,7 @@ const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
+const REFRESH_HELPER_SCRIPT = 'VagAbfahrten-Refresh';
 
 // User-facing widget layout configuration. Widths are points inside the
 // medium Scriptable widget. Hide columns you do not need and give the freed
@@ -688,6 +689,12 @@ function pinnedStopFor(stop, pinned) {
   return pinned.find((s) => s.pinned === true && sameStop(s, stop)) || null;
 }
 
+function requestWidgetRefresh() {
+  // Run a tiny, non-interactive helper after the selected stop was persisted.
+  // Keeping this out of VagAbfahrten avoids re-entering GPS/fullscreen logic.
+  Safari.open('scriptable:///run/' + encodeURIComponent(REFRESH_HELPER_SCRIPT));
+}
+
 function rememberStop(stop) {
   Keychain.set(LAST_STOP_REF_KEY, stop.stopRef);
   Keychain.set(LAST_STOP_NAME_KEY, stop.name);
@@ -763,6 +770,7 @@ async function nearbyFlow(key) {
     if (hit) {
       const pin = pinnedStopFor(hit, pinned);
       rememberStop({ ...hit, name: pin.displayName || hit.name });
+      requestWidgetRefresh();
       await presentDeparturesTable(key);
       return;
     }
@@ -786,6 +794,7 @@ async function nearbyFlow(key) {
   const selected = stops[idx];
   const pin = pinnedStopFor(selected, pinned);
   rememberStop({ ...selected, name: pin?.displayName || selected.name });
+  requestWidgetRefresh();
 
   // Stay in the same Scriptable run: after choosing a stop, render the
   // fullscreen departures table directly instead of launching another script.
@@ -950,12 +959,20 @@ async function main() {
   const present = !config.runsInWidget;
   const parameter = rawParameter();
   const wantsSetup = parameter.toLowerCase() === 'setup';
+  const wantsRefresh = parameter.toLowerCase() === 'refresh';
   const hasKeyInKeychain =
     Keychain.contains('TRIAS_REQUESTOR_REF') &&
     Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
 
   if (wantsSetup) {
     await setupMode();
+    return;
+  }
+
+  if (wantsRefresh) {
+    const key = Keychain.contains('TRIAS_REQUESTOR_REF') ? Keychain.get('TRIAS_REQUESTOR_REF').trim() : '';
+    if (key) await defaultWidget(key, false, '');
+    else Script.complete();
     return;
   }
 
