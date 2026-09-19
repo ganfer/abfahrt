@@ -1,6 +1,6 @@
 # abfahrt
 
-**Development version: v2.0.7**  
+**Development version: v2.0.8**  
 **Stable version: v2.0.0**
 
 Scriptable iOS widget for **public transport departures** using the EFA-BW TRIAS API, with realtime information, pinned stops, GPS selection and an offline GTFS timetable fallback.
