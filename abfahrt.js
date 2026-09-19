@@ -35,31 +35,69 @@ const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS';
 const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
 
-// User-facing widget layout configuration. Widths are points inside the
-// Scriptable widget. The configured row count is the Medium baseline; Large
-// and Extra Large automatically use the additional height for more departures.
+// User-facing Home Screen widget configuration. Every Scriptable widget
+// family has its own layout; only behavior shared by all families lives in
+// `common`.
 const DEFAULT_WIDGET_CONFIG = {
-  rows: 5,
-  refreshAfterLocationChange: true,
-  columns: {
-    line: { visible: true, width: 34 },
-    destination: { visible: true, width: 105 },
-    platform: { visible: true, width: 28 },
-    departureTime: { visible: true, width: 42 },
-    countdown: { visible: true, width: 50 },
+  common: {
+    refreshAfterLocationChange: true,
   },
-  spacing: {
-    columns: 6,
+  small: {
     rows: 3,
+    showColumnHeader: false,
+    columns: {
+      line: { visible: true, width: 30 },
+      destination: { visible: true, width: 70 },
+      platform: { visible: false, width: 24 },
+      departureTime: { visible: false, width: 38 },
+      countdown: { visible: true, width: 42 },
+    },
+    spacing: { columns: 4, rows: 3 },
+    fontSize: { line: 10, destination: 11, platform: 9, departureTime: 10, countdown: 11 },
+    badgeHeight: 20,
   },
-  fontSize: {
-    line: 11,
-    destination: 12,
-    platform: 10,
-    departureTime: 11,
-    countdown: 12,
+  medium: {
+    rows: 5,
+    showColumnHeader: false,
+    columns: {
+      line: { visible: true, width: 34 },
+      destination: { visible: true, width: 105 },
+      platform: { visible: true, width: 28 },
+      departureTime: { visible: true, width: 42 },
+      countdown: { visible: true, width: 50 },
+    },
+    spacing: { columns: 6, rows: 3 },
+    fontSize: { line: 11, destination: 12, platform: 10, departureTime: 11, countdown: 12 },
+    badgeHeight: 22,
   },
-  badgeHeight: 22,
+  large: {
+    rows: 10,
+    showColumnHeader: true,
+    columns: {
+      line: { visible: true, width: 34 },
+      destination: { visible: true, width: 105 },
+      platform: { visible: true, width: 28 },
+      departureTime: { visible: true, width: 42 },
+      countdown: { visible: true, width: 50 },
+    },
+    spacing: { columns: 6, rows: 4 },
+    fontSize: { line: 11, destination: 12, platform: 10, departureTime: 11, countdown: 12 },
+    badgeHeight: 24,
+  },
+  extraLarge: {
+    rows: 14,
+    showColumnHeader: true,
+    columns: {
+      line: { visible: true, width: 38 },
+      destination: { visible: true, width: 150 },
+      platform: { visible: true, width: 34 },
+      departureTime: { visible: true, width: 48 },
+      countdown: { visible: true, width: 56 },
+    },
+    spacing: { columns: 8, rows: 4 },
+    fontSize: { line: 12, destination: 13, platform: 11, departureTime: 12, countdown: 13 },
+    badgeHeight: 26,
+  },
 };
 
 const DEFAULT_FULLSCREEN_CONFIG = {
@@ -89,24 +127,62 @@ const DEFAULT_LOCATION_CONFIG = {
 
 const CONFIG_FILE_NAME = 'abfahrt.config.json';
 
+function mergeWidgetLayout(defaults, saved) {
+  const value = saved || {};
+  return {
+    rows: Number.isFinite(value.rows) ? value.rows : defaults.rows,
+    showColumnHeader: typeof value.showColumnHeader === 'boolean'
+      ? value.showColumnHeader
+      : defaults.showColumnHeader,
+    columns: Object.fromEntries(Object.keys(defaults.columns).map((key) => [
+      key,
+      { ...defaults.columns[key], ...(value.columns?.[key] || {}) },
+    ])),
+    spacing: { ...defaults.spacing, ...(value.spacing || {}) },
+    fontSize: { ...defaults.fontSize, ...(value.fontSize || {}) },
+    badgeHeight: Number.isFinite(value.badgeHeight) ? value.badgeHeight : defaults.badgeHeight,
+  };
+}
+
+function mergeWidgetSettings(saved) {
+  const s = saved || {};
+  const widget = s.widget || {};
+  const legacyMedium = {
+    rows: s.rows,
+    columns: s.columns,
+    spacing: s.spacing,
+    fontSize: s.fontSize,
+    badgeHeight: s.badgeHeight,
+  };
+  const hasLegacyLayout =
+    Number.isFinite(s.rows) ||
+    Boolean(s.columns) ||
+    Boolean(s.spacing) ||
+    Boolean(s.fontSize) ||
+    Number.isFinite(s.badgeHeight);
+  return {
+    common: {
+      refreshAfterLocationChange:
+        typeof widget.common?.refreshAfterLocationChange === 'boolean'
+          ? widget.common.refreshAfterLocationChange
+          : typeof s.refreshAfterLocationChange === 'boolean'
+            ? s.refreshAfterLocationChange
+            : DEFAULT_WIDGET_CONFIG.common.refreshAfterLocationChange,
+    },
+    small: mergeWidgetLayout(DEFAULT_WIDGET_CONFIG.small, widget.small),
+    medium: mergeWidgetLayout(
+      DEFAULT_WIDGET_CONFIG.medium,
+      widget.medium || (hasLegacyLayout ? legacyMedium : null),
+    ),
+    large: mergeWidgetLayout(DEFAULT_WIDGET_CONFIG.large, widget.large),
+    extraLarge: mergeWidgetLayout(DEFAULT_WIDGET_CONFIG.extraLarge, widget.extraLarge),
+  };
+}
+
 function mergeWidgetConfig(saved) {
-  const d = DEFAULT_WIDGET_CONFIG;
   const s = saved || {};
   return {
-    rows: Number.isFinite(s.rows) ? s.rows : d.rows,
-    columns: {
-      line: { ...d.columns.line, ...(s.columns?.line || {}) },
-      destination: { ...d.columns.destination, ...(s.columns?.destination || {}) },
-      platform: { ...d.columns.platform, ...(s.columns?.platform || {}) },
-      departureTime: { ...d.columns.departureTime, ...(s.columns?.departureTime || {}) },
-      countdown: { ...d.columns.countdown, ...(s.columns?.countdown || {}) },
-    },
-    spacing: { ...d.spacing, ...(s.spacing || {}) },
-    fontSize: { ...d.fontSize, ...(s.fontSize || {}) },
-    badgeHeight: Number.isFinite(s.badgeHeight) ? s.badgeHeight : d.badgeHeight,
-    refreshAfterLocationChange: typeof s.refreshAfterLocationChange === 'boolean'
-      ? s.refreshAfterLocationChange
-      : d.refreshAfterLocationChange,
+    widget: mergeWidgetSettings(s),
     filters: { ...DEFAULT_FILTER_CONFIG, ...(s.filters || {}) },
     offline: { ...DEFAULT_OFFLINE_CONFIG, ...(s.offline || {}) },
     location: {
@@ -644,7 +720,7 @@ async function fetchDepartures(stopRefs, key, resultLimit = 8) {
   return all;
 }
 
-function withDelay(events, now, limit = WIDGET_CONFIG.rows) {
+function withDelay(events, now, limit = widgetLayoutProfile().rows) {
   return events
     .filter((e) => (e.realtimeTime || e.plannedTime) >= now)
     .map((e) => {
@@ -664,17 +740,13 @@ function withDelay(events, now, limit = WIDGET_CONFIG.rows) {
 }
 
 function widgetLayoutProfile(family = config.widgetFamily || 'medium') {
-  const baseRows = Math.max(1, Number(WIDGET_CONFIG.rows) || 5);
-  if (family === 'small') {
-    return { family, rows: Math.min(3, baseRows), showColumnHeader: false };
-  }
-  if (family === 'large') {
-    return { family, rows: Math.min(12, Math.max(8, baseRows + 5)), showColumnHeader: true };
-  }
-  if (family === 'extraLarge') {
-    return { family, rows: Math.min(16, Math.max(10, baseRows + 9)), showColumnHeader: true };
-  }
-  return { family: 'medium', rows: baseRows, showColumnHeader: false };
+  const supported = ['small', 'medium', 'large', 'extraLarge'];
+  const resolvedFamily = supported.includes(family) ? family : 'medium';
+  const layout =
+    WIDGET_CONFIG.widget?.[resolvedFamily] ||
+    DEFAULT_WIDGET_CONFIG[resolvedFamily] ||
+    DEFAULT_WIDGET_CONFIG.medium;
+  return { family: resolvedFamily, ...layout };
 }
 
 function cancelledCount(events, now) {
@@ -706,16 +778,16 @@ function compactDestination(destination, place) {
   return value || destination || '–';
 }
 
-function addColumnSpacer(row, hasPreviousColumn) {
-  if (hasPreviousColumn) row.addSpacer(Math.max(0, WIDGET_CONFIG.spacing.columns));
+function addColumnSpacer(row, hasPreviousColumn, layout) {
+  if (hasPreviousColumn) row.addSpacer(Math.max(0, layout.spacing.columns));
 }
 
-function addWidgetColumnHeader(w, c) {
+function addWidgetColumnHeader(w, c, layout) {
   const row = w.addStack();
   row.layoutHorizontally();
   row.centerAlignContent();
   let hasColumn = false;
-  const columns = WIDGET_CONFIG.columns;
+  const columns = layout.columns;
   const labels = {
     line: 'Linie',
     destination: 'Richtung',
@@ -727,7 +799,7 @@ function addWidgetColumnHeader(w, c) {
   for (const key of ['line', 'destination', 'platform', 'departureTime', 'countdown']) {
     const columnConfig = columns[key];
     if (!columnConfig?.visible) continue;
-    addColumnSpacer(row, hasColumn);
+    addColumnSpacer(row, hasColumn, layout);
     const column = row.addStack();
     column.size = new Size(Math.max(1, columnConfig.width), 12);
     column.centerAlignContent();
@@ -750,10 +822,9 @@ function addDepartureRow(w, r, place, c, options = {}) {
     row.cornerRadius = 7;
   }
   let hasColumn = false;
-  const columns = WIDGET_CONFIG.columns;
-  const family = options.family || 'medium';
-  const familyHeightBonus = family === 'extraLarge' ? 4 : family === 'large' ? 2 : 0;
-  const height = Math.max(16, WIDGET_CONFIG.badgeHeight + familyHeightBonus);
+  const layout = options.layout || widgetLayoutProfile(options.family);
+  const columns = layout.columns;
+  const height = Math.max(16, layout.badgeHeight);
 
   if (columns.line.visible) {
     const badge = row.addStack();
@@ -763,7 +834,7 @@ function addDepartureRow(w, r, place, c, options = {}) {
     badge.centerAlignContent();
     badge.addSpacer();
     const badgeText = badge.addText(r.line || '–');
-    badgeText.font = Font.boldSystemFont(WIDGET_CONFIG.fontSize.line);
+    badgeText.font = Font.boldSystemFont(layout.fontSize.line);
     badgeText.textColor = new Color(c.fg);
     badgeText.lineLimit = 1;
     badgeText.minimumScaleFactor = 0.6;
@@ -772,12 +843,12 @@ function addDepartureRow(w, r, place, c, options = {}) {
   }
 
   if (columns.destination.visible) {
-    addColumnSpacer(row, hasColumn);
+    addColumnSpacer(row, hasColumn, layout);
     const column = row.addStack();
     column.size = new Size(Math.max(1, columns.destination.width), height);
     column.centerAlignContent();
     const destination = column.addText(compactDestination(r.destination, place));
-    destination.font = Font.mediumSystemFont(WIDGET_CONFIG.fontSize.destination);
+    destination.font = Font.mediumSystemFont(layout.fontSize.destination);
     destination.textColor = new Color(r.cancelled ? c.dim : c.fg);
     destination.lineLimit = 1;
     destination.minimumScaleFactor = 0.6;
@@ -786,12 +857,12 @@ function addDepartureRow(w, r, place, c, options = {}) {
   }
 
   if (columns.platform.visible) {
-    addColumnSpacer(row, hasColumn);
+    addColumnSpacer(row, hasColumn, layout);
     const column = row.addStack();
     column.size = new Size(Math.max(1, columns.platform.width), height);
     column.centerAlignContent();
     const platform = column.addText(r.platform || '–');
-    platform.font = Font.systemFont(WIDGET_CONFIG.fontSize.platform);
+    platform.font = Font.systemFont(layout.fontSize.platform);
     platform.textColor = new Color(r.cancelled ? c.dim : c.fg);
     platform.lineLimit = 1;
     platform.minimumScaleFactor = 0.6;
@@ -799,12 +870,12 @@ function addDepartureRow(w, r, place, c, options = {}) {
   }
 
   if (columns.departureTime.visible) {
-    addColumnSpacer(row, hasColumn);
+    addColumnSpacer(row, hasColumn, layout);
     const column = row.addStack();
     column.size = new Size(Math.max(1, columns.departureTime.width), height);
     column.centerAlignContent();
     const clock = column.addText(fmtClock(r.at));
-    clock.font = Font.systemFont(WIDGET_CONFIG.fontSize.departureTime);
+    clock.font = Font.systemFont(layout.fontSize.departureTime);
     clock.textColor = new Color(r.cancelled ? c.dim : c.fg);
     clock.lineLimit = 1;
     clock.minimumScaleFactor = 0.7;
@@ -812,7 +883,7 @@ function addDepartureRow(w, r, place, c, options = {}) {
   }
 
   if (columns.countdown.visible) {
-    addColumnSpacer(row, hasColumn);
+    addColumnSpacer(row, hasColumn, layout);
     const column = row.addStack();
     column.size = new Size(Math.max(1, columns.countdown.width), height);
     column.centerAlignContent();
@@ -825,7 +896,7 @@ function addDepartureRow(w, r, place, c, options = {}) {
       right = minutes <= 0 ? 'jetzt' : minutes + ' min';
     }
     const rightEl = column.addText(right);
-    rightEl.font = Font.boldSystemFont(WIDGET_CONFIG.fontSize.countdown);
+    rightEl.font = Font.boldSystemFont(layout.fontSize.countdown);
     rightEl.textColor = new Color(r.cancelled ? c.dim : r.delayMin >= DELAY_HEAVY_MIN ? c.late : r.delayMin > 0 ? c.delay : c.ok);
     rightEl.lineLimit = 1;
     rightEl.minimumScaleFactor = 0.65;
@@ -967,16 +1038,16 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText, options = {})
   } else {
     const visibleRows = rows.slice(0, profile.rows);
     if (profile.showColumnHeader) {
-      addWidgetColumnHeader(w, c);
+      addWidgetColumnHeader(w, c, profile);
       w.addSpacer(4);
     }
     visibleRows.forEach((r, index) => {
       addDepartureRow(w, r, stop.place, c, {
         highlight: index === 0,
-        family: profile.family,
+        layout: profile,
       });
       if (index < visibleRows.length - 1) {
-        w.addSpacer(Math.max(1, WIDGET_CONFIG.spacing.rows));
+        w.addSpacer(Math.max(1, profile.spacing.rows));
       }
     });
   }
@@ -1135,7 +1206,7 @@ async function choosePinnedStop(key, options = {}) {
 }
 
 function requestWidgetRefresh() {
-  if (!WIDGET_CONFIG.refreshAfterLocationChange) return;
+  if (!WIDGET_CONFIG.widget.common.refreshAfterLocationChange) return;
   // Start a second, explicitly non-interactive run of this script. The
   // "refresh" parameter exits through the widget-only path before GPS or
   // fullscreen logic can run.
