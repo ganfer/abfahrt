@@ -3,15 +3,15 @@ name: Widget screenshot
 on:
   pull_request:
     paths:
-      - 'Abfahrt.js'
-      - 'Abfahrt-Config.js'
+      - 'abfahrt.js'
+      - 'abfahrt-Config.js'
       - 'scripts/render-widget-preview.mjs'
       - '.github/workflows/widget-screenshot.yml'
   push:
     branches: [main]
     paths:
-      - 'Abfahrt.js'
-      - 'Abfahrt-Config.js'
+      - 'abfahrt.js'
+      - 'abfahrt-Config.js'
       - 'scripts/render-widget-preview.mjs'
       - '.github/workflows/widget-screenshot.yml'
   workflow_dispatch:
