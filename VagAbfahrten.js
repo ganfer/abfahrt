@@ -912,7 +912,7 @@ async function defaultWidget(key, present, tapParameter) {
 
 async function showLocationDiagnostics(lines, errorText) {
   const alert = new Alert();
-  alert.title = 'Location Diagnose';
+  alert.title = 'Standortdiagnose';
   alert.message = lines.join('\n') + (errorText ? '\n\nFEHLER: ' + errorText : '');
   alert.addAction('OK');
   await alert.present();
