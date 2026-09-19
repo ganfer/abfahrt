@@ -183,3 +183,13 @@ test('config supports one Home stop and three fallback modes', () => {
   assert.match(source, /cfg\.location\.fallbackMode = 'home'/);
   assert.match(source, /cfg\.location\.fallbackMode = 'none'/);
 });
+
+
+test('updater compares remote and installed versions before installing', () => {
+  const source = read('VagAbfahrten-Config.js');
+  assert.match(source, /compareVersions\(remoteVersion, APP_VERSION\)/);
+  assert.match(source, /comparison <= 0/);
+  assert.match(source, /Kein Update verfügbar/);
+  assert.match(source, /Update v\\\$\{remoteVersion\} verfügbar/);
+  assert.match(source, /downloadedVersions\.some\(\(version\) => version !== remoteVersion\)/);
+});
