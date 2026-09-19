@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const runtimePath = path.join(root, 'Abfahrt.js');
+const runtimePath = path.join(root, 'abfahrt.js');
 const source = fs.readFileSync(runtimePath, 'utf8');
 
 function argument(name, fallback) {
@@ -13,7 +13,7 @@ function argument(name, fallback) {
 function extractObject(constName) {
   const marker = `const ${constName} = `;
   const markerIndex = source.indexOf(marker);
-  if (markerIndex < 0) throw new Error(`${constName} not found in Abfahrt.js`);
+  if (markerIndex < 0) throw new Error(`${constName} not found in abfahrt.js`);
   const start = source.indexOf('{', markerIndex + marker.length);
   if (start < 0) throw new Error(`${constName} object start not found`);
 
@@ -89,7 +89,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Abfahrt preview</title>
+<title>abfahrt preview</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 430px; height: 932px; overflow: hidden; }
