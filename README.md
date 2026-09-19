@@ -1,6 +1,6 @@
 # abfahrt
 
-**Development version: v2.0.7**  
+**Development version: v2.0.8**  
 **Stable version: v2.0.0**
 
 Scriptable iOS widget for **public transport departures** using the EFA-BW TRIAS API, with realtime information, pinned stops, GPS selection and an offline GTFS timetable fallback.
@@ -76,7 +76,7 @@ Das temporäre Installationsscript wird automatisch entfernt.
   <img src="docs/assets/install/scriptable-04-finished.svg" alt="Scriptable: abfahrt und abfahrt-config nach der Installation" width="280">
 </p>
 
-Starte anschließend **`abfahrt` einmal direkt in Scriptable** und hinterlege deinen TRIAS-Requestor-Key, wenn du danach gefragt wirst. Danach kannst du ein **mittleres oder großes Scriptable-Widget** hinzufügen und als Script `abfahrt` auswählen. Das Widget-Parameterfeld kann leer bleiben. Large und Extra Large nutzen die zusätzliche Fläche automatisch für mehr Abfahrten und Spaltenüberschriften.
+Starte anschließend **`abfahrt` einmal direkt in Scriptable** und hinterlege deinen TRIAS-Requestor-Key, wenn du danach gefragt wirst. Danach kannst du ein **Small-, Medium-, Large- oder Extra-Large-Scriptable-Widget** hinzufügen und als Script `abfahrt` auswählen. Das Widget-Parameterfeld kann leer bleiben. Jede Widget-Größe besitzt eine eigene Layout-Konfiguration.
 
 > Die gezeigten Scriptable-Ansichten sind vereinfachte Beispielbilder. Je nach iOS- und Scriptable-Version können Positionen oder Symbole leicht abweichen.
 
@@ -111,7 +111,7 @@ Run **`abfahrt-config`** in Scriptable. Changes are saved automatically when ret
 
 ### Widget
 
-Configure the Medium baseline departure count, columns, widths, spacing, font sizes, immediate refresh after a location change and whether per-stop filters are applied to the Widget. Large and Extra Large widgets automatically add more rows and a compact column header while preserving the same visual language.
+Widget settings are split into **Allgemein, Small, Medium, Large and Extra Large**. Each size has its own departure count, visible columns, widths, spacing, font sizes and column-header toggle. Shared behavior such as immediate refresh after a location change and whether per-stop filters are applied lives under **Allgemein**. Existing pre-variant configurations are migrated automatically: their former Widget layout becomes the Medium layout, while the other sizes receive their current defaults.
 
 ### Vollbild
 
@@ -171,7 +171,10 @@ Stable releases are created manually through the Release workflow. The workflow 
 
 | Setting | Default |
 | --- | --- |
-| Widget departures | 5 |
+| Small widget departures | 3 |
+| Medium widget departures | 5 |
+| Large widget departures | 10 |
+| Extra Large widget departures | 14 |
 | Vollbild departures | 8 |
 | Automatic pinned stop | On |
 | Automatic-selection radius | 200 m |
@@ -181,7 +184,7 @@ Stable releases are created manually through the Release workflow. The workflow 
 | Vollbild filters | On |
 | Update channel | Stable |
 
-TRIAS departure requests are sized to the configured view and clamped to **1–30** results.
+TRIAS departure requests are sized to the active configured Widget/Vollbild view and clamped to **1–30** results.
 
 ## Troubleshooting
 

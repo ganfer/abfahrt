@@ -45,6 +45,7 @@ function extractObject(constName) {
 }
 
 const config = extractObject('DEFAULT_WIDGET_CONFIG');
+const layout = config.medium;
 const output = path.resolve(root, argument('--output', '.preview/widget-preview.html'));
 fs.mkdirSync(path.dirname(output), { recursive: true });
 
@@ -63,13 +64,13 @@ const rows = [
   { line: '4', destination: 'Messe Freiburg', platform: '3', departure: '12:51', countdown: '9 min', state: 'ok', realtime: true },
   { line: '2', destination: 'Hornusstraße', platform: '4', departure: '12:54', countdown: '12 min', state: 'ok', realtime: false },
   { line: '5', destination: 'Europaplatz', platform: '–', departure: '12:57', countdown: 'entfällt', state: 'cancelled', realtime: true },
-].slice(0, Math.max(1, Number(config.rows) || 5));
+].slice(0, Math.max(1, Number(layout.rows) || 5));
 
-const visible = Object.entries(config.columns).filter(([, value]) => value.visible !== false);
+const visible = Object.entries(layout.columns).filter(([, value]) => value.visible !== false);
 const gridColumns = visible.map(([, value]) => `${Math.max(1, Number(value.width) || 1)}px`).join(' ');
-const gap = Math.max(0, Number(config.spacing?.columns) || 0);
-const rowGap = Math.max(0, Number(config.spacing?.rows) || 0);
-const badgeHeight = Math.max(16, Number(config.badgeHeight) || 22);
+const gap = Math.max(0, Number(layout.spacing?.columns) || 0);
+const rowGap = Math.max(0, Number(layout.spacing?.rows) || 0);
+const badgeHeight = Math.max(16, Number(layout.badgeHeight) || 22);
 
 function cell(key, row) {
   if (key === 'line') return `<div class="line-badge">${row.line}</div>`;
@@ -183,13 +184,13 @@ const html = `<!doctype html>
     justify-content: center;
     background: #2c2c2e;
     color: ${palette.fg};
-    font-size: ${Number(config.fontSize?.line) || 11}px;
+    font-size: ${Number(layout.fontSize?.line) || 11}px;
     font-weight: 700;
   }
-  .destination { color: ${palette.fg}; font-size: ${Number(config.fontSize?.destination) || 12}px; font-weight: 500; }
-  .platform { color: ${palette.fg}; font-size: ${Number(config.fontSize?.platform) || 10}px; }
-  .departure { color: ${palette.fg}; font-size: ${Number(config.fontSize?.departureTime) || 11}px; font-variant-numeric: tabular-nums; }
-  .countdown { text-align: right; font-size: ${Number(config.fontSize?.countdown) || 12}px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .destination { color: ${palette.fg}; font-size: ${Number(layout.fontSize?.destination) || 12}px; font-weight: 500; }
+  .platform { color: ${palette.fg}; font-size: ${Number(layout.fontSize?.platform) || 10}px; }
+  .departure { color: ${palette.fg}; font-size: ${Number(layout.fontSize?.departureTime) || 11}px; font-variant-numeric: tabular-nums; }
+  .countdown { text-align: right; font-size: ${Number(layout.fontSize?.countdown) || 12}px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .countdown.ok { color: ${palette.ok}; }
   .countdown.delay { color: ${palette.delay}; }
   .countdown.late { color: ${palette.late}; }
