@@ -83,10 +83,10 @@ test('obsolete helper and legacy installer are not part of the repository archit
   assert.equal(fs.existsSync(path.join(root, 'abfahrt-install.js')), true);
 });
 
-test('README Development version matches scripts', () => {
+test('README-Entwicklungsversion entspricht den Scripts', () => {
   const runtimeVersion = version(read('abfahrt.js'));
   const escaped = runtimeVersion.split('.').join('\\.');
-  assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
+  assert.match(read('README.md'), new RegExp('Entwicklungsversion: v' + escaped));
 });
 
 test('GTFS workflow rebuilds when the builder changes in a push', () => {
