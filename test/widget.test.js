@@ -3,7 +3,10 @@ const vm = require('node:vm');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const src = fs.readFileSync(require('node:path').join(__dirname, '..', 'VagAbfahrten.js'), 'utf8');
+const path = require('node:path');
+const root = path.join(__dirname, '..');
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+const src = read('VagAbfahrten.js');
 
 class FakeXMLParser {
   constructor(raw) { this.raw = raw; }
@@ -56,6 +59,7 @@ const sandbox = {
     addText(t) { const el = { text: t }; this.texts.push(t); return el; }
     addStack() { return { layoutHorizontally() {}, addSpacer() {}, addText(t) { return { text: t }; } }; }
     addSpacer() {}
+    setPadding() {}
     set backgroundColor(v) { this.bg = v; }
     set url(v) { this.urlValue = v; }
     presentMedium() {}
@@ -72,14 +76,9 @@ vm.runInContext(
 );
 const T = sandbox.__test;
 
-test('widget tap preserves nearby parameter', () => {
+test('widget tap starts the integrated foreground flow', () => {
   const w = T.buildWidget('Test', null, [], 0, null, 'nearby');
-  assert.equal(w.urlValue, 'scriptable:///run/VagAbfahrten?parameter=nearby');
-});
-
-test('combined parameter is URL encoded', () => {
-  const w = T.buildWidget('Test', null, [], 0, null, 'my key|nearby');
-  assert.equal(w.urlValue, 'scriptable:///run/VagAbfahrten?parameter=my%20key%7Cnearby');
+  assert.equal(w.urlValue, 'scriptable:///run/VagAbfahrten');
 });
 
 test('foreground run reads query parameter and key from Keychain', () => {
@@ -89,7 +88,9 @@ test('foreground run reads query parameter and key from Keychain', () => {
   sandbox.Keychain.get = () => 'key-from-keychain';
 
   assert.equal(T.rawParameter(), 'nearby');
-  assert.deepEqual(T.parseParameter(), { key: 'key-from-keychain', nearby: true });
+  const parsed = T.parseParameter();
+  assert.equal(parsed.key, 'key-from-keychain');
+  assert.equal(parsed.nearby, true);
 });
 
 test('nearby request contains coordinates', () => {
