@@ -504,7 +504,7 @@ async function downloadUpdateFile(file) {
   const source = await req.loadString();
   const status = req.response ? req.response.statusCode : 0;
   if (status !== 200) throw new Error(`${file.name}: GitHub HTTP ${status || '?'}`);
-  if (source.length < 500 || !source.includes(file.marker) || !source.includes('await main();')) {
+  if (source.length < 100 || !source.includes(file.marker) || !source.includes('await main();')) {
     throw new Error(`${file.name}: Download konnte nicht validiert werden.`);
   }
   return source;
