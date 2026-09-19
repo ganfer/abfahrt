@@ -730,7 +730,13 @@ function summary(cfg) {
   ].map(([label, layout]) =>
     `${label}: ${layout.rows} Abfahrten · ${layout.showColumnHeader ? 'mit' : 'ohne'} Spaltenüberschriften`
   ).join('\n');
-  return `${variantSummary}\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt`;
+  const sortLabels = {
+    departureTime: 'Abfahrtszeit',
+    platform: 'Gleis',
+    destination: 'Richtung',
+    line: 'Linie',
+  };
+  return `${variantSummary}\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt · Sortierung: ${sortLabels[cfg.fullscreen.sortBy] || sortLabels.departureTime}`;
 }
 
 
