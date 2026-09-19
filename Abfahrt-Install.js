@@ -1,16 +1,16 @@
 // Variables used by Scriptable: icon-color: green; icon-glyph: download;
 //
-// Stable bootstrap installer for VagAbfahrten.
+// Stable bootstrap installer for Abfahrt.
 // Copy this single file to Scriptable and run it once. The released Config
 // owns the actual installation, validation and cleanup lifecycle.
 
-const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/releases/latest';
-const RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/';
-const CONFIG_NAME = 'VagAbfahrten-Config.js';
-const WIDGET_NAME = 'VagAbfahrten.js';
-const PENDING_INSTALL_REF_KEY = 'VAG_PENDING_INSTALL_REF';
-const PENDING_INSTALL_VERSION_KEY = 'VAG_PENDING_INSTALL_VERSION';
-const PENDING_INSTALLER_NAME_KEY = 'VAG_PENDING_INSTALLER_NAME';
+const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/abfahrt/releases/latest';
+const RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/';
+const CONFIG_NAME = 'Abfahrt-Config.js';
+const WIDGET_NAME = 'Abfahrt.js';
+const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF';
+const PENDING_INSTALL_VERSION_KEY = 'ABFAHRT_PENDING_INSTALL_VERSION';
+const PENDING_INSTALLER_NAME_KEY = 'ABFAHRT_PENDING_INSTALLER_NAME';
 
 async function show(title, message) {
   const a = new Alert();
@@ -69,11 +69,11 @@ async function main() {
     target.writeString(target.joinPath(target.documentsDirectory(), CONFIG_NAME), config);
 
     // New releases let Config own install/update/repair/uninstall completely.
-    if (config.includes("const PENDING_INSTALL_REF_KEY = 'VAG_PENDING_INSTALL_REF'") && config.includes('completePendingInstall')) {
+    if (config.includes("const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF'") && config.includes('completePendingInstall')) {
       Keychain.set(PENDING_INSTALL_REF_KEY, release.tag);
       Keychain.set(PENDING_INSTALL_VERSION_KEY, release.version);
       Keychain.set(PENDING_INSTALLER_NAME_KEY, Script.name());
-      Safari.open('scriptable:///run?scriptName=' + encodeURIComponent('VagAbfahrten-Config'));
+      Safari.open('scriptable:///run?scriptName=' + encodeURIComponent('Abfahrt-Config'));
       Script.complete();
       return;
     }
@@ -89,7 +89,7 @@ async function main() {
     if (target.fileExists(selfPath)) target.remove(selfPath);
     await show(
       'Installation abgeschlossen',
-      `VAG Widget Stable v${release.version} wurde installiert. Dieses ältere Stable Release verwendet noch den kompatiblen Bootstrap-Fallback.`,
+      `Abfahrt Stable v${release.version} wurde installiert. Dieses ältere Stable Release verwendet noch den kompatiblen Bootstrap-Fallback.`,
     );
   } catch (e) {
     await show('Installation fehlgeschlagen', 'Der Bootstrap-Installer bleibt erhalten.\n\n' + e.message);

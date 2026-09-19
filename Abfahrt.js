@@ -1,6 +1,6 @@
 // Variables used by Scriptable: icon-color: red; icon-glyph: train;
 //
-// VAG departures widget (EFA-BW TRIAS) — "VagAbfahrten"
+// public transport departures widget (EFA-BW TRIAS) — "Abfahrt"
 //
 // Setup:
 //   1. Copy this file into Scriptable.
@@ -29,10 +29,10 @@ const DEFAULT_STOPS = [
 const REQUEST_TIMEOUT_MS = 12000;
 const NEARBY_RESULTS = 5;
 const DELAY_HEAVY_MIN = 5;
-const LAST_STOP_REF_KEY = 'VAG_LAST_STOP_REF';
-const LAST_STOP_NAME_KEY = 'VAG_LAST_STOP_NAME';
-const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS';
-const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
+const LAST_STOP_REF_KEY = 'ABFAHRT_LAST_STOP_REF';
+const LAST_STOP_NAME_KEY = 'ABFAHRT_LAST_STOP_NAME';
+const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS';
+const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
 
 // User-facing widget layout configuration. Widths are points inside the
@@ -78,8 +78,8 @@ const DEFAULT_FULLSCREEN_CONFIG = {
 
 const DEFAULT_FILTER_CONFIG = { widget: true, fullscreen: true };
 const DEFAULT_OFFLINE_CONFIG = { enabled: true, pinned: true, history: true, autoUpdate: true };
-const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/gtfs-data/data/gtfs/';
-const GTFS_CACHE_DIR = 'VagAbfahrten-GTFS';
+const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/gtfs-data/data/gtfs/';
+const GTFS_CACHE_DIR = 'Abfahrt-GTFS';
 
 const DEFAULT_LOCATION_CONFIG = {
   autoSelectSavedStop: true,
@@ -87,7 +87,7 @@ const DEFAULT_LOCATION_CONFIG = {
   fallbackMode: 'last',
 };
 
-const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
+const CONFIG_FILE_NAME = 'Abfahrt.config.json';
 
 function mergeWidgetConfig(saved) {
   const d = DEFAULT_WIDGET_CONFIG;
@@ -147,7 +147,7 @@ let WIDGET_CONFIG = mergeWidgetConfig(null);
 function widgetOpenUrl() {
   // A widget tap starts the interactive foreground flow in this same script:
   // GPS -> stop selection/auto-selection -> fullscreen departures.
-  return 'scriptable:///run/VagAbfahrten';
+  return 'scriptable:///run/Abfahrt';
 }
 
 function rawParameter() {
@@ -159,8 +159,8 @@ function parseParameter() {
   const parts = raw.split('|').map((p) => p.trim()).filter(Boolean);
   let key = parts.find((p) => !/^nearby$/i.test(p));
   const nearby = parts.some((p) => /^nearby$/i.test(p));
-  if (!key && Keychain.contains('TRIAS_REQUESTOR_REF')) {
-    key = Keychain.get('TRIAS_REQUESTOR_REF');
+  if (!key && Keychain.contains('ABFAHRT_TRIAS_REQUESTOR_REF')) {
+    key = Keychain.get('ABFAHRT_TRIAS_REQUESTOR_REF');
   }
   if (!key) {
     throw new Error(
@@ -452,7 +452,7 @@ async function triasPost(body) {
   req.headers = {
     'Content-Type': 'text/xml; charset=utf-8',
     Accept: 'text/xml',
-    'User-Agent': 'vag-widget/1.0 (Scriptable)',
+    'User-Agent': 'abfahrt/1.0 (Scriptable)',
   };
   req.body = body;
   req.timeoutInterval = REQUEST_TIMEOUT_MS / 1000;
@@ -1317,7 +1317,7 @@ async function setupMode() {
   const alert = new Alert();
   alert.title = 'TRIAS Key speichern';
   alert.message = 'Der Key wird sicher im iOS Keychain gespeichert. Der Widget-Parameter kann leer bleiben.';
-  alert.addTextField('Requestor-Key', Keychain.contains('TRIAS_REQUESTOR_REF') ? Keychain.get('TRIAS_REQUESTOR_REF') : '');
+  alert.addTextField('Requestor-Key', Keychain.contains('ABFAHRT_TRIAS_REQUESTOR_REF') ? Keychain.get('ABFAHRT_TRIAS_REQUESTOR_REF') : '');
   alert.addAction('Speichern');
   alert.addCancelAction('Abbrechen');
   const choice = await alert.present();
@@ -1334,8 +1334,8 @@ async function setupMode() {
     Script.complete();
     return false;
   }
-  Keychain.set('TRIAS_REQUESTOR_REF', key);
-  const check = Keychain.get('TRIAS_REQUESTOR_REF');
+  Keychain.set('ABFAHRT_TRIAS_REQUESTOR_REF', key);
+  const check = Keychain.get('ABFAHRT_TRIAS_REQUESTOR_REF');
   const ok = check === key;
   const w = buildWidget(
     'Setup',
@@ -1359,8 +1359,8 @@ async function main() {
   const wantsSetup = parameter.toLowerCase() === 'setup';
   const wantsRefresh = parameter.toLowerCase() === 'refresh';
   const hasKeyInKeychain =
-    Keychain.contains('TRIAS_REQUESTOR_REF') &&
-    Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
+    Keychain.contains('ABFAHRT_TRIAS_REQUESTOR_REF') &&
+    Keychain.get('ABFAHRT_TRIAS_REQUESTOR_REF').trim() !== '';
 
   if (wantsSetup) {
     await setupMode();
@@ -1368,7 +1368,7 @@ async function main() {
   }
 
   if (wantsRefresh) {
-    const key = Keychain.contains('TRIAS_REQUESTOR_REF') ? Keychain.get('TRIAS_REQUESTOR_REF').trim() : '';
+    const key = Keychain.contains('ABFAHRT_TRIAS_REQUESTOR_REF') ? Keychain.get('ABFAHRT_TRIAS_REQUESTOR_REF').trim() : '';
     if (key) await defaultWidget(key, false);
     else Script.complete();
     return;
@@ -1383,7 +1383,7 @@ async function main() {
         return;
       }
       const w = buildWidget(
-        'VAG Widget',
+        'Abfahrt',
         null,
         [],
         0,
@@ -1400,7 +1400,7 @@ async function main() {
   try {
     ({ key } = parseParameter());
   } catch (e) {
-    const w = buildWidget('VAG Widget', null, [], 0, e.message, parameter);
+    const w = buildWidget('Abfahrt', null, [], 0, e.message, parameter);
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
