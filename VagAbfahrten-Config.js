@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.1.4';
+const APP_VERSION = '1.1.5';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -21,7 +21,7 @@ const DEFAULTS = {
     channel: 'stable',
   },
   filters: { widget: true, fullscreen: true },
-  offline: { enabled: true, pinned: true, history: true },
+  offline: { enabled: true, pinned: true, history: true, autoUpdate: true },
   columns: {
     line: { visible: true, width: 34 },
     destination: { visible: true, width: 105 },
@@ -645,10 +645,11 @@ async function configureOffline(cfg) {
     const status = offlineStatus(cfg);
     const a = new Alert();
     a.title = 'Offline-Fahrplan';
-    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nFixierte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nHistorie (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
+    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nFixierte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nHistorie (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nVerfügbar: ${status.available}/${status.wanted}\nDatenstand: ${status.stamp}`;
     a.addAction(`Offline-Fahrplan ${cfg.offline.enabled ? 'ausschalten' : 'einschalten'}`);
     a.addAction(`Fixierte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
     a.addAction(`Historie: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
+    a.addAction(`Automatische Aktualisierung: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}`);
     a.addAction('Offline-Daten aktualisieren');
     a.addDestructiveAction('Offline-Daten löschen');
     a.addCancelAction('Zurück');
@@ -657,8 +658,9 @@ async function configureOffline(cfg) {
     if (choice === 0) cfg.offline.enabled = !cfg.offline.enabled;
     if (choice === 1) cfg.offline.pinned = !cfg.offline.pinned;
     if (choice === 2) cfg.offline.history = !cfg.offline.history;
-    if (choice === 3) await syncOfflineData(cfg);
-    if (choice === 4) await deleteOfflineData();
+    if (choice === 3) cfg.offline.autoUpdate = cfg.offline.autoUpdate === false;
+    if (choice === 4) await syncOfflineData(cfg);
+    if (choice === 5) await deleteOfflineData();
     await save(cfg, false);
   }
 }
