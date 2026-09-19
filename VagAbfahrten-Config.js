@@ -476,15 +476,15 @@ const UPDATE_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/mai
 const UPDATE_FILES = [
   {
     name: 'VagAbfahrten.js',
-    marker: "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';",
+    markers: ["const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();'],
   },
   {
     name: 'VagAbfahrten-Config.js',
-    marker: "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';",
+    markers: ["const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();'],
   },
   {
     name: 'VagAbfahrten-Refresh.js',
-    marker: "const MAIN_SCRIPT = 'VagAbfahrten';",
+    markers: ["const MAIN_SCRIPT = 'VagAbfahrten';", 'await main();'],
   },
 ];
 
@@ -504,7 +504,7 @@ async function downloadUpdateFile(file) {
   const source = await req.loadString();
   const status = req.response ? req.response.statusCode : 0;
   if (status !== 200) throw new Error(`${file.name}: GitHub HTTP ${status || '?'}`);
-  if (source.length < 100 || !source.includes(file.marker) || !source.includes('await main();')) {
+  if (!source.trim() || !file.markers.every((marker) => source.includes(marker))) {
     throw new Error(`${file.name}: Download konnte nicht validiert werden.`);
   }
   return source;
@@ -513,20 +513,19 @@ async function downloadUpdateFile(file) {
 async function updateScripts() {
   const confirm = new Alert();
   confirm.title = 'Skripte aktualisieren';
-  confirm.message = 'Lädt Widget und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
+  confirm.message = 'Lädt Widget, Config und Refresh-Helfer aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
   confirm.addAction('Update starten');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
 
   try {
-    // Bootstrap-safe order: update Config first so future migrations are
-    // governed by the newest updater, then fetch the remaining managed files.
-    const ordered = [
-      UPDATE_FILES.find((f) => f.name === 'VagAbfahrten-Config.js'),
-      ...UPDATE_FILES.filter((f) => f.name !== 'VagAbfahrten-Config.js'),
-    ].filter(Boolean);
+    // Validate all managed files before replacing anything. File identity is
+    // checked with explicit markers instead of an arbitrary minimum size, so
+    // small helper scripts are first-class managed files.
     const downloads = [];
-    for (const file of ordered) downloads.push({ file, source: await downloadUpdateFile(file) });
+    for (const file of UPDATE_FILES) {
+      downloads.push({ file, source: await downloadUpdateFile(file) });
+    }
 
     const written = [];
     for (const item of downloads) {
