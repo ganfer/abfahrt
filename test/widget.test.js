@@ -267,3 +267,36 @@ test('realtime display distinguishes realtime, delay and timetable-only data', (
   assert.ok(runtime.includes("r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'"));
   assert.match(runtime, /if \(r\.cancelled\) right = 'entfällt'/);
 });
+
+
+test('offline GTFS is limited to configured saved stops', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /function offlineStopAllowed\(stopRefs\)/);
+  assert.match(source, /WIDGET_CONFIG\.offline\.pinned/);
+  assert.match(source, /WIDGET_CONFIG\.offline\.history/);
+  assert.match(source, /recentStops\(\)\.slice\(0, RECENT_STOPS_LIMIT\)/);
+});
+
+test('TRIAS remains primary and GTFS is only a fallback', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /async function fetchDeparturesWithOffline/);
+  assert.match(source, /return await fetchDepartures\(stopRefs, key, resultLimit\)/);
+  assert.match(source, /const fallback = offlineDepartures\(stopRefs\)/);
+});
+
+test('offline GTFS respects service calendars and exceptions', () => {
+  const source = read('VagAbfahrten.js');
+  assert.match(source, /function gtfsServiceRuns\(service, date\)/);
+  assert.match(source, /service\.exceptions/);
+  assert.match(source, /service\.weekdays/);
+});
+
+test('config can cache pinned stops and recent history independently', () => {
+  const source = read('VagAbfahrten-Config.js');
+  assert.match(source, /offline: \{ enabled: true, pinned: true, history: true \}/);
+  assert.match(source, /if \(cfg\.offline\?\.pinned\)/);
+  assert.match(source, /if \(cfg\.offline\?\.history\)/);
+  assert.match(source, /recentStops\(\)\.slice\(0, 20\)/);
+  assert.match(source, /Offline-Daten aktualisieren/);
+  assert.match(source, /Offline-Daten löschen/);
+});
