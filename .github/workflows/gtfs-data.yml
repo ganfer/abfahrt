@@ -59,11 +59,23 @@ jobs:
           PUBLISHED: ${{ steps.published.outputs.value }}
         shell: bash
         run: |
-          if [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ]; then
+          SCHEMA="$(git show origin/gtfs-data:data/gtfs/manifest.json 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("schemaVersion",""))' \
+            || true)"
+          EXPECTED_SCHEMA="$(python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path("scripts/build-gtfs.py").read_text()
+match = re.search(r"^SCHEMA_VERSION\s*=\s*(\d+)", text, re.MULTILINE)
+print(match.group(1) if match else "")
+PY
+          )"
+          if [ -n "$UPSTREAM" ] && [ "$UPSTREAM" = "$PUBLISHED" ] && [ -n "$EXPECTED_SCHEMA" ] && [ "$SCHEMA" = "$EXPECTED_SCHEMA" ]; then
             echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "Published GTFS snapshot already matches upstream import."
+            echo "Published GTFS snapshot already matches upstream import and schema $EXPECTED_SCHEMA."
           else
             echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Rebuild required (upstream=$UPSTREAM, published=$PUBLISHED, schema=$SCHEMA, expected=$EXPECTED_SCHEMA)."
           fi
 
       - name: Download GTFS
