@@ -168,6 +168,15 @@ test('README describes the current two-script architecture', () => {
 });
 
 
+test('foreground location failures stay user-friendly and hide technical diagnostics', () => {
+  const source = read('abfahrt.js');
+  assert.doesNotMatch(source, /Location Diagnose|showLocationDiagnostics|diagnostics\.push/);
+  assert.doesNotMatch(source, /firstLocationResultShape|firstNodePath|countNodes/);
+  assert.match(source, /Scriptable konnte deinen Standort nicht ermitteln/);
+  assert.match(source, /Haltestellensuche nicht verfügbar/);
+  assert.match(source, /In deiner Nähe konnten keine Haltestellen ermittelt werden/);
+});
+
 test('GPS picker exposes pinned stops and shares the selection flow', () => {
   const source = read('abfahrt.js');
   assert.match(source, /picker\.addAction\('📌 Angepinnte Haltestellen'\)/);
