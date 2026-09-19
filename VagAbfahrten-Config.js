@@ -12,6 +12,7 @@ const DEFAULTS = {
   location: {
     autoSelectSavedStop: true,
     savedStopRadiusMeters: 200,
+    fallbackToLastStop: true,
   },
   columns: {
     line: { visible: true, width: 34 },
@@ -460,20 +461,23 @@ async function configureLocation(cfg) {
   while (true) {
     const a = new Alert();
     a.title = 'Standort konfigurieren';
-    a.message = `Automatische Auswahl: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}\nEntfernung: ${cfg.location.savedStopRadiusMeters} m`;
+    a.message = `Automatische Auswahl: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}\nEntfernung: ${cfg.location.savedStopRadiusMeters} m\nFallback: ${cfg.location.fallbackToLastStop ? 'AN' : 'AUS'}`;
     a.addAction(`Fixierte Haltestelle automatisch: ${cfg.location.autoSelectSavedStop ? 'AN' : 'AUS'}`);
-    a.addAction(`Entfernung: ${cfg.location.savedStopRadiusMeters} m`);
+    if (cfg.location.autoSelectSavedStop) a.addAction(`Entfernung: ${cfg.location.savedStopRadiusMeters} m`);
+    a.addAction(`Bei Standortfehler letzte Haltestelle: ${cfg.location.fallbackToLastStop ? 'AN' : 'AUS'}`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
     if (choice === 0) cfg.location.autoSelectSavedStop = !cfg.location.autoSelectSavedStop;
-    if (choice === 1) cfg.location.savedStopRadiusMeters = await askNumber(
+    if (cfg.location.autoSelectSavedStop && choice === 1) cfg.location.savedStopRadiusMeters = await askNumber(
       'Automatische Haltestelle – Entfernung',
       'Maximale Entfernung in Metern, in der eine fixierte Haltestelle automatisch übernommen wird.',
       cfg.location.savedStopRadiusMeters,
       25,
       5000,
     );
+    const fallbackChoice = cfg.location.autoSelectSavedStop ? 2 : 1;
+    if (choice === fallbackChoice) cfg.location.fallbackToLastStop = !cfg.location.fallbackToLastStop;
   }
 }
 
