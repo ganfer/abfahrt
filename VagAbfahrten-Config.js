@@ -15,6 +15,9 @@ const DEFAULTS = {
     savedStopRadiusMeters: 200,
     fallbackMode: 'last',
   },
+  updates: {
+    channel: 'stable',
+  },
   columns: {
     line: { visible: true, width: 34 },
     destination: { visible: true, width: 105 },
@@ -65,6 +68,7 @@ async function loadConfig() {
       refreshAfterLocationChange: typeof saved.refreshAfterLocationChange === 'boolean'
         ? saved.refreshAfterLocationChange
         : DEFAULTS.refreshAfterLocationChange,
+      updates: { ...DEFAULTS.updates, ...(saved.updates || {}) },
       location: {
         ...DEFAULTS.location,
         ...(saved.fullscreen?.location || {}),
@@ -541,6 +545,7 @@ async function reset() {
 
 const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/releases/latest';
 const RELEASE_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/';
+const MAIN_COMMIT_API_URL = 'https://api.github.com/repos/ganfer/vag-widget/commits/main';
 const UPDATE_FILES = [
   {
     name: 'VagAbfahrten.js',
@@ -588,6 +593,16 @@ async function latestRelease() {
   const match = tag.match(/^v(\d+\.\d+\.\d+)$/);
   if (!match) throw new Error('Das neueste GitHub Release hat keine gültige vX.Y.Z-Version.');
   return { version: match[1], tag };
+}
+
+async function latestDevelopment() {
+  const req = new Request(MAIN_COMMIT_API_URL + '?t=' + Date.now());
+  req.timeoutInterval = 15;
+  req.headers = { Accept: 'application/vnd.github+json', 'Cache-Control': 'no-cache' };
+  const commit = await req.loadJSON();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200 || !/^[0-9a-f]{40}$/i.test(String(commit?.sha || ''))) throw new Error(`GitHub main commit konnte nicht ermittelt werden (HTTP ${status || '?'}).`);
+  return { ref: commit.sha, label: commit.sha.slice(0, 7) };
 }
 
 async function downloadUpdateFile(file, releaseTag) {
@@ -685,6 +700,7 @@ async function main() {
     menu.addAction('Fullscreen');
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
+    menu.addAction(`Update-Kanal · ${cfg.updates.channel === 'development' ? '🧪 Development' : '🛡 Stable'}`);
     menu.addAction('Auf Updates prüfen');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
@@ -696,15 +712,17 @@ async function main() {
     if (choice === 1) await configureFullscreen(cfg);
     if (choice === 2) await configureLocation(cfg);
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) {
-      await updateScripts();
-      break;
-    }
+    if (choice === 4) await configureUpdateChannel(cfg);
     if (choice === 5) {
       await save(cfg);
+      await updateScripts(cfg);
       break;
     }
     if (choice === 6) {
+      await save(cfg);
+      break;
+    }
+    if (choice === 7) {
       await reset();
       break;
     }
