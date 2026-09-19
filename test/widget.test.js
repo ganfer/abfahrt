@@ -193,3 +193,13 @@ test('updater compares remote and installed versions before installing', () => {
   assert.ok(source.includes('confirm.title = `Update v${remoteVersion} verfügbar`'));
   assert.ok(source.includes('downloadedVersions.some((version) => version !== remoteVersion)'));
 });
+
+
+test('Home keeps the configured stop display name', () => {
+  const runtime = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+  assert.ok(runtime.includes("(stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name)"));
+  assert.ok(runtime.includes('name: home.displayName || home.name'));
+  assert.ok(runtime.includes('name: selectedPin.displayName || selectedPin.name'));
+  assert.ok(config.includes("(stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name)"));
+});
