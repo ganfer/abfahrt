@@ -32,8 +32,8 @@ test('config updater validates versioned managed files', () => {
   assert.match(config, /const APP_VERSION = '/);
   assert.match(config, /file\.markers\.every/);
 });
-test('README version matches scripts', () => {
+test('README Development version matches scripts', () => {
   const runtimeVersion = version(read('VagAbfahrten.js'));
   const escaped = runtimeVersion.split('.').join('\\.');
-  assert.match(read('README.md'), new RegExp('Current version: v' + escaped));
+  assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
 });

@@ -42,8 +42,15 @@ if (versions.size !== 1) {
 
 const version = current[0].version;
 const readme = fs.readFileSync('README.md', 'utf8');
-if (!readme.includes(`v${version}`)) {
-  console.error(`README.md enthält die aktuelle Version v${version} nicht.`);
+const developmentLine = readme.split('\n').find((line) => line.includes('Development version:'));
+const developmentVersion = developmentLine?.match(/v(\d+\.\d+\.\d+)/)?.[1];
+if (developmentVersion !== version) {
+  console.error(`README Development version (${developmentVersion || 'fehlt'}) stimmt nicht mit APP_VERSION v${version} überein.`);
+  process.exit(1);
+}
+const stableLine = readme.split('\n').find((line) => line.includes('Stable version:'));
+if (!stableLine || !/v\d+\.\d+\.\d+/.test(stableLine)) {
+  console.error('README Stable version fehlt oder ist ungültig.');
   process.exit(1);
 }
 
