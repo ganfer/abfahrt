@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30120:0:1',
@@ -863,6 +863,8 @@ async function nearbyFlow(key) {
     const distanceLabel = distance === null ? '' : ` · ${Math.round(distance)} m`;
     picker.addAction((pin ? '📌 ' : isRecent ? '★ ' : '') + (pin?.displayName || stop.name) + distanceLabel);
   }
+  const pinnedMenuIndex = stops.length;
+  if (pinned.length) picker.addAction('📌 Fixierte Haltestellen');
   picker.addCancelAction('Abbrechen');
   const idx = await picker.present();
   if (idx === -1) {
@@ -870,13 +872,36 @@ async function nearbyFlow(key) {
     return;
   }
 
-  const selected = stops[idx];
-  const pin = pinnedStopFor(selected, pinned);
-  rememberStop({ ...selected, name: pin?.displayName || selected.name });
+  let selected;
+  let selectedPin = null;
+  if (pinned.length && idx === pinnedMenuIndex) {
+    const pinnedPicker = new Alert();
+    pinnedPicker.title = 'Fixierte Haltestellen';
+    pinnedPicker.message = 'Wähle eine fixierte Haltestelle.';
+    for (const stop of pinned) {
+      pinnedPicker.addAction(stop.displayName || stop.name);
+    }
+    pinnedPicker.addCancelAction('Zurück');
+    const pinnedIdx = await pinnedPicker.present();
+    if (pinnedIdx === -1) {
+      Script.complete();
+      return;
+    }
+    selectedPin = pinned[pinnedIdx];
+    selected = {
+      stopRef: selectedPin.stopRef,
+      name: selectedPin.displayName || selectedPin.name,
+    };
+  } else {
+    selected = stops[idx];
+    selectedPin = pinnedStopFor(selected, pinned);
+  }
+
+  rememberStop({ ...selected, name: selectedPin?.displayName || selected.name });
   requestWidgetRefresh();
 
-  // Stay in the same Scriptable run: after choosing a stop, render the
-  // fullscreen departures table directly instead of launching another script.
+  // Live and pinned selections use the exact same downstream flow:
+  // persist active stop, refresh the widget and open fullscreen departures.
   await presentDeparturesTable(key);
 }
 
