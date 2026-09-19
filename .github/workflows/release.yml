@@ -55,7 +55,7 @@ jobs:
           const crypto = require('node:crypto');
           const fs = require('node:fs');
           const version = process.env.VERSION;
-          const files = ['abfahrt.js', 'abfahrt-Config.js'];
+          const files = ['abfahrt.js', 'abfahrt-config.js'];
           const manifest = {
             schemaVersion: 1,
             version,
