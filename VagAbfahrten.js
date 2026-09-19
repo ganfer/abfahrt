@@ -844,7 +844,7 @@ function buildWidget(title, subtitle, rows, cancelledN, errorText) {
   return w;
 }
 
-async function defaultWidget(key, present, tapParameter) {
+async function defaultWidget(key, present) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
     Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
@@ -863,12 +863,12 @@ async function defaultWidget(key, present, tapParameter) {
     const sub = filteredEvents.length
       ? `${filteredEvents.length} Ereignisse gelesen`
       : 'API antwortete ohne Events';
-    const w = buildWidget(title, rows.length ? null : sub, rows, cancelledCount(filteredEvents, Date.now()), tapParameter);
+    const w = buildWidget(title, rows.length ? null : sub, rows, cancelledCount(filteredEvents, Date.now()));
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
   } catch (e) {
-    const w = buildWidget(title, null, [], 0, friendlyError(e), tapParameter);
+    const w = buildWidget(title, null, [], 0, friendlyError(e));
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();
@@ -1282,7 +1282,7 @@ async function presentDeparturesTable(key, context = null) {
 async function setupMode() {
   const alert = new Alert();
   alert.title = 'TRIAS Key speichern';
-  alert.message = 'Der Key wird sicher im iOS Keychain gespeichert. Widget-Parameter danach: leer oder "nearby".';
+  alert.message = 'Der Key wird sicher im iOS Keychain gespeichert. Der Widget-Parameter kann leer bleiben.';
   alert.addTextField('Requestor-Key', Keychain.contains('TRIAS_REQUESTOR_REF') ? Keychain.get('TRIAS_REQUESTOR_REF') : '');
   alert.addAction('Speichern');
   alert.addCancelAction('Abbrechen');
@@ -1309,7 +1309,7 @@ async function setupMode() {
     [],
     0,
     ok
-      ? `Key gespeichert (${key.length} Zeichen). Widget-Parameter: leer oder "nearby".`
+      ? `Key gespeichert (${key.length} Zeichen). Der Widget-Parameter kann leer bleiben.`
       : 'Speichern fehlgeschlagen (Lesecheck abweichend).',
   );
   w.presentMedium();
@@ -1335,7 +1335,7 @@ async function main() {
 
   if (wantsRefresh) {
     const key = Keychain.contains('TRIAS_REQUESTOR_REF') ? Keychain.get('TRIAS_REQUESTOR_REF').trim() : '';
-    if (key) await defaultWidget(key, false, '');
+    if (key) await defaultWidget(key, false);
     else Script.complete();
     return;
   }
@@ -1383,6 +1383,6 @@ async function main() {
 
   // The widget uses the last saved stop. If none was selected yet, the existing
   // Brauerei Ganter fallback is used.
-  await defaultWidget(key, false, parameter);
+  await defaultWidget(key, false);
 }
 await main();

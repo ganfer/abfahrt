@@ -137,6 +137,15 @@ test('fullscreen failure shows last attempt time', () => {
 });
 
 
+test('widget parameters are not rendered as widget errors', () => {
+  const source = read('VagAbfahrten.js');
+  assert.ok(source.includes('async function defaultWidget(key, present)'));
+  assert.doesNotMatch(source, /async function defaultWidget\(key, present, tapParameter\)/);
+  assert.doesNotMatch(source, /cancelledCount\(filteredEvents, Date\.now\(\)\), tapParameter/);
+  assert.doesNotMatch(source, /friendlyError\(e\), tapParameter/);
+  assert.ok(source.includes('await defaultWidget(key, false);'));
+});
+
 test('widget tap uses the integrated foreground flow', () => {
   const source = read('VagAbfahrten.js');
   assert.match(source, /return 'scriptable:\/\/\/run\/VagAbfahrten';/);
