@@ -79,7 +79,7 @@ jobs:
           const version = process.env.VERSION;
           const path = 'README.md';
           const source = fs.readFileSync(path, 'utf8');
-          const pattern = /^(\*\*Stable version: v)\d+\.\d+\.\d+(\*\*)$/m;
+          const pattern = /^(\*\*Stabile Version: v)\d+\.\d+\.\d+(\*\*)$/m;
           if (!pattern.test(source)) {
             console.error('README-Zeile für die stabile Version wurde nicht gefunden.');
             process.exit(1);
