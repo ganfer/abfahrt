@@ -126,9 +126,9 @@ async function loadWidgetConfig() {
 let WIDGET_CONFIG = mergeWidgetConfig(null);
 
 function widgetOpenUrl() {
-  // A widget tap first runs this script interactively. It performs the nearby
-  // stop selection and only then hands off to the dedicated fullscreen display.
-  return 'scriptable:///run/VagAbfahrten?action=select';
+  // A widget tap starts the interactive foreground flow in this same script:
+  // GPS -> stop selection/auto-selection -> fullscreen departures.
+  return 'scriptable:///run/VagAbfahrten';
 }
 
 function rawParameter() {
@@ -730,6 +730,7 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 
 function stopDistanceMeters(stop, location) {
   if (!Number.isFinite(stop.latitude) || !Number.isFinite(stop.longitude)) return null;
+  if (!Number.isFinite(location?.latitude) || !Number.isFinite(location?.longitude)) return null;
   return distanceMeters(location.latitude, location.longitude, stop.latitude, stop.longitude);
 }
 
