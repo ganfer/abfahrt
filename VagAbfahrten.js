@@ -66,7 +66,6 @@ const DEFAULT_FULLSCREEN_CONFIG = {
   },
   fontSize: 16,
   location: {
-    autoRefreshOnOpen: false,
     autoSelectSavedStop: true,
   },
 };
