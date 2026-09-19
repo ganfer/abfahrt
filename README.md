@@ -1,6 +1,6 @@
 # vag-widget
 
-**Development version: v1.1.7**  
+**Development version: v1.1.8**  
 **Stable version: v1.1.2**
 
 Scriptable iOS widget for **VAG Freiburg departures** using the EFA-BW TRIAS API.
@@ -45,7 +45,7 @@ Configure departure count, columns, widths, spacing, font sizes, immediate refre
 
 ### Vollbild
 
-Configure departure count, columns, widths, font size and whether per-stop filters are applied to the Vollbild view.
+Configure departure count, visible columns, relative column widths, font size and whether per-stop filters are applied to the Vollbild view. Destination text wraps to up to two lines by default; wrapping and the maximum line count can be changed in Config.
 
 ### Standort
 

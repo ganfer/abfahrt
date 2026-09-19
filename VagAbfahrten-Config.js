@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
-const APP_VERSION = '1.1.7';
+const APP_VERSION = '1.1.8';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -42,6 +42,8 @@ const DEFAULTS = {
       countdown: { visible: true, width: 92 },
     },
     fontSize: 16,
+    destinationWrap: true,
+    destinationLines: 2,
   },
 };
 
@@ -418,9 +420,9 @@ async function configureFullscreen(cfg) {
   while (true) {
     const a = new Alert();
     a.title = 'Vollbild konfigurieren';
-    a.message = `${cfg.fullscreen.rows} Abfahrten · Schrift ${cfg.fullscreen.fontSize} pt\n` +
+    a.message = `${cfg.fullscreen.rows} Abfahrten · Schrift ${cfg.fullscreen.fontSize} pt\nRichtung: ${cfg.fullscreen.destinationWrap !== false ? 'Umbruch bis ' + (cfg.fullscreen.destinationLines || 2) + ' Zeilen' : 'eine Zeile'}\n` +
       Object.keys(labels).map((key) =>
-        `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? cfg.fullscreen.columns[key].width + ' pt' : 'aus'}`
+        `${labels[key]}: ${cfg.fullscreen.columns[key].visible ? 'Breitenwert ' + cfg.fullscreen.columns[key].width : 'aus'}`
       ).join('\n');
     a.addAction('Anzahl Abfahrten');
     a.addAction('Linie');
@@ -430,6 +432,8 @@ async function configureFullscreen(cfg) {
     a.addAction('Restzeit');
     a.addAction('Schriftgröße');
     a.addAction('Filter');
+    a.addAction(`Richtung umbrechen: ${cfg.fullscreen.destinationWrap !== false ? 'AN' : 'AUS'}`);
+    a.addAction(`Max. Richtungszeilen: ${Math.max(1, Math.min(4, Number(cfg.fullscreen.destinationLines) || 2))}`);
     a.addCancelAction('Zurück');
     const choice = await a.present();
     if (choice === -1) return;
@@ -439,16 +443,24 @@ async function configureFullscreen(cfg) {
       const col = cfg.fullscreen.columns[key];
       const b = new Alert();
       b.title = labels[key];
-      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breite ${col.width} pt`;
+      b.message = `Aktuell: ${col.visible ? 'sichtbar' : 'ausgeblendet'} · Breitenwert ${col.width}\n\nDie sichtbaren Spalten teilen sich die verfügbare Displaybreite im Verhältnis ihrer Breitenwerte. Größer = mehr Platz.`;
       b.addAction(col.visible ? 'Spalte ausblenden' : 'Spalte einblenden');
-      b.addAction('Breite ändern');
+      b.addAction('Breitenwert ändern');
       b.addCancelAction('Zurück');
       const sub = await b.present();
       if (sub === 0) col.visible = !col.visible;
-      if (sub === 1) col.width = await askNumber(labels[key] + ' – Breite', 'Breite in Punkten für die Vollbild-Tabelle.', col.width, 40, 400);
+      if (sub === 1) col.width = await askNumber(labels[key] + ' – Breitenwert', 'Relativer Anteil an der verfügbaren Vollbild-Breite. Größere Werte geben dieser Spalte mehr Platz.', col.width, 20, 400);
     }
     if (choice === 6) cfg.fullscreen.fontSize = await askNumber('Vollbild – Schriftgröße', 'Schriftgröße der Tabellenwerte.', cfg.fullscreen.fontSize, 10, 28);
     if (choice === 7) await configureSurfaceFilter(cfg, 'fullscreen', 'Vollbild');
+    if (choice === 8) cfg.fullscreen.destinationWrap = cfg.fullscreen.destinationWrap === false;
+    if (choice === 9) cfg.fullscreen.destinationLines = await askNumber(
+      'Richtung – maximale Zeilen',
+      'Wie viele Zeilen darf die Richtung im Vollbild maximal verwenden?',
+      Math.max(1, Math.min(4, Number(cfg.fullscreen.destinationLines) || 2)),
+      1,
+      4,
+    );
   }
 }
 

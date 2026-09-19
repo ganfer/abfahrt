@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '1.1.7';
+const APP_VERSION = '1.1.8';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -72,6 +72,8 @@ const DEFAULT_FULLSCREEN_CONFIG = {
     countdown: { visible: true, width: 92 },
   },
   fontSize: 16,
+  destinationWrap: true,
+  destinationLines: 2,
 };
 
 const DEFAULT_FILTER_CONFIG = { widget: true, fullscreen: true };
@@ -1176,10 +1178,9 @@ async function presentDeparturesTable(key, context = null) {
       .slice(0, WIDGET_CONFIG.fullscreen.rows);
 
     const fs = WIDGET_CONFIG.fullscreen;
-    const place = splitStopName(title).place;
     const defs = [
       { key: 'line', label: 'Linie', value: (r) => r.line || '–', cls: 'line' },
-      { key: 'destination', label: 'Richtung', value: (r) => compactDestination(r.destination, place), cls: 'destination' },
+      { key: 'destination', label: 'Richtung', value: (r) => r.destination || '–', cls: 'destination' },
       { key: 'platform', label: 'Gleis', value: (r) => r.platform || '–', cls: 'platform' },
       { key: 'departureTime', label: 'Abfahrt', value: (r) => fmtClock(r.at) + (r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'), cls: 'time' },
       {
@@ -1194,6 +1195,14 @@ async function presentDeparturesTable(key, context = null) {
       },
     ].filter((d) => fs.columns[d.key].visible);
 
+    const widthSum = defs.reduce((sum, d) => sum + Math.max(1, Number(fs.columns[d.key].width) || 1), 0);
+    const colgroup = defs.map((d) => {
+      const configured = Math.max(1, Number(fs.columns[d.key].width) || 1);
+      const percent = widthSum > 0 ? (configured / widthSum * 100).toFixed(2) : (100 / Math.max(1, defs.length)).toFixed(2);
+      return `<col class="${d.cls}" style="width:${percent}%">`;
+    }).join('');
+    const destinationWrap = fs.destinationWrap !== false;
+    const destinationLines = Math.max(1, Math.min(4, Number(fs.destinationLines) || 2));
     const header = defs.map((d) => `<th class="${d.cls}">${htmlEsc(d.label)}</th>`).join('');
     const body = rows.length
       ? rows.map((r) => {
@@ -1202,7 +1211,12 @@ async function presentDeparturesTable(key, context = null) {
             if (d.key === 'countdown') {
               state = r.cancelled ? ' cancelled' : r.delayMin >= DELAY_HEAVY_MIN ? ' late' : r.delayMin > 0 ? ' delayed' : ' ontime';
             }
-            return `<td class="${d.cls}${state}">${htmlEsc(d.value(r))}</td>`;
+            const value = htmlEsc(d.value(r));
+            if (d.key === 'destination') {
+              const wrapClass = destinationWrap ? ' destination-wrap' : ' destination-nowrap';
+              return `<td class="${d.cls}${state}"><div class="destination-text${wrapClass}">${value}</div></td>`;
+            }
+            return `<td class="${d.cls}${state}">${value}</td>`;
           }).join('');
           return `<tr>${cells}</tr>`;
         }).join('')
@@ -1218,16 +1232,20 @@ async function presentDeparturesTable(key, context = null) {
   body { margin: 0; padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom)); background: #101010; color: #f0f0f0; }
   h1 { margin: 0; font-size: 28px; line-height: 1.15; }
   .meta { margin: 6px 0 22px; color: #9a9a9a; font-size: 13px; }
-  .table-wrap { overflow-x: auto; border: 1px solid #2c2c2e; border-radius: 14px; }
+  .table-wrap { overflow: hidden; border: 1px solid #2c2c2e; border-radius: 14px; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  th { padding: 11px 10px; text-align: left; color: #9a9a9a; font-size: 12px; font-weight: 600; background: #181818; border-bottom: 1px solid #2c2c2e; }
-  td { padding: 14px 10px; font-size: ${Number(fs.fontSize) || 16}px; border-bottom: 1px solid #252525; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  th { padding: 11px 6px; text-align: left; color: #9a9a9a; font-size: 12px; font-weight: 600; background: #181818; border-bottom: 1px solid #2c2c2e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td { padding: 14px 6px; font-size: ${Number(fs.fontSize) || 16}px; border-bottom: 1px solid #252525; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  td:not(.destination) { white-space: nowrap; }
   tr:last-child td { border-bottom: 0; }
-  .line { width: ${Number(fs.columns.line.width) || 64}px; font-weight: 700; }
-  .destination { width: auto; }
-  .platform { width: ${Number(fs.columns.platform.width) || 70}px; text-align: center; }
-  .time { width: ${Number(fs.columns.departureTime.width) || 82}px; }
-  .countdown { width: ${Number(fs.columns.countdown.width) || 92}px; text-align: right; font-weight: 700; }
+  .line { font-weight: 700; }
+  .destination { text-align: left; }
+  .destination-text { line-height: 1.18; overflow: hidden; }
+  .destination-wrap { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: ${destinationLines}; white-space: normal; overflow-wrap: break-word; word-break: normal; }
+  .destination-nowrap { white-space: nowrap; text-overflow: ellipsis; }
+  .platform { text-align: center; }
+  .time { font-variant-numeric: tabular-nums; }
+  .countdown { text-align: right; font-weight: 700; white-space: nowrap; }
   .ontime { color: #66bb6a; }
   .delayed { color: #ff9800; }
   .late { color: #ef5350; }
@@ -1240,6 +1258,7 @@ async function presentDeparturesTable(key, context = null) {
   <div class="meta">Abfahrten · aktualisiert ${htmlEsc(fmtClock(Date.now()))}${context?.autoSelected && Number.isFinite(context.distance) ? ' · 📍 automatisch gewählt · ' + htmlEsc(Math.round(context.distance) + ' m') : ''}</div>
   <div class="table-wrap">
     <table>
+      <colgroup>${colgroup}</colgroup>
       <thead><tr>${header}</tr></thead>
       <tbody>${body}</tbody>
     </table>
