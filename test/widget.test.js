@@ -70,7 +70,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   src.replace(
     'await main();',
-    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel };',
+    'globalThis.__test = { rawParameter, parseParameter, buildWidget, buildNearbyRequest, sameStop, distanceMeters, stopDistanceMeters, pinnedStopFor, homeStop, pinnedLabel, resolveGtfsIndexRef };',
   ),
   sandbox,
 );
@@ -310,6 +310,47 @@ test('config can cache pinned stops and recent history independently', () => {
   assert.match(source, /Offline-Daten löschen/);
 });
 
+
+test('GTFS fallback resolves only unambiguous station-name aliases', () => {
+  const exactStops = {
+    'de:exact:1': { name: 'Andere Haltestelle' },
+    'de:name:1': { name: 'Freiburg Hauptbahnhof' },
+  };
+  assert.equal(
+    T.resolveGtfsIndexRef({ ref: 'de:exact:1', sourceName: 'Freiburg Hauptbahnhof' }, exactStops),
+    'de:exact:1',
+  );
+  assert.equal(
+    T.resolveGtfsIndexRef({ ref: 'de:missing:1', sourceName: 'Freiburg Hauptbahnhof' }, exactStops),
+    'de:name:1',
+  );
+  assert.equal(
+    T.resolveGtfsIndexRef(
+      { ref: 'de:missing:2', sourceName: 'Villach Hauptbahnhof' },
+      { 'at:42:3654': { name: 'Villach Hauptbahnhof Bstg F1' } },
+    ),
+    'at:42:3654',
+  );
+  assert.equal(
+    T.resolveGtfsIndexRef(
+      { ref: 'de:missing:3', sourceName: 'Doppelte Station' },
+      {
+        'de:a:1': { name: 'Doppelte Station' },
+        'de:b:1': { name: 'Doppelte Station' },
+      },
+    ),
+    null,
+  );
+});
+
+test('runtime and config persist the resolved GTFS source reference', () => {
+  const runtime = read('VagAbfahrten.js');
+  const config = read('VagAbfahrten-Config.js');
+  assert.match(runtime, /sourceRef: resolveGtfsIndexRef/);
+  assert.match(runtime, /const sourceRef = entry\.sourceRef \|\| logicalRef/);
+  assert.match(config, /sourceRef: resolveGtfsIndexRef/);
+  assert.match(config, /sourceRef: item\.sourceRef/);
+});
 
 test('offline auto refresh remembers the requested stop set instead of retrying unmapped IDs every run', () => {
   const runtime = read('VagAbfahrten.js');

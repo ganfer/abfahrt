@@ -70,6 +70,14 @@ test('README Development version matches scripts', () => {
   assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
 });
 
+test('GTFS workflow rebuilds when the builder changes in a push', () => {
+  const workflow = read('.github/workflows/gtfs-data.yml');
+  assert.match(workflow, /BEFORE: \$\{\{ github\.event\.before \}\}/);
+  assert.match(workflow, /BUILDER_CHANGED=false/);
+  assert.match(workflow, /git diff --quiet "\$BEFORE" "\$GITHUB_SHA" -- scripts\/build-gtfs\.py/);
+  assert.match(workflow, /builderChanged=\$BUILDER_CHANGED/);
+});
+
 test('release workflow creates checksummed Stable metadata before tagging', () => {
   const workflow = read('.github/workflows/release.yml');
   assert.match(workflow, /release-manifest\.json/);

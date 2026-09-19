@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '1.1.10';
+const APP_VERSION = '1.1.11';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -523,18 +523,44 @@ function offlineStopAllowed(stopRefs) {
   }
   return false;
 }
-function offlineWantedStopsRuntime() {
-  const refs = [];
-  if (WIDGET_CONFIG.offline?.pinned) {
-    for (const stop of savedStops().filter((item) => item.pinned === true)) {
-      const stopRefs = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
-      refs.push(...stopRefs);
+function offlineWantedEntriesRuntime() {
+  const entries = new Map();
+  const addStop = (stop) => {
+    const stopRefs = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
+    for (const rawRef of stopRefs) {
+      if (!rawRef) continue;
+      const ref = canonicalGtfsStopRef(rawRef);
+      if (!entries.has(ref)) entries.set(ref, {
+        ref,
+        sourceName: stop.name || stop.displayName || '',
+      });
     }
+  };
+  if (WIDGET_CONFIG.offline?.pinned) {
+    for (const stop of savedStops().filter((item) => item.pinned === true)) addStop(stop);
   }
   if (WIDGET_CONFIG.offline?.history) {
-    for (const stop of recentStops().slice(0, RECENT_STOPS_LIMIT)) refs.push(stop.stopRef);
+    for (const stop of recentStops().slice(0, RECENT_STOPS_LIMIT)) addStop(stop);
   }
-  return [...new Set(refs.filter(Boolean).map(canonicalGtfsStopRef))];
+  return [...entries.values()];
+}
+function offlineWantedStopsRuntime() {
+  return offlineWantedEntriesRuntime().map((item) => item.ref);
+}
+function normalizeGtfsLookupName(value) {
+  return normalizeStopName(String(value || '')
+    .replace(/\b(?:bstg|bahnsteig|steig|gleis)\b.*$/i, '')
+    .replace(/[\s,;:\-]+$/g, ''));
+}
+function resolveGtfsIndexRef(entry, stops) {
+  if (stops?.[entry.ref]) return entry.ref;
+  const target = normalizeGtfsLookupName(entry.sourceName);
+  if (!target) return null;
+  const matches = Object.entries(stops || {})
+    .filter(([, value]) => normalizeGtfsLookupName(value?.name) === target);
+  const preferred = matches.filter(([ref]) => !/_parent$/i.test(ref) && !/^gen:/i.test(ref));
+  const candidates = preferred.length ? preferred : matches;
+  return candidates.length === 1 ? candidates[0][0] : null;
 }
 async function downloadGtfsJson(name) {
   const req = new Request(GTFS_RAW_BASE_URL + name + '?t=' + Date.now());
@@ -558,13 +584,17 @@ function offlineCacheNeedsUpdate(wanted) {
 }
 async function autoSyncOfflineData() {
   if (!WIDGET_CONFIG.offline?.enabled || WIDGET_CONFIG.offline.autoUpdate === false) return;
-  const wanted = offlineWantedStopsRuntime();
+  const wantedEntries = offlineWantedEntriesRuntime();
+  const wanted = wantedEntries.map((item) => item.ref);
   if (!wanted.length || !offlineCacheNeedsUpdate(wanted)) return;
   try {
     const manifest = await downloadGtfsJson('manifest.json');
     const index = await downloadGtfsJson('index.json');
-    const found = wanted.filter((ref) => index.value.stops?.[ref]);
-    const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
+    const found = wantedEntries.map((item) => ({
+      ...item,
+      sourceRef: resolveGtfsIndexRef(item, index.value.stops),
+    })).filter((item) => item.sourceRef);
+    const shards = [...new Set(found.map((item) => index.value.stops[item.sourceRef].shard))];
     const downloads = [];
     for (const shard of shards) downloads.push([shard, await downloadGtfsJson(shard + '.json')]);
 
@@ -577,7 +607,10 @@ async function autoSyncOfflineData() {
     manager.writeString(gtfsCachePath('manifest.json'), JSON.stringify(localManifest));
     manager.writeString(gtfsCachePath('index.json'), JSON.stringify({
       schemaVersion: index.value.schemaVersion,
-      stops: Object.fromEntries(found.map((ref) => [ref, index.value.stops[ref]])),
+      stops: Object.fromEntries(found.map((item) => [
+        item.ref,
+        { ...index.value.stops[item.sourceRef], sourceRef: item.sourceRef },
+      ])),
     }));
     for (const [shard, data] of downloads) manager.writeString(gtfsCachePath(shard + '.json'), data.raw);
     const keep = new Set(['manifest.json', 'index.json', ...shards.map((shard) => shard + '.json')]);
@@ -606,7 +639,8 @@ function offlineDepartures(stopRefs, nowMs = Date.now()) {
     const entry = index.stops[logicalRef];
     if (!entry?.shard) continue;
     const shard = readGtfsJson(entry.shard + '.json');
-    const departures = shard?.stops?.[logicalRef] || [];
+    const sourceRef = entry.sourceRef || logicalRef;
+    const departures = shard?.stops?.[sourceRef] || [];
     for (const serviceDate of serviceDates) {
       const midnight = serviceDate.getTime();
       for (const item of departures) {
