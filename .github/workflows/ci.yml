@@ -28,12 +28,12 @@ jobs:
       - name: Commit automatic version bump
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          if git diff --quiet -- Abfahrt.js Abfahrt-Config.js README.md; then
+          if git diff --quiet -- abfahrt.js abfahrt-Config.js README.md; then
             echo "Version already matches the required patch version."
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Abfahrt.js Abfahrt-Config.js README.md
+            git add abfahrt.js abfahrt-Config.js README.md
             git commit -m "chore: bump updater version"
             git push origin HEAD:${{ github.head_ref }}
           fi
@@ -54,9 +54,9 @@ jobs:
           node-version: 22
       - name: Syntax check
         run: |
-          node --check Abfahrt.js
-          node --check Abfahrt-Config.js
-          node --check Abfahrt-Install.js
+          node --check abfahrt.js
+          node --check abfahrt-Config.js
+          node --check abfahrt-Install.js
           node --check scripts/render-widget-preview.mjs
           node --check test/widget.test.js
           node --check test/repository.test.js
