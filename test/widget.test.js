@@ -190,7 +190,7 @@ test('updater compares remote and installed versions before installing', () => {
   assert.ok(source.includes('compareVersions(remoteVersion, APP_VERSION)'));
   assert.ok(source.includes("!development && compareVersions(remoteVersion, APP_VERSION) <= 0"));
   assert.ok(source.includes("'Kein Update verfügbar'"));
-  assert.ok(source.includes('confirm.title = `Update v${remoteVersion} verfügbar`'));
+  assert.ok(source.includes("confirm.title = development ? `Development ${source.label} installieren` : `Update v${remoteVersion} verfügbar`"));
   assert.ok(source.includes("!development && downloadedVersions[0] !== remoteVersion"));
 });
 
