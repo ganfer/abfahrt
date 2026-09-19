@@ -1207,7 +1207,7 @@ async function recoverFromMain() {
 async function uninstall() {
   const confirm = new Alert();
   confirm.title = 'VAG Widget deinstallieren?';
-  confirm.message = 'Löscht die Konfiguration, fixierte und zuletzt verwendete Haltestellen, Verlauf, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
+  confirm.message = 'Löscht die Konfiguration, angepinnte und zuletzt verwendete Haltestellen, Historie, Offline-Daten, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
   confirm.addDestructiveAction('Alles löschen');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() !== 0) return false;
