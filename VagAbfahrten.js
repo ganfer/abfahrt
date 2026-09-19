@@ -959,12 +959,20 @@ async function main() {
   const present = !config.runsInWidget;
   const parameter = rawParameter();
   const wantsSetup = parameter.toLowerCase() === 'setup';
+  const wantsRefresh = parameter.toLowerCase() === 'refresh';
   const hasKeyInKeychain =
     Keychain.contains('TRIAS_REQUESTOR_REF') &&
     Keychain.get('TRIAS_REQUESTOR_REF').trim() !== '';
 
   if (wantsSetup) {
     await setupMode();
+    return;
+  }
+
+  if (wantsRefresh) {
+    const key = Keychain.contains('TRIAS_REQUESTOR_REF') ? Keychain.get('TRIAS_REQUESTOR_REF').trim() : '';
+    if (key) await defaultWidget(key, false, '');
+    else Script.complete();
     return;
   }
 
