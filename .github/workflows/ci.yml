@@ -5,7 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -24,7 +24,24 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-      - name: Version consistency and bump check
+      - name: Auto-bump patch version
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: node scripts/bump-version.js
+      - name: Commit automatic version bump
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if git diff --quiet -- VagAbfahrten.js VagAbfahrten-Config.js VagAbfahrten-Init.js README.md; then
+            echo "Version already matches the required patch version."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add VagAbfahrten.js VagAbfahrten-Config.js VagAbfahrten-Init.js README.md
+            git commit -m "chore: bump updater version"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
+      - name: Version consistency check
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: node scripts/check-version-bump.js
