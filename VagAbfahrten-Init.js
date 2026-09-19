@@ -4,9 +4,11 @@
 // Copy this script to Scriptable and run it once. After a successful install
 // it removes itself from the Scriptable storage it was launched from.
 
+const APP_VERSION = '1.0.0';
+
 const FILES = [
-  ['VagAbfahrten.js', ["const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();']],
-  ['VagAbfahrten-Config.js', ["const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();']],
+  ['VagAbfahrten.js', ["const APP_VERSION = '", "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();']],
+  ['VagAbfahrten-Config.js', ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();']],
 ];
 const BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/main/';
 
@@ -60,7 +62,7 @@ async function main() {
 
     await show(
       'Initialisierung abgeschlossen',
-      'Widget und Config wurden installiert. Die Fullscreen-Anzeige ist im Widget-Skript integriert.\n\nDieses Initialisierungsskript wurde automatisch gelöscht. Künftige Updates startest du über VagAbfahrten-Config → Update.',
+      `VAG Widget v${APP_VERSION} wurde installiert. Widget und Config sind bereit. Die Fullscreen-Anzeige ist im Widget-Skript integriert.\n\nDieses Initialisierungsskript wurde automatisch gelöscht. Künftige Updates startest du über VagAbfahrten-Config → Auf Updates prüfen.`,
     );
   } catch (e) {
     await show(

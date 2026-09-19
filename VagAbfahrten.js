@@ -14,6 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
+const APP_VERSION = '1.0.0';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30120:0:1',

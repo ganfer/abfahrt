@@ -2,6 +2,7 @@
 //
 // Interactive configuration assistant for VagAbfahrten.
 
+const APP_VERSION = '1.0.0';
 const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';
 const SAVED_STOPS_KEY = 'VAG_SAVED_STOPS'; // legacy storage key; now contains pinned stops only
 const RECENT_STOPS_KEY = 'VAG_RECENT_STOPS';
@@ -510,11 +511,11 @@ const UPDATE_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/mai
 const UPDATE_FILES = [
   {
     name: 'VagAbfahrten.js',
-    markers: ["const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();'],
+    markers: ["const APP_VERSION = '", "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();'],
   },
   {
     name: 'VagAbfahrten-Config.js',
-    markers: ["const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();'],
+    markers: ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'VagAbfahrten.config.json';", 'await main();'],
   },
 ];
 
@@ -525,6 +526,28 @@ function updateTargets(fileName) {
   const localPath = local.joinPath(local.documentsDirectory(), fileName);
   if (local.fileExists(localPath)) targets.push({ label: 'Lokal', fm: local });
   return targets;
+}
+
+function versionFromSource(source) {
+  const match = source.match(/const APP_VERSION = ['"]([^'"]+)['"]/);
+  return match ? match[1] : null;
+}
+
+function compareVersions(a, b) {
+  const left = String(a || '').split('.').map((v) => Number(v) || 0);
+  const right = String(b || '').split('.').map((v) => Number(v) || 0);
+  const length = Math.max(left.length, right.length);
+  for (let i = 0; i < length; i++) {
+    const diff = (left[i] || 0) - (right[i] || 0);
+    if (diff) return diff;
+  }
+  return 0;
+}
+
+async function latestVersion() {
+  const mainFile = UPDATE_FILES[0];
+  const source = await downloadUpdateFile(mainFile);
+  return versionFromSource(source);
 }
 
 async function downloadUpdateFile(file) {
@@ -541,9 +564,15 @@ async function downloadUpdateFile(file) {
 }
 
 async function updateScripts() {
+  let remoteVersion = null;
+  try {
+    remoteVersion = await latestVersion();
+  } catch (_) {
+    // The normal update download below still provides the detailed error.
+  }
   const confirm = new Alert();
   confirm.title = 'Skripte aktualisieren';
-  confirm.message = 'Lädt Widget und Config aus dem main-Branch auf GitHub. Deine persönliche VagAbfahrten.config.json und die fixierten Haltestellen bleiben erhalten.';
+  confirm.message = `Installiert die aktuelle Version aus dem main-Branch.\n\nInstalliert: v${APP_VERSION}${remoteVersion ? '\nVerfügbar: v' + remoteVersion : ''}\n\nDeine persönliche Config und die fixierten Haltestellen bleiben erhalten.`;
   confirm.addAction('Update starten');
   confirm.addCancelAction('Abbrechen');
   if (await confirm.present() === -1) return;
@@ -576,7 +605,8 @@ async function updateScripts() {
         }
       }
     }
-    await notice('Update abgeschlossen', written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
+    const installedVersion = versionFromSource(downloads[0].source) || remoteVersion || APP_VERSION;
+    await notice('Update abgeschlossen', `Version v${installedVersion} installiert.\n\n` + written.join('\n') + '\n\nConfig-Datei und fixierte Haltestellen wurden nicht verändert.');
   } catch (e) {
     await notice('Update fehlgeschlagen', 'Es wurden keine Skripte ersetzt.\n\n' + e.message);
   }
@@ -589,13 +619,13 @@ async function main() {
     const stops = savedStops();
     const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
-    menu.title = 'VAG Widget konfigurieren';
+    menu.title = `VAG Widget · v${APP_VERSION}`;
     menu.message = `Widget: ${cfg.rows} Abfahrten\nFullscreen: ${cfg.fullscreen.rows} Abfahrten\nFixierte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
     menu.addAction('Fullscreen');
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
-    menu.addAction('Update');
+    menu.addAction('Auf Updates prüfen');
     menu.addAction('Speichern');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');

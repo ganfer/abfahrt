@@ -1,5 +1,7 @@
 # vag-widget
 
+**Current version: v1.0.0**
+
 Scriptable iOS widget for **VAG Freiburg departures** (TRIAS API of EFA-BW).
 
 ## Features
@@ -48,7 +50,7 @@ MIT.
 
 ## Update aus GitHub
 
-Updates werden über `VagAbfahrten-Config.js` → **Update** installiert. Dabei werden `VagAbfahrten.js` und `VagAbfahrten-Config.js` aus dem `main`-Branch aktualisiert.
+Updates werden über `VagAbfahrten-Config.js` → **Auf Updates prüfen** installiert. Die Config zeigt ihre installierte Version an und liest vor dem Update die Versionskennung aus dem aktuellen `main`-Branch. Dabei werden `VagAbfahrten.js` und `VagAbfahrten-Config.js` aus dem `main`-Branch aktualisiert.
 
 Alle verwalteten Dateien werden vor dem Überschreiben validiert. Die Validierung verwendet eindeutige Inhaltsmarker statt einer Mindest-Dateigröße, sodass auch kleine Hilfsskripte sicher aktualisiert werden können. Die Fullscreen-Anzeige ist direkt in `VagAbfahrten.js` integriert; ein separates `VagAbfahrten-Display.js` wird nicht mehr benötigt.
 
@@ -79,3 +81,8 @@ Der GitHub-Updater aktualisiert `VagAbfahrten.js` und `VagAbfahrten-Config.js`, 
 ### Standort-Fallback
 
 Unter **Config → Standort** kann der Fallback auf die zuletzt verwendete Haltestelle aktiviert oder deaktiviert werden (Standard: **AN**). Wenn GPS nicht verfügbar ist, die TRIAS-Ortssuche fehlschlägt oder keine auswertbare Haltestelle liefert, kann die Fullscreen-Ansicht mit der zuletzt verwendeten Haltestelle fortfahren. Existiert noch keine zuletzt verwendete Haltestelle, bleibt die normale Fehlerdiagnose erhalten.
+
+
+## Versionierung
+
+Widget, Config und Installer tragen eine gemeinsame `APP_VERSION`. Ab **v1.0.0** wird diese Version im Config-Assistenten angezeigt und vom integrierten Updater mit der Version des `main`-Branches verglichen. Persönliche Einstellungen und Keychain-Daten sind von der Script-Version unabhängig.
