@@ -91,7 +91,9 @@ If an update appears stale, run **Config → Auf Updates prüfen** again. The up
 
 ## Development
 
-Run the regression suite with:
+Every push to `main` and every pull request runs the GitHub Actions CI pipeline on Node 22 and 24. It performs JavaScript syntax checks, the regression suite, repository/version consistency checks and publishes a JUnit XML report as a workflow artifact. GitHub Actions dependencies are kept current through Dependabot.
+
+Run the same regression suite locally with:
 
 ```sh
 node --test test/widget.test.js
