@@ -942,6 +942,40 @@ function pinnedLabel(stop) {
   return stopRole(stop).icon + ' ' + (stop.displayName || stop.name);
 }
 
+function pinnedStops() {
+  return savedStops()
+    .filter((stop) => stop.pinned === true)
+    .sort((a, b) => Number(b.home === true) - Number(a.home === true));
+}
+
+async function choosePinnedStop(key, options = {}) {
+  const pinned = pinnedStops();
+  if (!pinned.length) return false;
+
+  const picker = new Alert();
+  picker.title = options.title || 'Angepinnte Haltestellen';
+  picker.message = options.message || 'Wähle eine angepinnte Haltestelle.';
+  for (const stop of pinned) {
+    picker.addAction(pinnedLabel(stop));
+  }
+  picker.addCancelAction(options.cancelLabel || 'Abbrechen');
+
+  const idx = await picker.present();
+  if (idx === -1) {
+    Script.complete();
+    return true;
+  }
+
+  const selectedPin = pinned[idx];
+  rememberStop({
+    stopRef: selectedPin.stopRef,
+    name: selectedPin.displayName || selectedPin.name,
+  });
+  requestWidgetRefresh();
+  await presentDeparturesTable(key);
+  return true;
+}
+
 function requestWidgetRefresh() {
   if (!WIDGET_CONFIG.refreshAfterLocationChange) return;
   // Start a second, explicitly non-interactive run of this script. The
@@ -999,6 +1033,10 @@ async function nearbyFlow(key) {
     Location.setAccuracyToHundredMeters();
     loc = await Location.current();
   } catch (_) {
+    if (await choosePinnedStop(key, {
+      title: 'Standort nicht verfügbar',
+      message: 'GPS ist nicht verfügbar. Wähle stattdessen eine angepinnte Haltestelle.',
+    })) return;
     if (await fallbackToLastStop(key, 'GPS ist nicht verfügbar.')) return;
     await showLocationError(
       'Standort nicht verfügbar',
@@ -1014,6 +1052,10 @@ async function nearbyFlow(key) {
     const doc = parseXmlTree(xml);
     stops = nearbyStopsFromDoc(doc);
   } catch (_) {
+    if (await choosePinnedStop(key, {
+      title: 'Haltestellensuche nicht verfügbar',
+      message: 'Die Haltestellen in deiner Nähe konnten gerade nicht geladen werden. Wähle stattdessen eine angepinnte Haltestelle.',
+    })) return;
     if (await fallbackToLastStop(key, 'Die Haltestellensuche konnte nicht geladen werden.')) return;
     await showLocationError(
       'Haltestellensuche nicht verfügbar',
@@ -1024,6 +1066,10 @@ async function nearbyFlow(key) {
   }
 
   if (!stops.length) {
+    if (await choosePinnedStop(key, {
+      title: 'Keine Haltestellen in der Nähe',
+      message: 'In deiner Nähe wurden keine Haltestellen gefunden. Wähle stattdessen eine angepinnte Haltestelle.',
+    })) return;
     if (await fallbackToLastStop(key, 'In der Nähe wurden keine Haltestellen gefunden.')) return;
     await showLocationError(
       'Keine Haltestellen gefunden',
@@ -1073,24 +1119,8 @@ async function nearbyFlow(key) {
   let selected;
   let selectedPin = null;
   if (pinned.length && idx === pinnedMenuIndex) {
-    const pinnedPicker = new Alert();
-    pinnedPicker.title = 'Angepinnte Haltestellen';
-    pinnedPicker.message = 'Wähle eine angepinnte Haltestelle.';
-    const orderedPinned = [...pinned].sort((a, b) => Number(b.home === true) - Number(a.home === true));
-    for (const stop of orderedPinned) {
-      pinnedPicker.addAction(pinnedLabel(stop));
-    }
-    pinnedPicker.addCancelAction('Zurück');
-    const pinnedIdx = await pinnedPicker.present();
-    if (pinnedIdx === -1) {
-      Script.complete();
-      return;
-    }
-    selectedPin = orderedPinned[pinnedIdx];
-    selected = {
-      stopRef: selectedPin.stopRef,
-      name: selectedPin.displayName || selectedPin.name,
-    };
+    await choosePinnedStop(key, { cancelLabel: 'Zurück' });
+    return;
   } else {
     selected = stops[idx];
     selectedPin = pinnedStopFor(selected, pinned);
