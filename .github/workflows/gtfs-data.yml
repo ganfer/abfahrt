@@ -111,9 +111,9 @@ jobs:
           mkdir -p data/gtfs
           cp -R /tmp/gtfs-data/. data/gtfs/
           cat > README.md <<'EOF'
-          # Abfahrt GTFS data
+          # abfahrt GTFS data
 
-          Machine-generated offline timetable data for Abfahrt.
+          Machine-generated offline timetable data for abfahrt.
 
           Source: MobiData BW / NVBW, Baden-Württemberg scheduled public transport data.
           License: Datenlizenz Deutschland – Namensnennung – Version 2.0.

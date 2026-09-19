@@ -4,23 +4,23 @@
 
 | Component | Responsibility |
 | --- | --- |
-| `Abfahrt.js` | Runtime, TRIAS requests/parsing, GPS stop selection, compact Scriptable widget, fullscreen departures and offline fallback consumption. |
-| `Abfahrt-Config.js` | User configuration plus the central package lifecycle: install, Stable/Development update, repair, uninstall, validation, pinned stops, filters, diagnostics, backup/restore and offline-data maintenance. |
-| `Abfahrt-Install.js` | Small versionless bootstrap. It resolves the latest Stable GitHub Release, installs the released Config and hands the remaining installation lifecycle to Config. |
+| `abfahrt.js` | Runtime, TRIAS requests/parsing, GPS stop selection, compact Scriptable widget, fullscreen departures and offline fallback consumption. |
+| `abfahrt-config.js` | User configuration plus the central package lifecycle: install, Stable/Development update, repair, uninstall, validation, pinned stops, filters, diagnostics, backup/restore and offline-data maintenance. |
+| `abfahrt-install.js` | Small versionless bootstrap. It resolves the latest Stable GitHub Release, installs the released Config and hands the remaining installation lifecycle to Config. |
 | `scripts/build-gtfs.py` | Builds the compact offline timetable snapshot from the statewide GTFS feed. |
 | `gtfs-data` branch | Generated offline timetable data. Kept separate from application source and force-refreshed by the scheduled pipeline. |
 
-`Abfahrt-Refresh.js` was an old helper from the earlier multi-script flow and is no longer part of the managed installation. Refresh is now handled by the integrated runtime.
+`abfahrt-refresh.js` was an old helper from the earlier multi-script flow and is no longer part of the managed installation. Refresh is now handled by the integrated runtime.
 
 ## Runtime flow
 
-The Home Screen widget is passive: it renders the last active stop, or Bertoldsbrunnen when no stop has been selected yet. Tapping it opens `Abfahrt` in Scriptable, where the foreground flow requests GPS, resolves nearby stops, optionally auto-selects an eligible pinned stop, persists the selected stop and opens the fullscreen departures table.
+The Home Screen widget is passive: it renders the last active stop, or Bertoldsbrunnen when no stop has been selected yet. Tapping it opens `abfahrt` in Scriptable, where the foreground flow requests GPS, resolves nearby stops, optionally auto-selects an eligible pinned stop, persists the selected stop and opens the fullscreen departures table.
 
 TRIAS remains the primary departure source. If a TRIAS request fails and the requested stop is eligible for the local cache, the runtime can use scheduled GTFS data as a fallback.
 
 ## Persistence
 
-The TRIAS requestor key and small runtime state are stored in iOS Keychain. Personal layout settings are stored in `Abfahrt.config.json`. Offline GTFS shards are stored below the Scriptable documents directory.
+The TRIAS requestor key and small runtime state are stored in iOS Keychain. Personal layout settings are stored in `abfahrt.config.json`. Offline GTFS shards are stored below the Scriptable documents directory.
 
 Diagnostics are designed to avoid exposing the requestor key, stop references, stop names and coordinates.
 

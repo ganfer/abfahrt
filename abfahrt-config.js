@@ -1,14 +1,14 @@
 // Variables used by Scriptable: icon-color: purple; icon-glyph: sliders-h;
 //
-// Interactive configuration assistant for Abfahrt.
+// Interactive configuration assistant for abfahrt.
 
 const APP_VERSION = '2.0.0';
-const CONFIG_FILE_NAME = 'Abfahrt.config.json';
+const CONFIG_FILE_NAME = 'abfahrt.config.json';
 const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS'; // contains pinned stops
 const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/gtfs-data/data/gtfs/';
-const GTFS_CACHE_DIR = 'Abfahrt-GTFS';
+const GTFS_CACHE_DIR = 'abfahrt-gtfs';
 const DEFAULTS = {
   rows: 5,
   refreshAfterLocationChange: true,
@@ -759,7 +759,7 @@ async function exportConfig(cfg) {
 async function importConfig() {
   const a = new Alert();
   a.title = 'Backup importieren';
-  a.message = 'Füge hier ein zuvor exportiertes Abfahrt-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
+  a.message = 'Füge hier ein zuvor exportiertes abfahrt-Backup ein. Die aktuelle Konfiguration und die angepinnten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
   a.addTextField('Backup JSON', Pasteboard.pasteString() || '');
   a.addAction('Importieren');
   a.addCancelAction('Abbrechen');
@@ -827,15 +827,15 @@ const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF';
 const PENDING_INSTALL_VERSION_KEY = 'ABFAHRT_PENDING_INSTALL_VERSION';
 const PENDING_INSTALLER_NAME_KEY = 'ABFAHRT_PENDING_INSTALLER_NAME';
 
-const INSTALLER_FILE_NAMES = ['Abfahrt-Install.js'];
+const INSTALLER_FILE_NAMES = ['abfahrt-install.js'];
 const MANAGED_FILES = [
   {
-    name: 'Abfahrt.js',
+    name: 'abfahrt.js',
     markers: ["const APP_VERSION = '", "const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';", 'await main();'],
   },
   {
-    name: 'Abfahrt-Config.js',
-    markers: ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'Abfahrt.config.json';", 'await main();'],
+    name: 'abfahrt-config.js',
+    markers: ["const APP_VERSION = '", "const CONFIG_FILE_NAME = 'abfahrt.config.json';", 'await main();'],
   },
 ];
 const MANAGED_KEYCHAIN_KEYS = [
@@ -1093,11 +1093,11 @@ async function completePendingInstall() {
     if (Keychain.contains(DEVELOPMENT_REF_KEY)) Keychain.remove(DEVELOPMENT_REF_KEY);
     await notice(
       'Installation abgeschlossen',
-      `Abfahrt Stable v${expectedVersion} wurde aus ${ref} installiert und verifiziert.
+      `abfahrt Stable v${expectedVersion} wurde aus ${ref} installiert und verifiziert.
 
 ${result.written.join('\n')}
 
-Starte jetzt Abfahrt einmalig, um den TRIAS-Key einzurichten.`,
+Starte jetzt abfahrt einmalig, um den TRIAS-Key einzurichten.`,
     );
   } catch (e) {
     await notice(
@@ -1302,12 +1302,12 @@ function storageDiagnosticLines() {
   return [
     `Laufender Code: v${APP_VERSION}`,
     `Script.name(): ${Script.name()}`,
-    'Abfahrt-Config.js',
-    inspect('  iCloud', cloud, 'Abfahrt-Config.js'),
-    inspect('  Lokal', local, 'Abfahrt-Config.js'),
-    'Abfahrt.js',
-    inspect('  iCloud', cloud, 'Abfahrt.js'),
-    inspect('  Lokal', local, 'Abfahrt.js'),
+    'abfahrt-config.js',
+    inspect('  iCloud', cloud, 'abfahrt-config.js'),
+    inspect('  Lokal', local, 'abfahrt-config.js'),
+    'abfahrt.js',
+    inspect('  iCloud', cloud, 'abfahrt.js'),
+    inspect('  Lokal', local, 'abfahrt.js'),
   ];
 }
 
@@ -1316,7 +1316,7 @@ async function buildDiagnostics(cfg) {
   const github = await probeEndpoint(RELEASE_API_URL, { Accept: 'application/vnd.github+json' });
   const trias = await probeEndpoint(TRIAS_ENDPOINT);
   return [
-    'Abfahrt Diagnose',
+    'abfahrt Diagnose',
     ...storageDiagnosticLines(),
     `Update-Kanal: ${d.channel}`,
     `TRIAS-Key: ${d.key}`,
@@ -1370,7 +1370,7 @@ async function recoverFromMain() {
 
 async function uninstall() {
   const confirm = new Alert();
-  confirm.title = 'Abfahrt deinstallieren?';
+  confirm.title = 'abfahrt deinstallieren?';
   confirm.message = 'Löscht die Konfiguration, angepinnte und zuletzt verwendete Haltestellen, Offline-Daten, Update-Status, den TRIAS-Key und die verwalteten Script-Dateien. Dieser Vorgang kann nicht rückgängig gemacht werden.';
   confirm.addDestructiveAction('Alles löschen');
   confirm.addCancelAction('Abbrechen');
@@ -1387,7 +1387,7 @@ async function uninstall() {
       if (manager.fileExists(path)) manager.remove(path);
     }
   }
-  await notice('Deinstalliert', 'Alle bekannten Abfahrt-Daten einschließlich TRIAS-Key und Script-Dateien wurden gelöscht.');
+  await notice('Deinstalliert', 'Alle bekannten abfahrt-Daten einschließlich TRIAS-Key und Script-Dateien wurden gelöscht.');
   return true;
 }
 
@@ -1424,7 +1424,7 @@ async function main() {
     const stops = savedStops();
     const pinned = stops.filter((s) => s.pinned === true).length;
     const menu = new Alert();
-    menu.title = `Abfahrt · v${APP_VERSION}`;
+    menu.title = `abfahrt · v${APP_VERSION}`;
     menu.message = `Widget: ${cfg.rows} Abfahrten\nVollbild: ${cfg.fullscreen.rows} Abfahrten\nAngepinnte Haltestellen: ${pinned}`;
     menu.addAction('Widget');
     menu.addAction('Vollbild');

@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
-const VERSION_FILES = ['Abfahrt.js', 'Abfahrt-Config.js'];
+const VERSION_FILES = ['abfahrt.js', 'abfahrt-config.js'];
 const UPDATE_RELEVANT = VERSION_FILES;
 
 function version(source, label) {
@@ -25,13 +25,13 @@ if (!changed.some((file) => UPDATE_RELEVANT.includes(file))) {
 
 let baseSource;
 try {
-  baseSource = execFileSync('git', ['show', `origin/${baseRef}:Abfahrt.js`], { encoding: 'utf8' });
+  baseSource = execFileSync('git', ['show', `origin/${baseRef}:abfahrt.js`], { encoding: 'utf8' });
 } catch (_) {
-  console.log('Basisbranch enthält die neue Abfahrt.js noch nicht; vorhandene Rename-Version wird beibehalten.');
+  console.log('Basisbranch enthält die neue abfahrt.js noch nicht; vorhandene Rename-Version wird beibehalten.');
   process.exit(0);
 }
-const base = version(baseSource, `origin/${baseRef}:Abfahrt.js`);
-const current = version(fs.readFileSync('Abfahrt.js', 'utf8'), 'Abfahrt.js');
+const base = version(baseSource, `origin/${baseRef}:abfahrt.js`);
+const current = version(fs.readFileSync('abfahrt.js', 'utf8'), 'abfahrt.js');
 const automatic = `${base.major}.${base.minor}.${base.patch + 1}`;
 const manuallyBumped = current.major > base.major || current.minor > base.minor || (current.major === base.major && current.minor === base.minor && current.patch > base.patch);
 const next = manuallyBumped ? `${current.major}.${current.minor}.${current.patch}` : automatic;

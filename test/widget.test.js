@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const src = read('Abfahrt.js');
+const src = read('abfahrt.js');
 
 class FakeXMLParser {
   constructor(raw) { this.raw = raw; }
@@ -78,7 +78,7 @@ const T = sandbox.__test;
 
 test('widget tap starts the integrated foreground flow', () => {
   const w = T.buildWidget('Test', null, [], 0, null, 'nearby');
-  assert.equal(w.urlValue, 'scriptable:///run/Abfahrt');
+  assert.equal(w.urlValue, 'scriptable:///run/abfahrt');
 });
 
 test('foreground run reads query parameter and key from Keychain', () => {
@@ -101,14 +101,14 @@ test('nearby request contains coordinates', () => {
 
 
 test('stop event request accepts configured result limit', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /function buildStopEventRequest\(stopRef, key, resultLimit = 8\)/);
   assert.match(source, /NumberOfResults>\$\{Math\.max\(1, Math\.min\(30,/);
 });
 
 test('widget and config await iCloud config downloads', () => {
-  const widget = read('Abfahrt.js');
-  const config = read('Abfahrt-Config.js');
+  const widget = read('abfahrt.js');
+  const config = read('abfahrt-config.js');
   assert.match(widget, /async function loadWidgetConfig\(\)/);
   assert.match(widget, /await fm\.downloadFileFromiCloud\(path\)/);
   assert.match(config, /async function loadConfig\(\)/);
@@ -116,14 +116,14 @@ test('widget and config await iCloud config downloads', () => {
 });
 
 test('widget row slicing uses configured row count', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /slice\(0, Math\.max\(1, Math\.min\(8, Number\(WIDGET_CONFIG\.rows\)/);
   assert.doesNotMatch(source, /\.slice\(0, 5\);/);
 });
 
 
 test('runtime maps technical failures to user-facing errors', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /function friendlyError\(error\)/);
   assert.match(source, /TRIAS-Key wurde abgelehnt/);
   assert.match(source, /Keine Verbindung zu EFA-BW/);
@@ -131,14 +131,14 @@ test('runtime maps technical failures to user-facing errors', () => {
 });
 
 test('fullscreen failure shows last attempt time', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /Abfahrten nicht verfügbar/);
   assert.match(source, /Letzter Versuch:/);
 });
 
 
 test('widget parameters are not rendered as widget errors', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.ok(source.includes('async function defaultWidget(key, present)'));
   assert.doesNotMatch(source, /async function defaultWidget\(key, present, tapParameter\)/);
   assert.doesNotMatch(source, /cancelledCount\(filteredEvents, Date\.now\(\)\), tapParameter/);
@@ -147,29 +147,29 @@ test('widget parameters are not rendered as widget errors', () => {
 });
 
 test('widget tap uses the integrated foreground flow', () => {
-  const source = read('Abfahrt.js');
-  assert.match(source, /return 'scriptable:\/\/\/run\/Abfahrt';/);
-  assert.doesNotMatch(source, /Abfahrt\?action=select/);
+  const source = read('abfahrt.js');
+  assert.match(source, /return 'scriptable:\/\/\/run\/abfahrt';/);
+  assert.doesNotMatch(source, /abfahrt\?action=select/);
 });
 
 test('location distance requires valid stop and device coordinates', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /if \(!Number\.isFinite\(stop\.latitude\) \|\| !Number\.isFinite\(stop\.longitude\)\) return null;/);
   assert.match(source, /if \(!Number\.isFinite\(location\?\.latitude\) \|\| !Number\.isFinite\(location\?\.longitude\)\) return null;/);
 });
 
 test('README describes the current two-script architecture', () => {
   const source = read('README.md');
-  assert.match(source, /Abfahrt\.js/);
+  assert.match(source, /abfahrt\.js/);
   assert.match(source, /Home Screen widget/);
-  assert.match(source, /Abfahrt-Config\.js/);
-  assert.doesNotMatch(source, /Abfahrt-Display\.js/);
-  assert.doesNotMatch(source, /Abfahrt-Refresh\.js/);
+  assert.match(source, /abfahrt-config\.js/);
+  assert.doesNotMatch(source, /abfahrt-Display\.js/);
+  assert.doesNotMatch(source, /abfahrt-refresh\.js/);
 });
 
 
 test('GPS picker exposes pinned stops and shares the selection flow', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /picker\.addAction\('📌 Angepinnte Haltestellen'\)/);
   assert.match(source, /pinnedPicker\.title = 'Angepinnte Haltestellen'/);
   assert.ok(source.includes('selectedPin = orderedPinned[pinnedIdx]'));
@@ -179,7 +179,7 @@ test('GPS picker exposes pinned stops and shares the selection flow', () => {
 
 
 test('Home superpin is exposed in runtime and fallback flow', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /function homeStop\(/);
   assert.match(source, /if \(stop\.home === true \|\| stop\.role === 'home'\)/);
   assert.match(source, /icon: '🏠'/);
@@ -188,7 +188,7 @@ test('Home superpin is exposed in runtime and fallback flow', () => {
 });
 
 test('config supports one Home stop and three fallback modes', () => {
-  const source = read('Abfahrt-Config.js');
+  const source = read('abfahrt-config.js');
   assert.match(source, /a\.addAction\('🏠 Home'\)/);
   assert.match(source, /home:i===index/);
   assert.match(source, /fallbackMode: 'last'/);
@@ -198,7 +198,7 @@ test('config supports one Home stop and three fallback modes', () => {
 
 
 test('updater compares remote and installed versions before installing', () => {
-  const source = read('Abfahrt-Config.js');
+  const source = read('abfahrt-config.js');
   assert.ok(source.includes('compareVersions(remoteVersion, APP_VERSION)'));
   assert.ok(source.includes("!development && compareVersions(remoteVersion, APP_VERSION) <= 0"));
   assert.ok(source.includes("'Kein Update verfügbar'"));
@@ -208,8 +208,8 @@ test('updater compares remote and installed versions before installing', () => {
 
 
 test('Home keeps the configured stop display name', () => {
-  const runtime = read('Abfahrt.js');
-  const config = read('Abfahrt-Config.js');
+  const runtime = read('abfahrt.js');
+  const config = read('abfahrt-config.js');
   assert.ok(runtime.includes("return stopRole(stop).icon + ' ' + (stop.displayName || stop.name)"));
   assert.ok(runtime.includes('name: home.displayName || home.name'));
   assert.ok(runtime.includes('name: selectedPin.displayName || selectedPin.name'));
@@ -218,7 +218,7 @@ test('Home keeps the configured stop display name', () => {
 
 
 test('updater resolves the latest GitHub Release and downloads that exact tag', () => {
-  const source = read('Abfahrt-Config.js');
+  const source = read('abfahrt-config.js');
   assert.ok(source.includes("https://api.github.com/repos/ganfer/abfahrt/releases/latest"));
   assert.ok(source.includes("https://raw.githubusercontent.com/ganfer/abfahrt/"));
   assert.ok(source.includes("source = development ? await latestDevelopment() : await latestRelease()"));
@@ -256,8 +256,8 @@ test('pinned and Home selection respect pin state and matching rules', () => {
 
 
 test('stop roles, groups and filters are wired into runtime', () => {
-  const runtime = read('Abfahrt.js');
-  const config = read('Abfahrt-Config.js');
+  const runtime = read('abfahrt.js');
+  const config = read('abfahrt-config.js');
   assert.match(runtime, /function stopRefsFor\(/);
   assert.match(runtime, /function eventMatchesFilter\(/);
   assert.match(runtime, /applyPinnedFilter\(events, activePin, 'widget'\)/);
@@ -272,14 +272,14 @@ test('stop roles, groups and filters are wired into runtime', () => {
 });
 
 test('realtime display distinguishes realtime, delay and timetable-only data', () => {
-  const runtime = read('Abfahrt.js');
+  const runtime = read('abfahrt.js');
   assert.ok(runtime.includes("r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'"));
   assert.match(runtime, /if \(r\.cancelled\) right = 'entfällt'/);
 });
 
 
 test('offline GTFS is limited to configured saved stops', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /function offlineStopAllowed\(stopRefs\)/);
   assert.match(source, /WIDGET_CONFIG\.offline\.pinned/);
   assert.match(source, /WIDGET_CONFIG\.offline\.history/);
@@ -287,21 +287,21 @@ test('offline GTFS is limited to configured saved stops', () => {
 });
 
 test('TRIAS remains primary and GTFS is only a fallback', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /async function fetchDeparturesWithOffline/);
   assert.match(source, /return await fetchDepartures\(stopRefs, key, resultLimit\)/);
   assert.match(source, /const fallback = offlineDepartures\(stopRefs\)/);
 });
 
 test('offline GTFS respects service calendars and exceptions', () => {
-  const source = read('Abfahrt.js');
+  const source = read('abfahrt.js');
   assert.match(source, /function gtfsServiceRuns\(service, date\)/);
   assert.match(source, /service\.exceptions/);
   assert.match(source, /service\.weekdays/);
 });
 
 test('config can cache pinned stops and recent history independently', () => {
-  const source = read('Abfahrt-Config.js');
+  const source = read('abfahrt-config.js');
   assert.match(source, /offline: \{ enabled: true, pinned: true, history: true, autoUpdate: true \}/);
   assert.match(source, /if \(cfg\.offline\?\.pinned\)/);
   assert.match(source, /if \(cfg\.offline\?\.history\)/);
@@ -344,8 +344,8 @@ test('GTFS fallback resolves only unambiguous station-name aliases', () => {
 });
 
 test('runtime and config persist the resolved GTFS source reference', () => {
-  const runtime = read('Abfahrt.js');
-  const config = read('Abfahrt-Config.js');
+  const runtime = read('abfahrt.js');
+  const config = read('abfahrt-config.js');
   assert.match(runtime, /sourceRef: resolveGtfsIndexRef/);
   assert.match(runtime, /const sourceRef = entry\.sourceRef \|\| logicalRef/);
   assert.match(config, /sourceRef: resolveGtfsIndexRef/);
@@ -353,14 +353,14 @@ test('runtime and config persist the resolved GTFS source reference', () => {
 });
 
 test('offline auto refresh remembers the requested stop set instead of retrying unmapped IDs every run', () => {
-  const runtime = read('Abfahrt.js');
+  const runtime = read('abfahrt.js');
   assert.match(runtime, /localRequestedStops: \[\.\.\.wanted\]/);
   assert.match(runtime, /Array\.isArray\(manifest\.localRequestedStops\)/);
   assert.doesNotMatch(runtime, /wanted\.some\(\(ref\) => !index\.stops\[ref\]\)/);
 });
 
 test('manual offline refresh records sync metadata and downloads shards before replacing cache', () => {
-  const config = read('Abfahrt-Config.js');
+  const config = read('abfahrt-config.js');
   assert.match(config, /localSyncedAt: new Date\(\)\.toISOString\(\)/);
   assert.match(config, /localRequestedStops: \[\.\.\.wanted\]/);
   const downloadPos = config.indexOf("for (const shard of shards) downloads.push");
@@ -369,21 +369,21 @@ test('manual offline refresh records sync metadata and downloads shards before r
 });
 
 test('uninstall removes last-stop state and the offline cache', () => {
-  const config = read('Abfahrt-Config.js');
+  const config = read('abfahrt-config.js');
   assert.match(config, /'ABFAHRT_LAST_STOP_REF'/);
   assert.match(config, /'ABFAHRT_LAST_STOP_NAME'/);
   assert.match(config, /await deleteOfflineData\(false\);/);
 });
 
 test('GTFS fallback checks the previous service day for after-midnight trips', () => {
-  const runtime = read('Abfahrt.js');
+  const runtime = read('abfahrt.js');
   assert.match(runtime, /yesterday\.setDate\(yesterday\.getDate\(\) - 1\)/);
   assert.match(runtime, /const serviceDates = \[today, yesterday\]/);
 });
 
 test('user-facing pinned-stop terminology is consistent', () => {
-  const runtime = read('Abfahrt.js');
-  const config = read('Abfahrt-Config.js');
+  const runtime = read('abfahrt.js');
+  const config = read('abfahrt-config.js');
   assert.match(config, /Angepinnte Haltestellen/);
   assert.match(runtime, /📌 Angepinnte Haltestellen/);
   assert.doesNotMatch(config, /Fixierte Haltestellen/);
@@ -392,8 +392,8 @@ test('user-facing pinned-stop terminology is consistent', () => {
 
 
 test('fullscreen keeps destinations readable and honors configurable column proportions', () => {
-  const runtime = read('Abfahrt.js');
-  const config = read('Abfahrt-Config.js');
+  const runtime = read('abfahrt.js');
+  const config = read('abfahrt-config.js');
 
   assert.ok(runtime.includes("value: (r) => r.destination || '–'"));
   assert.match(runtime, /const widthSum = defs\.reduce/);

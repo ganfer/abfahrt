@@ -1,12 +1,12 @@
 // Variables used by Scriptable: icon-color: green; icon-glyph: download;
 //
-// Stable bootstrap installer for Abfahrt.
+// Stable bootstrap installer for abfahrt.
 // Copy this single file to Scriptable and run it once. The released Config
 // owns the actual installation, validation and cleanup lifecycle.
 
 const RELEASE_API_URL = 'https://api.github.com/repos/ganfer/abfahrt/releases/latest';
 const RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/';
-const CONFIG_NAME = 'Abfahrt-Config.js';
+const CONFIG_NAME = 'abfahrt-config.js';
 const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF';
 const PENDING_INSTALL_VERSION_KEY = 'ABFAHRT_PENDING_INSTALL_VERSION';
 const PENDING_INSTALLER_NAME_KEY = 'ABFAHRT_PENDING_INSTALLER_NAME';
@@ -66,14 +66,14 @@ async function main() {
     }
 
     if (!config.includes("const PENDING_INSTALL_REF_KEY = 'ABFAHRT_PENDING_INSTALL_REF'") || !config.includes('completePendingInstall')) {
-      throw new Error('Dieses Stable Release gehört nicht zur aktuellen Abfahrt-Produktlinie.');
+      throw new Error('Dieses Stable Release gehört nicht zur aktuellen abfahrt-Produktlinie.');
     }
 
     target.writeString(target.joinPath(target.documentsDirectory(), CONFIG_NAME), config);
     Keychain.set(PENDING_INSTALL_REF_KEY, release.tag);
     Keychain.set(PENDING_INSTALL_VERSION_KEY, release.version);
     Keychain.set(PENDING_INSTALLER_NAME_KEY, Script.name());
-    Safari.open('scriptable:///run?scriptName=' + encodeURIComponent('Abfahrt-Config'));
+    Safari.open('scriptable:///run?scriptName=' + encodeURIComponent('abfahrt-config'));
     Script.complete();
     return;
   } catch (e) {

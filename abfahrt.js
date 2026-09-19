@@ -1,6 +1,6 @@
 // Variables used by Scriptable: icon-color: red; icon-glyph: train;
 //
-// public transport departures widget (EFA-BW TRIAS) — "Abfahrt"
+// public transport departures widget (EFA-BW TRIAS) — "abfahrt"
 //
 // Setup:
 //   1. Copy this file into Scriptable.
@@ -79,7 +79,7 @@ const DEFAULT_FULLSCREEN_CONFIG = {
 const DEFAULT_FILTER_CONFIG = { widget: true, fullscreen: true };
 const DEFAULT_OFFLINE_CONFIG = { enabled: true, pinned: true, history: true, autoUpdate: true };
 const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/abfahrt/gtfs-data/data/gtfs/';
-const GTFS_CACHE_DIR = 'Abfahrt-GTFS';
+const GTFS_CACHE_DIR = 'abfahrt-gtfs';
 
 const DEFAULT_LOCATION_CONFIG = {
   autoSelectSavedStop: true,
@@ -87,7 +87,7 @@ const DEFAULT_LOCATION_CONFIG = {
   fallbackMode: 'last',
 };
 
-const CONFIG_FILE_NAME = 'Abfahrt.config.json';
+const CONFIG_FILE_NAME = 'abfahrt.config.json';
 
 function mergeWidgetConfig(saved) {
   const d = DEFAULT_WIDGET_CONFIG;
@@ -147,7 +147,7 @@ let WIDGET_CONFIG = mergeWidgetConfig(null);
 function widgetOpenUrl() {
   // A widget tap starts the interactive foreground flow in this same script:
   // GPS -> stop selection/auto-selection -> fullscreen departures.
-  return 'scriptable:///run/Abfahrt';
+  return 'scriptable:///run/abfahrt';
 }
 
 function rawParameter() {
@@ -1383,7 +1383,7 @@ async function main() {
         return;
       }
       const w = buildWidget(
-        'Abfahrt',
+        'abfahrt',
         null,
         [],
         0,
@@ -1400,7 +1400,7 @@ async function main() {
   try {
     ({ key } = parseParameter());
   } catch (e) {
-    const w = buildWidget('Abfahrt', null, [], 0, e.message, parameter);
+    const w = buildWidget('abfahrt', null, [], 0, e.message, parameter);
     if (present) w.presentMedium();
     else Script.setWidget(w);
     Script.complete();

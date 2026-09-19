@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'Abfahrt-Config.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'abfahrt-config.js'), 'utf8');
 
 function extractFunction(name) {
   const marker = 'function ' + name + '(';
