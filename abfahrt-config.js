@@ -157,8 +157,8 @@ function normalizeConfig(saved) {
         refreshAfterLocationChange:
           typeof widget.common?.refreshAfterLocationChange === 'boolean'
             ? widget.common.refreshAfterLocationChange
-            : typeof value.refreshAfterLocationChange === 'boolean'
-              ? value.refreshAfterLocationChange
+            : typeof legacyRefreshAfterLocationChange === 'boolean'
+              ? legacyRefreshAfterLocationChange
               : DEFAULTS.widget.common.refreshAfterLocationChange,
       },
       small: mergeWidgetLayout(DEFAULTS.widget.small, widget.small),
