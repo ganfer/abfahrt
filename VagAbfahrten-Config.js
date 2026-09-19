@@ -579,23 +579,43 @@ async function downloadJson(url) {
   if (status < 200 || status >= 300) throw new Error('HTTP ' + (status || '?'));
   return { raw, value: JSON.parse(raw) };
 }
-function offlineWantedStops(cfg) {
+function offlineWantedStopEntries(cfg) {
   const all = [];
   if (cfg.offline?.pinned) all.push(...savedStops().filter((stop) => stop.pinned === true));
   if (cfg.offline?.history) all.push(...recentStops().slice(0, 20));
-  const refs = new Set();
+  const entries = new Map();
   for (const stop of all) {
     const stopRefs = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
-    for (const ref of stopRefs) if (ref) refs.add(canonicalGtfsStopRef(ref));
+    for (const rawRef of stopRefs) {
+      if (!rawRef) continue;
+      const ref = canonicalGtfsStopRef(rawRef);
+      if (!entries.has(ref)) entries.set(ref, {
+        ref,
+        name: stop.displayName || stop.name || 'Unbenannte Haltestelle',
+      });
+    }
   }
-  return [...refs];
+  return [...entries.values()];
+}
+function offlineWantedStops(cfg) {
+  return offlineWantedStopEntries(cfg).map((item) => item.ref);
+}
+function formatOfflineTimestamp(value) {
+  if (!value || value === 'keine Daten' || value === 'unbekannt') return value || 'keine Daten';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return String(value);
+  return date.toLocaleString('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }) + ' Uhr';
 }
 async function syncOfflineData(cfg) {
   if (!cfg.offline?.enabled) {
     await notice('Offline-Fahrplan ist aus', 'Aktiviere den Offline-Fahrplan zuerst.');
     return;
   }
-  const wanted = offlineWantedStops(cfg);
+  const wantedEntries = offlineWantedStopEntries(cfg);
+  const wanted = wantedEntries.map((item) => item.ref);
   if (!wanted.length) {
     await notice('Keine Haltestellen', 'Es gibt keine ausgewählten fixierten oder zuletzt verwendeten Haltestellen.');
     return;
@@ -604,7 +624,7 @@ async function syncOfflineData(cfg) {
     const manifest = await downloadJson(GTFS_RAW_BASE_URL + 'manifest.json');
     const index = await downloadJson(GTFS_RAW_BASE_URL + 'index.json');
     const found = wanted.filter((ref) => index.value.stops?.[ref]);
-    const missing = wanted.filter((ref) => !index.value.stops?.[ref]);
+    const missing = wantedEntries.filter((item) => !index.value.stops?.[item.ref]);
     const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
     const manager = offlineManager();
     ensureOfflineDir();
@@ -621,8 +641,11 @@ async function syncOfflineData(cfg) {
     for (const name of manager.listContents(offlineDir())) {
       if (!keep.has(name)) manager.remove(manager.joinPath(offlineDir(), name));
     }
-    const stamp = manifest.value.sourceImportedAt || manifest.value.generatedAt || 'unbekannt';
-    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} gespeicherte Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missing.length ? '\n\nNicht zugeordnet: ' + missing.length : ''}`);
+    const stamp = formatOfflineTimestamp(manifest.value.sourceImportedAt || manifest.value.generatedAt || 'unbekannt');
+    const missingText = missing.length
+      ? '\n\nNicht zugeordnet (' + missing.length + '):\n' + missing.map((item) => '• ' + item.name + ' [' + item.ref + ']').join('\n')
+      : '';
+    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} gespeicherte Haltestellen verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
   } catch (e) {
     await notice('Offline-Update fehlgeschlagen', 'Die bisherigen Offline-Daten bleiben erhalten.\n\n' + e.message);
   }
@@ -637,7 +660,7 @@ function offlineStatus(cfg) {
   const index = readOfflineJson('index.json');
   const wanted = offlineWantedStops(cfg);
   const available = wanted.filter((ref) => index?.stops?.[ref]).length;
-  const stamp = manifest?.sourceImportedAt || manifest?.generatedAt || 'keine Daten';
+  const stamp = formatOfflineTimestamp(manifest?.sourceImportedAt || manifest?.generatedAt || 'keine Daten');
   return { wanted: wanted.length, available, stamp };
 }
 async function configureOffline(cfg) {
