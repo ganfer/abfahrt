@@ -75,7 +75,7 @@ const DEFAULT_FULLSCREEN_CONFIG = {
 };
 
 const DEFAULT_FILTER_CONFIG = { widget: true, fullscreen: true };
-const DEFAULT_OFFLINE_CONFIG = { enabled: true, pinned: true, history: true };
+const DEFAULT_OFFLINE_CONFIG = { enabled: true, pinned: true, history: true, autoUpdate: true };
 const GTFS_RAW_BASE_URL = 'https://raw.githubusercontent.com/ganfer/vag-widget/gtfs-data/data/gtfs/';
 const GTFS_CACHE_DIR = 'VagAbfahrten-GTFS';
 
@@ -521,6 +521,72 @@ function offlineStopAllowed(stopRefs) {
   }
   return false;
 }
+function offlineWantedStopsRuntime() {
+  const refs = [];
+  if (WIDGET_CONFIG.offline?.pinned) {
+    for (const stop of savedStops().filter((item) => item.pinned === true)) {
+      const stopRefs = Array.isArray(stop.stopRefs) && stop.stopRefs.length ? stop.stopRefs : [stop.stopRef];
+      refs.push(...stopRefs);
+    }
+  }
+  if (WIDGET_CONFIG.offline?.history) {
+    for (const stop of recentStops().slice(0, RECENT_STOPS_LIMIT)) refs.push(stop.stopRef);
+  }
+  return [...new Set(refs.filter(Boolean).map(canonicalGtfsStopRef))];
+}
+async function downloadGtfsJson(name) {
+  const req = new Request(GTFS_RAW_BASE_URL + name + '?t=' + Date.now());
+  req.timeoutInterval = 12;
+  req.headers = { Accept: 'application/json', 'Cache-Control': 'no-cache' };
+  const raw = await req.loadString();
+  const status = req.response ? req.response.statusCode : 0;
+  if (status !== 200) throw new Error('GTFS HTTP ' + (status || '?'));
+  return { raw, value: JSON.parse(raw) };
+}
+function offlineCacheNeedsUpdate(wanted) {
+  const manifest = readGtfsJson('manifest.json');
+  const index = readGtfsJson('index.json');
+  if (!manifest || !index?.stops) return true;
+  if (wanted.some((ref) => !index.stops[ref])) return true;
+  const cached = Object.keys(index.stops).sort().join('|');
+  if (cached !== [...wanted].sort().join('|')) return true;
+  const checkedAt = Date.parse(manifest.localSyncedAt || '');
+  return !Number.isFinite(checkedAt) || Date.now() - checkedAt >= 24 * 60 * 60 * 1000;
+}
+async function autoSyncOfflineData() {
+  if (!WIDGET_CONFIG.offline?.enabled || WIDGET_CONFIG.offline.autoUpdate === false) return;
+  const wanted = offlineWantedStopsRuntime();
+  if (!wanted.length || !offlineCacheNeedsUpdate(wanted)) return;
+  try {
+    const manifest = await downloadGtfsJson('manifest.json');
+    const index = await downloadGtfsJson('index.json');
+    const found = wanted.filter((ref) => index.value.stops?.[ref]);
+    const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
+    const downloads = [];
+    for (const shard of shards) downloads.push([shard, await downloadGtfsJson(shard + '.json')]);
+
+    // Download everything first. Only replace the usable cache after every
+    // required file arrived, so a transient network error keeps the old cache.
+    const manager = gtfsCacheManager();
+    const dir = manager.joinPath(manager.documentsDirectory(), GTFS_CACHE_DIR);
+    if (!manager.fileExists(dir)) manager.createDirectory(dir, true);
+    const localManifest = { ...manifest.value, localSyncedAt: new Date().toISOString() };
+    manager.writeString(gtfsCachePath('manifest.json'), JSON.stringify(localManifest));
+    manager.writeString(gtfsCachePath('index.json'), JSON.stringify({
+      schemaVersion: index.value.schemaVersion,
+      stops: Object.fromEntries(found.map((ref) => [ref, index.value.stops[ref]])),
+    }));
+    for (const [shard, data] of downloads) manager.writeString(gtfsCachePath(shard + '.json'), data.raw);
+    const keep = new Set(['manifest.json', 'index.json', ...shards.map((shard) => shard + '.json')]);
+    for (const name of manager.listContents(dir)) {
+      if (!keep.has(name)) manager.remove(manager.joinPath(dir, name));
+    }
+  } catch (_) {
+    // Best effort only: online TRIAS remains primary and an existing offline
+    // cache must continue to work when GitHub/network access is unavailable.
+  }
+}
+
 function offlineDepartures(stopRefs, nowMs = Date.now()) {
   if (!offlineStopAllowed(stopRefs)) return [];
   const index = readGtfsJson('index.json');
@@ -1224,6 +1290,7 @@ async function setupMode() {
 
 async function main() {
   WIDGET_CONFIG = await loadWidgetConfig();
+  await autoSyncOfflineData();
   const present = !config.runsInWidget;
   const parameter = rawParameter();
   const wantsSetup = parameter.toLowerCase() === 'setup';
