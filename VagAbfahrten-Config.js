@@ -604,6 +604,7 @@ function offlineWantedStopEntries(cfg) {
       if (!entries.has(ref)) entries.set(ref, {
         ref,
         name: stop.displayName || stop.name || 'Unbenannte Haltestelle',
+        sourceName: stop.name || stop.displayName || '',
       });
     }
   }
@@ -611,6 +612,21 @@ function offlineWantedStopEntries(cfg) {
 }
 function offlineWantedStops(cfg) {
   return offlineWantedStopEntries(cfg).map((item) => item.ref);
+}
+function normalizeGtfsLookupName(value) {
+  return normalizeStopName(String(value || '')
+    .replace(/\b(?:bstg|bahnsteig|steig|gleis)\b.*$/i, '')
+    .replace(/[\s,;:\-]+$/g, ''));
+}
+function resolveGtfsIndexRef(entry, stops) {
+  if (stops?.[entry.ref]) return entry.ref;
+  const target = normalizeGtfsLookupName(entry.sourceName || entry.name);
+  if (!target) return null;
+  const matches = Object.entries(stops || {})
+    .filter(([, value]) => normalizeGtfsLookupName(value?.name) === target);
+  const preferred = matches.filter(([ref]) => !/_parent$/i.test(ref) && !/^gen:/i.test(ref));
+  const candidates = preferred.length ? preferred : matches;
+  return candidates.length === 1 ? candidates[0][0] : null;
 }
 function formatOfflineTimestamp(value) {
   if (!value || value === 'keine Daten' || value === 'unbekannt') return value || 'keine Daten';
@@ -639,9 +655,13 @@ async function syncOfflineData(cfg) {
   try {
     const manifest = await downloadJson(GTFS_RAW_BASE_URL + 'manifest.json');
     const index = await downloadJson(GTFS_RAW_BASE_URL + 'index.json');
-    const found = wanted.filter((ref) => index.value.stops?.[ref]);
-    const missing = wantedEntries.filter((item) => !index.value.stops?.[item.ref]);
-    const shards = [...new Set(found.map((ref) => index.value.stops[ref].shard))];
+    const resolved = wantedEntries.map((item) => ({
+      ...item,
+      sourceRef: resolveGtfsIndexRef(item, index.value.stops),
+    }));
+    const found = resolved.filter((item) => item.sourceRef);
+    const missing = resolved.filter((item) => !item.sourceRef);
+    const shards = [...new Set(found.map((item) => index.value.stops[item.sourceRef].shard))];
     const downloads = [];
     for (const shard of shards) downloads.push([shard, await downloadJson(GTFS_RAW_BASE_URL + shard + '.json')]);
 
@@ -656,7 +676,10 @@ async function syncOfflineData(cfg) {
     manager.writeString(offlineFile('manifest.json'), JSON.stringify(localManifest));
     manager.writeString(offlineFile('index.json'), JSON.stringify({
       schemaVersion: index.value.schemaVersion,
-      stops: Object.fromEntries(found.map((ref) => [ref, index.value.stops[ref]])),
+      stops: Object.fromEntries(found.map((item) => [
+        item.ref,
+        { ...index.value.stops[item.sourceRef], sourceRef: item.sourceRef },
+      ])),
     }));
     for (const [shard, data] of downloads) {
       manager.writeString(offlineFile(shard + '.json'), data.raw);
