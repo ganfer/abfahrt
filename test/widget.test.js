@@ -203,3 +203,13 @@ test('Home keeps the configured stop display name', () => {
   assert.ok(runtime.includes('name: selectedPin.displayName || selectedPin.name'));
   assert.ok(config.includes("(stop.home === true ? '🏠 ' : '📌 ') + (stop.displayName || stop.name)"));
 });
+
+
+test('updater resolves the latest GitHub Release and downloads that exact tag', () => {
+  const source = read('VagAbfahrten-Config.js');
+  assert.ok(source.includes("https://api.github.com/repos/ganfer/vag-widget/releases/latest"));
+  assert.ok(source.includes("https://raw.githubusercontent.com/ganfer/vag-widget/"));
+  assert.ok(source.includes("release = await latestRelease()"));
+  assert.ok(source.includes("downloadUpdateFile(file, release.tag)"));
+  assert.ok(!source.includes("raw.githubusercontent.com/ganfer/vag-widget/main/"));
+});
