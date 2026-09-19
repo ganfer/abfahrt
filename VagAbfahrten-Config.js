@@ -898,6 +898,71 @@ async function configureDiagnostics(cfg) {
   }
 }
 
+
+async function recoverFromMain() {
+  const confirm = new Alert();
+  confirm.title = 'Installation reparieren';
+  confirm.message = 'Widget und Config werden direkt aus dem aktuellen GitHub-main wiederhergestellt. Persönliche Konfiguration und fixierte Haltestellen bleiben erhalten.\n\nDiese Funktion umgeht die normale Stable-/Development-Updateprüfung.';
+  confirm.addDestructiveAction('Recovery starten');
+  confirm.addCancelAction('Abbrechen');
+  if (await confirm.present() === -1) return;
+
+  try {
+    const source = await latestDevelopment();
+    const downloads = [];
+    for (const file of UPDATE_FILES) {
+      downloads.push({ file, source: await downloadUpdateFile(file, source.ref) });
+    }
+    const versions = downloads.map((item) => versionFromSource(item.source));
+    if (versions.some((version) => !version) || versions.some((version) => version !== versions[0])) {
+      throw new Error('Die heruntergeladenen Skripte haben unterschiedliche oder ungültige Versionsstände.');
+    }
+
+    const target = currentScriptFileManager();
+    const paths = downloads.map((item) => ({
+      item,
+      path: target.fm.joinPath(target.fm.documentsDirectory(), item.file.name),
+    }));
+    const backups = paths.map(({ path }) => ({
+      path,
+      existed: target.fm.fileExists(path),
+      source: target.fm.fileExists(path) ? target.fm.readString(path) : null,
+    }));
+
+    try {
+      for (const { item, path } of paths) target.fm.writeString(path, item.source);
+    } catch (writeError) {
+      for (const backup of backups) {
+        try {
+          if (backup.existed) target.fm.writeString(backup.path, backup.source);
+          else if (target.fm.fileExists(backup.path)) target.fm.remove(backup.path);
+        } catch (_) {}
+      }
+      throw new Error('Recovery konnte nicht vollständig geschrieben werden; die vorherigen Dateien wurden soweit möglich wiederhergestellt. ' + writeError.message);
+    }
+
+    if (typeof DEVELOPMENT_REF_KEY !== 'undefined') Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
+    await notice('Recovery abgeschlossen', `v${versions[0]} · main ${source.label} wurde in ${target.label} installiert.\n\nBitte die Config anschließend neu öffnen.`);
+  } catch (e) {
+    await notice('Recovery fehlgeschlagen', e.message);
+  }
+}
+
+async function configureDeveloperOptions(cfg) {
+  while (true) {
+    const a = new Alert();
+    a.title = 'Entwickleroptionen';
+    a.message = 'Diagnose und Wiederherstellung für Entwicklung und Fehlerbehebung.';
+    a.addAction('Diagnose');
+    a.addDestructiveAction('Recovery · Installation reparieren');
+    a.addCancelAction('Zurück');
+    const choice = await a.present();
+    if (choice === -1) return;
+    if (choice === 0) await configureDiagnostics(cfg);
+    if (choice === 1) await recoverFromMain();
+  }
+}
+
 async function main() {
   const cfg = await loadConfig();
 
@@ -912,7 +977,7 @@ async function main() {
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
     menu.addAction('Updates');
-    menu.addAction('Diagnose');
+    menu.addAction('Entwickleroptionen');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
     const choice = await menu.present();
@@ -935,7 +1000,7 @@ async function main() {
       await configureUpdates(cfg);
       await save(cfg, false);
     }
-    if (choice === 5) await configureDiagnostics(cfg);
+    if (choice === 5) await configureDeveloperOptions(cfg);
     if (choice === 6) {
       await reset();
       break;
