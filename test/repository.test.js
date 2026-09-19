@@ -37,3 +37,21 @@ test('README Development version matches scripts', () => {
   const escaped = runtimeVersion.split('.').join('\\.');
   assert.match(read('README.md'), new RegExp('Development version: v' + escaped));
 });
+
+
+test('GTFS workflow compares normalized upstream timestamps and builder schema', () => {
+  const workflow = read('.github/workflows/gtfs-data.yml');
+  assert.match(workflow, /RAW=.*GTFS_IMPORT_STATUS_URL/s);
+  assert.match(workflow, /json\.loads\(s\)/);
+  assert.match(workflow, /EXPECTED_SCHEMA=.*awk -F=/);
+  assert.doesNotMatch(workflow, /re\.search\(r"\^SCHEMA_VERSION\\\\s/);
+});
+
+test('offline documentation describes the implemented fallback, not future groundwork', () => {
+  const readme = read('README.md');
+  const gtfs = read('docs/GTFS.md');
+  assert.match(readme, /## Offline timetable fallback/);
+  assert.doesNotMatch(readme, /future offline fallback/);
+  assert.match(gtfs, /pinned stops and\/or recent-stop history/);
+  assert.match(gtfs, /parent_station.*additional alias/s);
+});
