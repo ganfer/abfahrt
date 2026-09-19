@@ -1173,11 +1173,26 @@ async function presentDeparturesTable(key, context = null) {
       .slice(0, WIDGET_CONFIG.fullscreen.rows);
 
     const fs = WIDGET_CONFIG.fullscreen;
+    const realtimeAvailable = rows.some((r) => Boolean(r.realtimeTime));
+    const statusLabel = realtimeAvailable ? 'Live' : 'Fahrplan';
+    const statusClass = realtimeAvailable ? 'live' : 'schedule';
+    const platformValues = [...new Set(rows.map((r) => String(r.platform || '').trim()).filter(Boolean))];
+    const platformSummary = platformValues.length === 1
+      ? '1 Steig'
+      : platformValues.length > 1
+        ? platformValues.length + ' Steige'
+        : '';
+    const pinGlyph = activePin ? '★' : '☆';
+    const pinTitle = activePin ? 'Angepinnte Haltestelle' : 'Nicht angepinnt';
+    const locationMeta = context?.autoSelected && Number.isFinite(context.distance)
+      ? ' · 📍 ' + Math.round(context.distance) + ' m'
+      : '';
+
     const defs = [
       { key: 'line', label: 'Linie', value: (r) => r.line || '–', cls: 'line' },
       { key: 'destination', label: 'Richtung', value: (r) => r.destination || '–', cls: 'destination' },
       { key: 'platform', label: 'Gleis', value: (r) => r.platform || '–', cls: 'platform' },
-      { key: 'departureTime', label: 'Abfahrt', value: (r) => fmtClock(r.at) + (r.realtimeTime ? (r.delayMin > 0 ? ' +' + r.delayMin : ' ·') : ' °'), cls: 'time' },
+      { key: 'departureTime', label: 'Abfahrt', value: (r) => fmtClock(r.at), cls: 'time' },
       {
         key: 'countdown',
         label: 'Restzeit',
@@ -1207,13 +1222,22 @@ async function presentDeparturesTable(key, context = null) {
               state = r.cancelled ? ' cancelled' : r.delayMin >= DELAY_HEAVY_MIN ? ' late' : r.delayMin > 0 ? ' delayed' : ' ontime';
             }
             const value = htmlEsc(d.value(r));
+            if (d.key === 'line') {
+              return `<td class="${d.cls}${state}"><span class="line-badge">${value}</span></td>`;
+            }
             if (d.key === 'destination') {
               const wrapClass = destinationWrap ? ' destination-wrap' : ' destination-nowrap';
               return `<td class="${d.cls}${state}"><div class="destination-text${wrapClass}">${value}</div></td>`;
             }
+            if (d.key === 'departureTime') {
+              const marker = r.realtimeTime
+                ? '<span class="time-marker realtime-marker" aria-label="Echtzeit">•</span>'
+                : '<span class="time-marker schedule-marker" aria-label="Fahrplan">°</span>';
+              return `<td class="${d.cls}${state}"><span class="time-value">${value}</span>${marker}</td>`;
+            }
             return `<td class="${d.cls}${state}">${value}</td>`;
           }).join('');
-          return `<tr>${cells}</tr>`;
+          return `<tr class="departure-row">${cells}</tr>`;
         }).join('')
       : `<tr><td class="empty" colspan="${Math.max(1, defs.length)}">Keine kommenden Abfahrten</td></tr>`;
 
@@ -1222,35 +1246,295 @@ async function presentDeparturesTable(key, context = null) {
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
-  :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  :root {
+    color-scheme: dark;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+    --bg: #0d0d0f;
+    --card: #171719;
+    --card-2: #1d1d20;
+    --border: rgba(255,255,255,.11);
+    --muted: #9b9ba1;
+    --text: #f5f5f7;
+    --green: #69c26a;
+    --orange: #ff9f0a;
+    --red: #ff453a;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom)); background: #101010; color: #f0f0f0; }
-  h1 { margin: 0; font-size: 28px; line-height: 1.15; }
-  .meta { margin: 6px 0 22px; color: #9a9a9a; font-size: 13px; }
-  .table-wrap { overflow: hidden; border: 1px solid #2c2c2e; border-radius: 14px; }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  th { padding: 11px 6px; text-align: left; color: #9a9a9a; font-size: 12px; font-weight: 600; background: #181818; border-bottom: 1px solid #2c2c2e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  td { padding: 14px 6px; font-size: ${Number(fs.fontSize) || 16}px; border-bottom: 1px solid #252525; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  body {
+    margin: 0;
+    padding: max(18px, env(safe-area-inset-top)) 14px max(28px, env(safe-area-inset-bottom));
+    background:
+      radial-gradient(circle at 50% -8%, rgba(58,122,255,.10), transparent 32%),
+      var(--bg);
+    color: var(--text);
+  }
+
+  .stop-card {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 14px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at 10% 15%, rgba(34,197,94,.18), transparent 34%),
+      radial-gradient(circle at 80% 100%, rgba(49,130,246,.12), transparent 42%),
+      linear-gradient(145deg, rgba(31,31,35,.96), rgba(18,18,20,.98));
+    box-shadow: 0 12px 30px rgba(0,0,0,.22), inset 0 1px rgba(255,255,255,.035);
+  }
+  .stop-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(115deg, transparent 15%, rgba(255,255,255,.025) 42%, transparent 66%);
+  }
+  .stop-top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .stop-symbol {
+    flex: 0 0 50px;
+    width: 50px;
+    height: 50px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid rgba(74,222,128,.30);
+    background: rgba(16,67,43,.55);
+    box-shadow: inset 0 0 0 7px rgba(74,222,128,.06);
+  }
+  .stop-symbol > span {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #ffd60a;
+    color: #087f39;
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 0 14px rgba(74,222,128,.24);
+  }
+  .stop-copy { min-width: 0; flex: 1; }
+  .stop-title {
+    margin: 0;
+    font-size: clamp(23px, 7vw, 30px);
+    line-height: 1.08;
+    letter-spacing: -.025em;
+    overflow-wrap: anywhere;
+  }
+  .meta {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.25;
+  }
+  .pin-state {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.045);
+    color: #d8d8dc;
+    font-size: 24px;
+    line-height: 1;
+  }
+  .pin-state.active { color: #ffd60a; }
+  .status-row {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-left: 62px;
+  }
+  .chip {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 11px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255,255,255,.045);
+    color: #d7d7dc;
+    font-size: 13px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .chip.live {
+    border-color: rgba(48,209,88,.24);
+    background: rgba(17,92,50,.30);
+    color: #73e895;
+  }
+  .chip.schedule { color: #b7b7bc; }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 0 rgba(115,232,149,.35);
+    animation: livePulse 1.8s ease-out infinite;
+  }
+  .chip.schedule .live-dot {
+    animation: none;
+    background: #8e8e93;
+    box-shadow: none;
+  }
+  @keyframes livePulse {
+    0% { box-shadow: 0 0 0 0 rgba(115,232,149,.34); }
+    70% { box-shadow: 0 0 0 7px rgba(115,232,149,0); }
+    100% { box-shadow: 0 0 0 0 rgba(115,232,149,0); }
+  }
+
+  .table-wrap {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: rgba(20,20,22,.96);
+    box-shadow: 0 10px 28px rgba(0,0,0,.18);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+  }
+  th {
+    padding: 12px 7px;
+    text-align: left;
+    color: #9c9ca2;
+    font-size: 12px;
+    font-weight: 700;
+    background: linear-gradient(180deg, #1d1d20, #19191b);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  td {
+    position: relative;
+    padding: 13px 7px;
+    font-size: ${Number(fs.fontSize) || 16}px;
+    border-bottom: 1px solid rgba(255,255,255,.075);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+  }
   td:not(.destination) { white-space: nowrap; }
-  tr:last-child td { border-bottom: 0; }
-  .line { font-weight: 700; }
-  .destination { text-align: left; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:first-child td {
+    background: linear-gradient(90deg, rgba(255,255,255,.025), rgba(255,255,255,0));
+  }
+  .line { min-width: 46px; font-weight: 700; }
+  td.line { overflow: visible; }
+  .line-badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 9px;
+    border-radius: 11px;
+    background: linear-gradient(180deg, #2a2a2e, #222225);
+    box-shadow: inset 0 1px rgba(255,255,255,.06);
+  }
+  .destination { min-width: 86px; text-align: left; }
   .destination-text { line-height: 1.18; overflow: hidden; }
-  .destination-wrap { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: ${destinationLines}; white-space: normal; overflow-wrap: break-word; word-break: normal; }
+  .destination-wrap {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: ${destinationLines};
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
   .destination-nowrap { white-space: nowrap; text-overflow: ellipsis; }
-  .platform { text-align: center; }
-  .time { font-variant-numeric: tabular-nums; }
-  .countdown { text-align: right; font-weight: 700; white-space: nowrap; }
-  .ontime { color: #66bb6a; }
-  .delayed { color: #ff9800; }
-  .late { color: #ef5350; }
-  .cancelled { color: #9a9a9a; }
-  .empty { text-align: center; color: #9a9a9a; padding: 28px; }
+  .platform { min-width: 44px; text-align: center; }
+  .time {
+    min-width: 68px;
+    font-variant-numeric: tabular-nums;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .time-value { letter-spacing: -.01em; }
+  .time-marker {
+    display: inline-block;
+    margin-left: 3px;
+    font-size: .72em;
+    vertical-align: .18em;
+  }
+  .realtime-marker { color: #62d97b; }
+  .schedule-marker { color: #8e8e93; }
+  .countdown {
+    min-width: 76px;
+    padding-right: 20px;
+    text-align: right;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+  tbody td:last-child {
+    padding-right: 20px;
+  }
+  tbody tr.departure-row td:last-child::after {
+    content: "›";
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-51%);
+    color: #707077;
+    font-size: 24px;
+    font-weight: 300;
+  }
+  .ontime { color: var(--green); }
+  .delayed { color: var(--orange); }
+  .late { color: var(--red); }
+  .cancelled { color: #8e8e93; text-decoration: line-through; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 14px; }
+
+  @media (max-width: 360px) {
+    body { padding-left: 10px; padding-right: 10px; }
+    .stop-card { padding: 14px; }
+    .stop-symbol { flex-basis: 44px; width: 44px; height: 44px; }
+    .stop-symbol > span { width: 30px; height: 30px; font-size: 21px; }
+    .status-row { padding-left: 56px; }
+    th, td { padding-left: 5px; padding-right: 5px; }
+    .line { min-width: 42px; }
+    .platform { min-width: 40px; }
+    .time { min-width: 64px; }
+    .countdown { min-width: 70px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot { animation: none; }
+  }
 </style>
 </head>
 <body>
-  <h1>${htmlEsc(title)}</h1>
-  <div class="meta">Abfahrten · aktualisiert ${htmlEsc(fmtClock(Date.now()))}${context?.autoSelected && Number.isFinite(context.distance) ? ' · 📍 automatisch gewählt · ' + htmlEsc(Math.round(context.distance) + ' m') : ''}</div>
+  <section class="stop-card">
+    <div class="stop-top">
+      <div class="stop-symbol" aria-hidden="true"><span>H</span></div>
+      <div class="stop-copy">
+        <h1 class="stop-title">${htmlEsc(title)}</h1>
+        <div class="meta">Abfahrten · aktualisiert ${htmlEsc(fmtClock(Date.now()))}${htmlEsc(locationMeta)}</div>
+      </div>
+      <div class="pin-state${activePin ? ' active' : ''}" title="${htmlEsc(pinTitle)}" aria-label="${htmlEsc(pinTitle)}">${pinGlyph}</div>
+    </div>
+    <div class="status-row">
+      <div class="chip ${statusClass}"><span class="live-dot"></span>${statusLabel}</div>
+      ${platformSummary ? `<div class="chip platform-chip"><span aria-hidden="true">▥</span>${htmlEsc(platformSummary)}</div>` : ''}
+    </div>
+  </section>
+
   <div class="table-wrap">
     <table>
       <colgroup>${colgroup}</colgroup>
