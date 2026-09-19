@@ -1,6 +1,6 @@
 # abfahrt
 
-**Entwicklungsversion: v2.0.9**  
+**Entwicklungsversion: v2.0.10**  
 **Stabile Version: v2.0.9**
 
 **abfahrt** ist ein schnelles Scriptable-Widget für iPhone und iPad, das dir die nächsten Abfahrten des öffentlichen Nahverkehrs in Baden-Württemberg zeigt – mit Echtzeitdaten, Verspätungen, Ausfällen, GPS-Haltestellensuche, angepinnten Haltestellen und einem Offline-Fahrplan als Fallback.
@@ -50,7 +50,7 @@ Besonders praktisch ist es in Städten mit Straßenbahn- oder Stadtbahnnetzen, w
 - optionale **Linien- und Richtungsfilter** pro Haltestelle
 - Widgets in **Small, Medium, Large und Extra Large**
 - eigene Layout-Einstellungen für jede Widget-Größe
-- **Vollbildansicht** mit konfigurierbarer Sortierung nach Abfahrtszeit, Gleis, Richtung oder Linie
+- **Vollbildansicht** mit konfigurierbarer Sortierung nach Abfahrtszeit, Gleis, Richtung oder Linie – inklusive Gruppenüberschriften bei Gleis, Richtung und Linie
 - **Offline-Fallback** auf vorbereitete GTFS-Sollfahrplandaten
 - automatischer **Stable-/Development-Updater**
 - Diagnose, Backup/Wiederherstellung, Recovery und saubere Deinstallation
@@ -189,7 +189,7 @@ Für die Vollbildansicht kannst du unter anderem konfigurieren:
 - Anwendung von Haltestellenfiltern
 - Sortierung nach **Abfahrtszeit, Gleis, Richtung oder Linie**
 
-Bei Sortierung nach Gleis, Richtung oder Linie bleibt die Abfahrtszeit das zweite Sortierkriterium.
+Bei Sortierung nach Gleis, Richtung oder Linie werden die Abfahrten zusätzlich mit passenden Gruppenüberschriften gegliedert. Innerhalb jeder Gruppe bleibt die Abfahrtszeit das zweite Sortierkriterium. Die Sortierung nach Abfahrtszeit bleibt eine durchgehende chronologische Liste ohne zusätzliche Überschriften.
 
 ### Standort
 

@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '2.0.9';
+const APP_VERSION = '2.0.10';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -775,6 +775,38 @@ function compareFullscreenRows(a, b, sortBy = 'departureTime') {
   return primary || (a.at - b.at);
 }
 
+function fullscreenGroupValue(row, sortBy = 'departureTime') {
+  if (sortBy === 'platform') return String(row.platform || '').trim();
+  if (sortBy === 'destination') return String(row.destination || '').trim();
+  if (sortBy === 'line') return String(row.line || '').trim();
+  return '';
+}
+
+function fullscreenGroupLabel(value, sortBy = 'departureTime') {
+  const text = String(value || '').trim();
+  if (sortBy === 'platform') return text ? 'Gleis ' + text : 'Ohne Gleisangabe';
+  if (sortBy === 'destination') return text ? 'Richtung ' + text : 'Ohne Richtungsangabe';
+  if (sortBy === 'line') return text ? 'Linie ' + text : 'Ohne Linienangabe';
+  return '';
+}
+
+function groupFullscreenRows(rows, sortBy = 'departureTime') {
+  if (sortBy === 'departureTime') return [{ key: '', label: '', rows: [...rows] }];
+
+  const groups = [];
+  for (const row of rows) {
+    const value = fullscreenGroupValue(row, sortBy);
+    const key = value.toLocaleLowerCase('de-DE');
+    let group = groups[groups.length - 1];
+    if (!group || group.key !== key) {
+      group = { key, label: fullscreenGroupLabel(value, sortBy), rows: [] };
+      groups.push(group);
+    }
+    group.rows.push(row);
+  }
+  return groups;
+}
+
 function palette() {
   // Keep the widget consistently dark, independent of the iOS appearance.
   return { bg: '#101010', fg: '#f0f0f0', dim: '#9a9a9a', ok: '#66bb6a', late: '#ef5350', delay: '#ff9800' };
@@ -1461,30 +1493,38 @@ async function presentDeparturesTable(key, context = null) {
     const destinationWrap = fs.destinationWrap !== false;
     const destinationLines = Math.max(1, Math.min(4, Number(fs.destinationLines) || 2));
     const header = defs.map((d) => `<th class="${d.cls}">${htmlEsc(d.label)}</th>`).join('');
+    const renderDepartureRow = (r) => {
+      const cells = defs.map((d) => {
+        let state = '';
+        if (d.key === 'countdown') {
+          state = r.cancelled ? ' cancelled' : r.delayMin >= DELAY_HEAVY_MIN ? ' late' : r.delayMin > 0 ? ' delayed' : ' ontime';
+        }
+        const value = htmlEsc(d.value(r));
+        if (d.key === 'line') {
+          return `<td class="${d.cls}${state}"><span class="line-badge">${value}</span></td>`;
+        }
+        if (d.key === 'destination') {
+          const wrapClass = destinationWrap ? ' destination-wrap' : ' destination-nowrap';
+          return `<td class="${d.cls}${state}"><div class="destination-text${wrapClass}">${value}</div></td>`;
+        }
+        if (d.key === 'departureTime') {
+          const marker = r.realtimeTime
+            ? '<span class="time-marker realtime-marker" aria-label="Echtzeit">•</span>'
+            : '<span class="time-marker schedule-marker" aria-label="Fahrplan">°</span>';
+          return `<td class="${d.cls}${state}"><span class="time-value">${value}</span>${marker}</td>`;
+        }
+        return `<td class="${d.cls}${state}">${value}</td>`;
+      }).join('');
+      return `<tr class="departure-row">${cells}</tr>`;
+    };
+
+    const groupedRows = groupFullscreenRows(rows, fs.sortBy);
     const body = rows.length
-      ? rows.map((r) => {
-          const cells = defs.map((d) => {
-            let state = '';
-            if (d.key === 'countdown') {
-              state = r.cancelled ? ' cancelled' : r.delayMin >= DELAY_HEAVY_MIN ? ' late' : r.delayMin > 0 ? ' delayed' : ' ontime';
-            }
-            const value = htmlEsc(d.value(r));
-            if (d.key === 'line') {
-              return `<td class="${d.cls}${state}"><span class="line-badge">${value}</span></td>`;
-            }
-            if (d.key === 'destination') {
-              const wrapClass = destinationWrap ? ' destination-wrap' : ' destination-nowrap';
-              return `<td class="${d.cls}${state}"><div class="destination-text${wrapClass}">${value}</div></td>`;
-            }
-            if (d.key === 'departureTime') {
-              const marker = r.realtimeTime
-                ? '<span class="time-marker realtime-marker" aria-label="Echtzeit">•</span>'
-                : '<span class="time-marker schedule-marker" aria-label="Fahrplan">°</span>';
-              return `<td class="${d.cls}${state}"><span class="time-value">${value}</span>${marker}</td>`;
-            }
-            return `<td class="${d.cls}${state}">${value}</td>`;
-          }).join('');
-          return `<tr class="departure-row">${cells}</tr>`;
+      ? groupedRows.map((group) => {
+          const heading = group.label
+            ? `<tr class="group-row"><td colspan="${Math.max(1, defs.length)}"><div class="group-heading"><span class="group-title">${htmlEsc(group.label)}</span><span class="group-count">${group.rows.length === 1 ? '1 Abfahrt' : group.rows.length + ' Abfahrten'}</span></div></td></tr>`
+            : '';
+          return heading + group.rows.map(renderDepartureRow).join('');
         }).join('')
       : `<tr><td class="empty" colspan="${Math.max(1, defs.length)}">Keine kommenden Abfahrten</td></tr>`;
 
@@ -1747,6 +1787,34 @@ async function presentDeparturesTable(key, context = null) {
   .delayed { color: var(--orange); }
   .late { color: var(--red); }
   .cancelled { color: #8e8e93; text-decoration: line-through; }
+  .group-row td {
+    padding: 13px 12px 8px;
+    border-bottom-color: rgba(255,255,255,.10);
+    background: linear-gradient(180deg, rgba(40,40,44,.98), rgba(30,30,33,.98));
+    color: #d7d7dc;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    overflow: visible;
+    white-space: normal;
+  }
+  .group-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .group-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .group-count {
+    flex: 0 0 auto;
+    color: #85858c;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
   .empty { text-align: center; color: var(--muted); padding: 30px 14px; }
 
   @media (max-width: 360px) {
