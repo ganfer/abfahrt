@@ -48,7 +48,7 @@ Du brauchst keine Dateien manuell von GitHub herunterzuladen. Für die Installat
 Kopiere die folgende Zeile vollständig in das neue Script:
 
 ```js
-await eval(await new Request("https://raw.githubusercontent.com/ganfer/abfahrt/main/abfahrt-Install.js").loadString())
+await eval(await new Request("https://raw.githubusercontent.com/ganfer/abfahrt/main/abfahrt-install.js").loadString())
 ```
 
 <p align="center">
@@ -68,12 +68,12 @@ Tippe in Scriptable auf **▶︎**. Der kleine Bootstrap-Installer ermittelt aut
 Nach erfolgreicher Installation findest du in Scriptable:
 
 - `abfahrt`
-- `abfahrt-Config`
+- `abfahrt-config`
 
 Das temporäre Installationsscript wird automatisch entfernt.
 
 <p align="center">
-  <img src="docs/assets/install/scriptable-04-finished.svg" alt="Scriptable: abfahrt und abfahrt-Config nach der Installation" width="280">
+  <img src="docs/assets/install/scriptable-04-finished.svg" alt="Scriptable: abfahrt und abfahrt-config nach der Installation" width="280">
 </p>
 
 Starte anschließend **`abfahrt` einmal direkt in Scriptable** und hinterlege deinen TRIAS-Requestor-Key, wenn du danach gefragt wirst. Danach kannst du auf dem iPhone ein **mittleres Scriptable-Widget** hinzufügen und als Script `abfahrt` auswählen. Das Widget-Parameterfeld kann leer bleiben.
@@ -82,17 +82,17 @@ Starte anschließend **`abfahrt` einmal direkt in Scriptable** und hinterlege de
 
 ### Was macht diese eine Zeile?
 
-Die Zeile lädt nur den kleinen, versionslosen `abfahrt-Install.js`-Bootstrapper aus `main`. Dieser installiert **nicht automatisch Development-Code aus `main`**, sondern ermittelt über GitHub Releases das aktuelle **Stable Release**. Runtime und Config werden anschließend aus genau diesem Release installiert und verifiziert.
+Die Zeile lädt nur den kleinen, versionslosen `abfahrt-install.js`-Bootstrapper aus `main`. Dieser installiert **nicht automatisch Development-Code aus `main`**, sondern ermittelt über GitHub Releases das aktuelle **Stable Release**. Runtime und Config werden anschließend aus genau diesem Release installiert und verifiziert.
 
 ## Manuelle Installation / technische Details
 
-Falls du den Bootstrapper lieber selbst als Datei übernehmen möchtest, kannst du **`abfahrt-Install.js`** manuell nach Scriptable kopieren und einmal ausführen.
+Falls du den Bootstrapper lieber selbst als Datei übernehmen möchtest, kannst du **`abfahrt-install.js`** manuell nach Scriptable kopieren und einmal ausführen.
 
 Der Bootstrapper:
 
 1. ermittelt das **latest Stable GitHub Release**,
-2. lädt die veröffentlichte `abfahrt-Config.js`,
-3. lässt die Config die verwalteten Dateien `abfahrt.js` und `abfahrt-Config.js` aus genau diesem Release installieren und verifizieren,
+2. lädt die veröffentlichte `abfahrt-config.js`,
+3. lässt die Config die verwalteten Dateien `abfahrt.js` und `abfahrt-config.js` aus genau diesem Release installieren und verifizieren,
 4. entfernt sich nach erfolgreicher Installation selbst.
 
 Der Bootstrapper ist bewusst **versionslos** und gehört nicht zu `APP_VERSION`. Stable bedeutet immer das zuletzt bewusst veröffentlichte GitHub Release.
@@ -107,7 +107,7 @@ See [docs/GTFS.md](docs/GTFS.md) for the data format, mapping strategy, source a
 
 ## Configuration
 
-Run **`abfahrt-Config`** in Scriptable. Changes are saved automatically when returning from a configuration submenu.
+Run **`abfahrt-config`** in Scriptable. Changes are saved automatically when returning from a configuration submenu.
 
 ### Widget
 
