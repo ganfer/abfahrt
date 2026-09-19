@@ -7,10 +7,11 @@ an offline fallback for the configured **pinned stops and/or recent-stop history
 ## Architecture
 
 The scheduled GitHub Actions workflow `.github/workflows/gtfs-data.yml` checks
-the upstream GTFS import timestamp once per day. If the source changed, it
-downloads the `bwgesamt` feed without shapes, runs `scripts/build-gtfs.py`,
-validates the result and force-publishes a fresh snapshot to the dedicated
-`gtfs-data` branch.
+the upstream GTFS import timestamp once per day. It also rebuilds when the
+builder changes or when the published schema does not match the current
+builder. When a rebuild is required it downloads the `bwgesamt` feed without
+shapes, runs `scripts/build-gtfs.py`, validates the result and force-publishes
+a fresh snapshot to the dedicated `gtfs-data` branch.
 
 The data branch intentionally has no growing history. Application source code
 and generated timetable data remain separate.
