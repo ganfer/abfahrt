@@ -539,6 +539,74 @@ async function save(cfg, showNotice = true) {
   }
 }
 
+async function exportConfig(cfg) {
+  const backup = {
+    format: 'vag-widget-backup',
+    formatVersion: 1,
+    exportedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    config: clone(cfg),
+    pinnedStops: savedStops().filter((stop) => stop.pinned === true),
+  };
+  const text = JSON.stringify(backup, null, 2);
+  Pasteboard.copyString(text);
+  await notice('Backup kopiert', 'Konfiguration und fixierte Haltestellen wurden als JSON in die Zwischenablage kopiert. TRIAS-Key, letzte Haltestelle, Verlauf und Development-Status sind nicht enthalten.');
+}
+
+async function importConfig() {
+  const a = new Alert();
+  a.title = 'Backup importieren';
+  a.message = 'Füge hier ein zuvor exportiertes VAG-Widget-Backup ein. Die aktuelle Konfiguration und die fixierten Haltestellen werden ersetzt. Der TRIAS-Key bleibt unverändert.';
+  a.addTextField('Backup JSON', Pasteboard.pasteString() || '');
+  a.addAction('Importieren');
+  a.addCancelAction('Abbrechen');
+  if (await a.present() === -1) return null;
+
+  let backup;
+  try {
+    backup = JSON.parse(a.textFieldValue(0));
+  } catch (_) {
+    await notice('Import fehlgeschlagen', 'Das Backup ist kein gültiges JSON.');
+    return null;
+  }
+  if (backup?.format !== 'vag-widget-backup' || backup?.formatVersion !== 1 || !backup.config || !Array.isArray(backup.pinnedStops)) {
+    await notice('Import fehlgeschlagen', 'Das Backup-Format wird nicht unterstützt oder ist unvollständig.');
+    return null;
+  }
+
+  const imported = {
+    ...clone(DEFAULTS),
+    ...backup.config,
+    updates: { ...DEFAULTS.updates, ...(backup.config.updates || {}) },
+    location: { ...DEFAULTS.location, ...(backup.config.location || {}) },
+    columns: Object.fromEntries(Object.entries(DEFAULTS.columns).map(([key, value]) => [key, { ...value, ...(backup.config.columns?.[key] || {}) }])),
+    spacing: { ...DEFAULTS.spacing, ...(backup.config.spacing || {}) },
+    fontSize: { ...DEFAULTS.fontSize, ...(backup.config.fontSize || {}) },
+    fullscreen: {
+      ...DEFAULTS.fullscreen,
+      ...(backup.config.fullscreen || {}),
+      columns: Object.fromEntries(Object.entries(DEFAULTS.fullscreen.columns).map(([key, value]) => [key, { ...value, ...(backup.config.fullscreen?.columns?.[key] || {}) }])),
+    },
+  };
+  await save(imported, false);
+  writeSavedStops(backup.pinnedStops.map((stop) => ({ ...stop, pinned: true })));
+  await notice('Backup importiert', 'Konfiguration und fixierte Haltestellen wurden wiederhergestellt. Der TRIAS-Key und andere lokale Laufzeitdaten wurden nicht verändert.');
+  return imported;
+}
+
+async function configureBackup(cfg) {
+  const a = new Alert();
+  a.title = 'Backup & Wiederherstellung';
+  a.message = 'Sichert persönliche Einstellungen und fixierte Haltestellen als JSON. Geheimnisse und Laufzeitdaten werden nicht exportiert.';
+  a.addAction('Backup exportieren');
+  a.addAction('Backup importieren');
+  a.addCancelAction('Zurück');
+  const choice = await a.present();
+  if (choice === 0) await exportConfig(cfg);
+  if (choice === 1) return await importConfig();
+  return null;
+}
+
 async function reset() {
   if (fm.fileExists(configPath)) fm.remove(configPath);
   await notice('Zurückgesetzt', 'Die persönliche Konfiguration wurde gelöscht. Das Widget verwendet wieder die Standardwerte.');
@@ -947,6 +1015,7 @@ async function main() {
     menu.addAction('Standort');
     menu.addAction('Fixierte Haltestellen');
     menu.addAction('Updates');
+    menu.addAction('Backup & Wiederherstellung');
     menu.addAction('Entwickleroptionen');
     menu.addDestructiveAction('Auf Standard zurücksetzen');
     menu.addCancelAction('Beenden');
@@ -970,8 +1039,12 @@ async function main() {
       await configureUpdates(cfg);
       await save(cfg, false);
     }
-    if (choice === 5) await configureDeveloperOptions(cfg);
-    if (choice === 6) {
+    if (choice === 5) {
+      const imported = await configureBackup(cfg);
+      if (imported) Object.assign(cfg, imported);
+    }
+    if (choice === 6) await configureDeveloperOptions(cfg);
+    if (choice === 7) {
       await reset();
       break;
     }
