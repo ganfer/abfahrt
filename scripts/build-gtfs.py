@@ -26,7 +26,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SOURCE_NAME = "MobiData BW / NVBW"
 SOURCE_DATASET = "Soll-Fahrplandaten Baden-Württemberg (bwgesamt, ohne Linienverlauf)"
 SOURCE_URL = "https://www.nvbw.de/fileadmin/user_upload/service/open_data/fahrplandaten_ohne_liniennetz/bwgesamt.zip"
@@ -113,13 +113,26 @@ def build(zip_path: Path, out_dir: Path):
                 stop_id = r.get("stop_id", "").strip()
                 if not stop_id:
                     continue
-                canonical = canonical_stop_id(stop_id, r.get("parent_station", ""))
+                parent_station = r.get("parent_station", "").strip()
+                # Timetable rows belong to the stop/platform itself. A parent_station
+                # is useful as an alias, but must not replace an IFOPT/DHID stop_id:
+                # MobiData feeds can use synthetic parent IDs (e.g. *_Parent) that do
+                # not match the TRIAS logical-stop reference.
+                canonical = canonical_stop_id(stop_id)
                 name = r.get("stop_name", "").strip()
                 lat = float(r["stop_lat"]) if r.get("stop_lat") else None
                 lon = float(r["stop_lon"]) if r.get("stop_lon") else None
                 stop_rows.append((stop_id, canonical, name, lat, lon))
                 lookup[canonical].add(stop_id)
                 lookup[canonical].add(canonical)
+                if parent_station:
+                    parent_alias = canonical_stop_id(parent_station)
+                    lookup[parent_alias].add(stop_id)
+                    lookup[parent_alias].add(parent_station)
+                    if name and parent_alias not in names:
+                        names[parent_alias] = name
+                    if lat is not None and lon is not None and parent_alias not in coords:
+                        coords[parent_alias] = [lat, lon]
                 if name and canonical not in names:
                     names[canonical] = name
                 if lat is not None and lon is not None and canonical not in coords:
@@ -155,6 +168,18 @@ def build(zip_path: Path, out_dir: Path):
                 db.executemany("INSERT INTO stop_times VALUES (?,?,?,?)", batch)
             db.commit()
 
+        # Alias entries must point at timetable data too. The DB rows use the
+        # canonicalized stop_id, so copy departures from every physical stop
+        # represented by an alias when shards are generated.
+        canonical_sources = defaultdict(set)
+        for stop_id, canonical_id in db.execute("SELECT stop_id,canonical_id FROM stops"):
+            canonical_sources[canonical_id].add(canonical_id)
+        for alias, stop_ids in lookup.items():
+            for stop_id in stop_ids:
+                row = db.execute("SELECT canonical_id FROM stops WHERE stop_id=?", (stop_id,)).fetchone()
+                if row:
+                    canonical_sources[alias].add(row[0])
+
         index = {}
         for canonical in sorted(lookup):
             index[canonical] = {
@@ -187,9 +212,23 @@ def build(zip_path: Path, out_dir: Path):
             """
             departures = defaultdict(list)
             services_used = set()
-            for canonical, departure, service_id, line, headsign in db.execute(query, canonical_ids):
-                departures[canonical].append([departure, line, headsign, service_id])
+            source_ids = sorted(set().union(*(canonical_sources[cid] for cid in canonical_ids)))
+            source_ph = ",".join("?" for _ in source_ids)
+            source_query = query.replace(placeholders, source_ph)
+            by_source = defaultdict(list)
+            for source, departure, service_id, line, headsign in db.execute(source_query, source_ids):
+                item = [departure, line, headsign, service_id]
+                by_source[source].append(item)
                 services_used.add(service_id)
+            for canonical in canonical_ids:
+                seen = set()
+                for source in canonical_sources[canonical]:
+                    for item in by_source[source]:
+                        key = tuple(item)
+                        if key not in seen:
+                            departures[canonical].append(item)
+                            seen.add(key)
+                departures[canonical].sort(key=lambda item: item[0])
 
             services = {}
             if services_used:
