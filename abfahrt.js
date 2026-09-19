@@ -342,50 +342,6 @@ function stopEventsFromDoc(doc) {
   return events;
 }
 
-function countNodes(node, name) {
-  if (!node) return 0;
-  let count = node.name === name ? 1 : 0;
-  for (const c of (node.children || [])) count += countNodes(c, name);
-  return count;
-}
-
-function firstNodePath(node, target, path = []) {
-  if (!node) return null;
-  const here = node.name === '#document' ? path : [...path, node.name];
-  if (node.name === target) return here.join(' > ');
-  for (const c of (node.children || [])) {
-    const found = firstNodePath(c, target, here);
-    if (found) return found;
-  }
-  return null;
-}
-
-function firstLocationResultShape(doc) {
-  function find(node) {
-    if (!node) return null;
-    if (node.name === 'LocationResult') return node;
-    for (const c of (node.children || [])) {
-      const hit = find(c);
-      if (hit) return hit;
-    }
-    return null;
-  }
-  const result = find(doc);
-  if (!result) return 'kein LocationResult';
-  const describe = (node) => {
-    const kids = (node.children || []).map((c) => c.name);
-    return node.name + (kids.length ? ' [' + kids.join(', ') + ']' : '');
-  };
-  const lines = [describe(result)];
-  for (const childNode of (result.children || []).slice(0, 8)) {
-    lines.push('↳ ' + describe(childNode));
-    for (const grand of (childNode.children || []).slice(0, 8)) {
-      lines.push('  ↳ ' + describe(grand));
-    }
-  }
-  return lines.join('\n');
-}
-
 function nearbyStopsFromDoc(doc) {
   const response =
     child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'LocationInformationResponse') ||
@@ -909,10 +865,10 @@ async function defaultWidget(key, present) {
   }
 }
 
-async function showLocationDiagnostics(lines, errorText) {
+async function showLocationError(title, message) {
   const alert = new Alert();
-  alert.title = 'Location Diagnose';
-  alert.message = lines.join('\n') + (errorText ? '\n\nFEHLER: ' + errorText : '');
+  alert.title = title;
+  alert.message = message;
   alert.addAction('OK');
   await alert.present();
 }
@@ -1002,7 +958,7 @@ function rememberStop(stop) {
   Keychain.set(RECENT_STOPS_KEY, JSON.stringify(recent.slice(0, RECENT_STOPS_LIMIT)));
 }
 
-async function fallbackToLastStop(key, diagnostics, reason) {
+async function fallbackToLastStop(key, reason) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
     Keychain.get(LAST_STOP_REF_KEY).trim() !== '';
@@ -1012,7 +968,6 @@ async function fallbackToLastStop(key, diagnostics, reason) {
   if (mode === 'home') {
     const home = homeStop();
     if (home) {
-      diagnostics.push('Fallback: Home ✓');
       rememberStop({ stopRef: home.stopRef, name: home.displayName || home.name });
       requestWidgetRefresh();
       const a = new Alert();
@@ -1023,11 +978,9 @@ async function fallbackToLastStop(key, diagnostics, reason) {
       await presentDeparturesTable(key);
       return true;
     }
-    diagnostics.push('Fallback: Home nicht gesetzt – letzte Haltestelle wird versucht');
   }
 
   if (!hasLastStop) return false;
-  diagnostics.push('Fallback: zuletzt verwendete Haltestelle ✓');
   const title = Keychain.contains(LAST_STOP_NAME_KEY)
     ? Keychain.get(LAST_STOP_NAME_KEY)
     : 'Letzte Haltestelle';
@@ -1041,22 +994,16 @@ async function fallbackToLastStop(key, diagnostics, reason) {
 }
 
 async function nearbyFlow(key) {
-  const diagnostics = [
-    '1. nearby-Modus aktiv ✓',
-    '2. Key aus Parameter/Keychain ✓',
-  ];
   let loc;
   try {
     Location.setAccuracyToHundredMeters();
     loc = await Location.current();
-    diagnostics.push('3. GPS erhalten ✓');
-    diagnostics.push(`   ±${Math.round(loc.horizontalAccuracy || 0)} m`);
-  } catch (e) {
-    diagnostics.push('3. GPS erhalten ✗');
-    if (await fallbackToLastStop(key, diagnostics, 'GPS ist nicht verfügbar.')) return;
-    await showLocationDiagnostics(diagnostics, e.message);
-    const w = buildWidget('Standort', null, [], 0, 'GPS nicht verfügbar: ' + e.message);
-    w.presentMedium();
+  } catch (_) {
+    if (await fallbackToLastStop(key, 'GPS ist nicht verfügbar.')) return;
+    await showLocationError(
+      'Standort nicht verfügbar',
+      'Scriptable konnte deinen Standort nicht ermitteln. Prüfe in den iOS-Einstellungen unter „Datenschutz & Sicherheit → Ortungsdienste“, ob Scriptable auf deinen Standort zugreifen darf.',
+    );
     Script.complete();
     return;
   }
@@ -1064,44 +1011,28 @@ async function nearbyFlow(key) {
   let stops;
   try {
     const xml = await triasPost(buildNearbyRequest(loc.latitude, loc.longitude, key));
-    diagnostics.push('4. TRIAS-Antwort erhalten ✓');
     const doc = parseXmlTree(xml);
     stops = nearbyStopsFromDoc(doc);
-    diagnostics.push(`5. Haltestellen gefunden: ${stops.length}`);
-    if (!stops.length) {
-      diagnostics.push(`   LocationResult: ${countNodes(doc, 'LocationResult')}`);
-      diagnostics.push(`   Location: ${countNodes(doc, 'Location')}`);
-      diagnostics.push(`   StopPoint: ${countNodes(doc, 'StopPoint')}`);
-      diagnostics.push(`   StopPointRef: ${countNodes(doc, 'StopPointRef')}`);
-      diagnostics.push('   Pfad: ' + (
-        firstNodePath(doc, 'LocationResult') ||
-        firstNodePath(doc, 'StopPoint') ||
-        firstNodePath(doc, 'Location') ||
-        'keiner'
-      ));
-      diagnostics.push('   Struktur:');
-      diagnostics.push(firstLocationResultShape(doc));
-    }
-  } catch (e) {
-    diagnostics.push('4/5. TRIAS-Ortssuche ✗');
-    if (await fallbackToLastStop(key, diagnostics, 'Die Haltestellensuche konnte nicht geladen werden.')) return;
-    await showLocationDiagnostics(diagnostics, e.message);
-    const w = buildWidget('Nähe', null, [], 0, 'Ortsuche fehlgeschlagen: ' + e.message);
-    w.presentMedium();
+  } catch (_) {
+    if (await fallbackToLastStop(key, 'Die Haltestellensuche konnte nicht geladen werden.')) return;
+    await showLocationError(
+      'Haltestellensuche nicht verfügbar',
+      'Die Haltestellen in deiner Nähe konnten gerade nicht geladen werden. Bitte versuche es in einem Moment erneut.',
+    );
     Script.complete();
     return;
   }
 
   if (!stops.length) {
-    if (await fallbackToLastStop(key, diagnostics, 'In der Nähe wurden keine Haltestellen gefunden.')) return;
-    await showLocationDiagnostics(diagnostics, 'TRIAS lieferte keine auswertbaren Haltestellen.');
-    const w = buildWidget('Nähe', null, [], 0, 'Keine Haltestellen gefunden');
-    w.presentMedium();
+    if (await fallbackToLastStop(key, 'In der Nähe wurden keine Haltestellen gefunden.')) return;
+    await showLocationError(
+      'Keine Haltestellen gefunden',
+      'In deiner Nähe konnten keine Haltestellen ermittelt werden. Prüfe deinen Standort und versuche es erneut.',
+    );
     Script.complete();
     return;
   }
 
-  diagnostics.push('6. Auswahl wird geöffnet ✓');
   const pinned = savedStops().filter((s) => s.pinned === true);
   const recent = recentStops();
 
