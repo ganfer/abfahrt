@@ -57,7 +57,7 @@ Haltestellen can be angepinnt from the recently used list or found through TRIAS
 
 A logical pinned stop can contain multiple TRIAS StopRefs so related platforms or stop points can be queried together. Additional StopRefs can be maintained manually.
 
-Each pinned stop can define optional line and destination filters in **whitelist** or **blacklist** mode. Whether those filters are applied is controlled separately under Widget and Fullscreen.
+Each pinned stop can define optional line and destination filters in **whitelist** or **blacklist** mode. Whether those filters are applied is controlled separately under Widget and Vollbild.
 
 ### Updates
 
@@ -102,13 +102,13 @@ Stable releases are created manually through the Release workflow. Merging to `m
 | Setting | Default |
 | --- | --- |
 | Widget departures | 5 |
-| Fullscreen departures | 8 |
+| Vollbild departures | 8 |
 | Automatic angepinnte stop | On |
 | Automatic-selection radius | 200 m |
 | Location fallback | Last stop |
 | Immediate widget refresh | On |
 | Widget filters | On |
-| Fullscreen filters | On |
+| Vollbild filters | On |
 | Update channel | Stable |
 
 TRIAS departure requests are sized to the configured view and clamped to **1–30** results.
