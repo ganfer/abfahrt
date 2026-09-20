@@ -122,7 +122,7 @@ jobs:
           TARGET: ${{ steps.target.outputs.sha }}
         run: gh release create "$TAG" --target "$TARGET" --title "$TAG" --generate-notes
 
-      - name: Open Stable metadata pull request
+      - name: Open and merge Stable metadata pull request
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -139,15 +139,57 @@ jobs:
             "refs/heads/main:refs/remotes/origin/main" \
             "refs/heads/$RELEASE_BRANCH:refs/remotes/origin/$RELEASE_BRANCH"
 
-          EXISTING="$(gh pr list --base main --head "$RELEASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
-          if [ -n "$EXISTING" ]; then
-            echo "Stable metadata PR #$EXISTING already exists."
-          elif git diff --quiet "origin/main...origin/$RELEASE_BRANCH" -- README.md release-manifest.json; then
+          if git diff --quiet "origin/main...origin/$RELEASE_BRANCH" -- README.md release-manifest.json; then
             echo "No Stable metadata changes need to be merged back to main."
-          else
-            gh pr create \
+            exit 0
+          fi
+
+          PR_NUMBER="$(gh pr list \
+            --base main \
+            --head "$RELEASE_BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -z "$PR_NUMBER" ]; then
+            PR_URL="$(gh pr create \
               --base main \
               --head "$RELEASE_BRANCH" \
               --title "docs: sync Stable v$VERSION metadata" \
-              --body "Sync the generated Stable metadata for v$VERSION back to the protected main branch."
+              --body "Sync the generated Stable metadata for v$VERSION back to the protected main branch.")"
+            PR_NUMBER="${PR_URL##*/}"
+            echo "Opened Stable metadata PR #$PR_NUMBER."
+          else
+            echo "Stable metadata PR #$PR_NUMBER already exists."
           fi
+
+          HEAD_SHA="$(git rev-parse "origin/$RELEASE_BRANCH")"
+          PR="$(gh pr view "$PR_NUMBER" --json state,isDraft,baseRefName,headRefName,headRefOid,title,files)"
+
+          jq -e \
+            --arg branch "$RELEASE_BRANCH" \
+            --arg sha "$HEAD_SHA" \
+            --arg title "docs: sync Stable v$VERSION metadata" \
+            '
+              .state == "OPEN" and
+              .isDraft == false and
+              .baseRefName == "main" and
+              .headRefName == $branch and
+              .headRefOid == $sha and
+              .title == $title
+            ' <<<"$PR" >/dev/null || {
+              echo "::error::Stable metadata PR validation failed."
+              exit 1
+            }
+
+          FILES="$(jq -r '.files[].path' <<<"$PR" | sort)"
+          EXPECTED="$(printf '%s\n' README.md release-manifest.json | sort)"
+          if [ "$FILES" != "$EXPECTED" ]; then
+            echo "::error::Stable metadata PR changes unexpected files:"
+            printf '%s\n' "$FILES"
+            exit 1
+          fi
+
+          gh pr merge "$PR_NUMBER" \
+            --merge \
+            --match-head-commit "$HEAD_SHA"
