@@ -721,47 +721,6 @@ async function configureLocation(cfg) {
   }
 }
 
-function summary(cfg) {
-  const variantSummary = [
-    ['Small', cfg.widget.small],
-    ['Medium', cfg.widget.medium],
-    ['Large', cfg.widget.large],
-    ['Extra Large', cfg.widget.extraLarge],
-  ].map(([label, layout]) =>
-    `${label}: ${layout.rows} Abfahrten · ${layout.showColumnHeader ? 'mit' : 'ohne'} Spaltenüberschriften`
-  ).join('\n');
-  const sortLabels = {
-    departureTime: 'Abfahrtszeit',
-    platform: 'Gleis',
-    destination: 'Richtung',
-    line: 'Linie',
-  };
-  return `${variantSummary}\n\nVollbild: ${cfg.fullscreen.rows} Abfahrten · ${cfg.fullscreen.fontSize} pt · Sortierung: ${sortLabels[cfg.fullscreen.sortBy] || sortLabels.departureTime}`;
-}
-
-
-function canonicalGtfsStopRef(ref) {
-  const parts = String(ref || '').trim().split(':');
-  return parts.length >= 3 ? parts.slice(0, 3).join(':') : String(ref || '').trim();
-}
-function offlineManager() { return FileManager.local(); }
-function offlineDir() {
-  const manager = offlineManager();
-  return manager.joinPath(manager.documentsDirectory(), GTFS_CACHE_DIR);
-}
-function ensureOfflineDir() {
-  const manager = offlineManager();
-  const dir = offlineDir();
-  if (!manager.fileExists(dir)) manager.createDirectory(dir, true);
-  return dir;
-}
-function offlineFile(name) { return offlineManager().joinPath(offlineDir(), name); }
-function readOfflineJson(name) {
-  try {
-    const manager = offlineManager(), path = offlineFile(name);
-    return manager.fileExists(path) ? JSON.parse(manager.readString(path)) : null;
-  } catch (_) { return null; }
-}
 async function downloadJson(url) {
   const req = new Request(url + '?t=' + Date.now());
   req.timeoutInterval = 30;
@@ -914,15 +873,12 @@ async function configureOffline(cfg) {
     if (choice === 3) cfg.offline.autoUpdate = cfg.offline.autoUpdate === false;
     if (choice === 4) await syncOfflineData(cfg);
     if (choice === 5) await deleteOfflineData();
-    await save(cfg, false);
+    await save(cfg);
   }
 }
 
-async function save(cfg, showNotice = true) {
+async function save(cfg) {
   fm.writeString(configPath, JSON.stringify(cfg, null, 2));
-  if (showNotice) {
-    await notice('Gespeichert', 'Die persönliche Widget-Konfiguration wurde gespeichert. Das Home-Screen-Widget verwendet sie beim nächsten Refresh.');
-  }
 }
 
 async function exportConfig(cfg) {
@@ -961,7 +917,7 @@ async function importConfig() {
   }
 
   const imported = normalizeConfig(backup.config);
-  await save(imported, false);
+  await save(imported);
   writeSavedStops(backup.pinnedStops.map((stop) => ({ ...stop, pinned: true })));
   await notice('Backup importiert', 'Konfiguration und angepinnte Haltestellen wurden wiederhergestellt. Der TRIAS-Key und andere lokale Laufzeitdaten wurden nicht verändert.');
   return imported;
@@ -983,7 +939,7 @@ async function configureBackup(cfg) {
 async function reset() {
   if (fm.fileExists(configPath)) fm.remove(configPath);
   await deleteOfflineData(false);
-  await notice('Zurückgesetzt', 'Die persönliche Konfiguration und der lokale Offline-Cache wurden gelöscht. Angepinnte und zuletzt verwendete Haltestellen sowie der TRIAS-Key bleiben erhalten.');
+  await notice('Zurückgesetzt', 'Die persönliche Konfiguration wurde auf die Standardwerte zurückgesetzt und der lokale Offline-Cache gelöscht. Angepinnte und zuletzt verwendete Haltestellen sowie der TRIAS-Key bleiben erhalten.');
 }
 
 
@@ -1358,7 +1314,6 @@ async function updateScripts(cfg) {
     const ref = development ? source.ref : source.tag;
     const manifest = development ? null : await downloadReleaseManifest(source.tag, remoteVersion);
     const downloads = await downloadManagedFiles(ref, development ? null : remoteVersion, manifest);
-    const downloadedVersions = downloads.map((item) => versionFromSource(item.source));
     const { written } = writeManagedFiles(downloads);
     if (!development && !managedInstallMatches(remoteVersion)) throw new Error('Die installierten Skripte konnten nach dem Update nicht als vollständige Zielversion verifiziert werden.');
     if (development) Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
@@ -1530,7 +1485,9 @@ async function recoverFromMain() {
     const { target } = writeManagedFiles(downloads);
 
     Keychain.set(DEVELOPMENT_REF_KEY, source.ref);
-    await notice('Recovery abgeschlossen', `v${versions[0]} · main ${source.label} wurde in ${target.label} installiert.\n\nBitte die Config anschließend neu öffnen.`);
+    await notice('Recovery abgeschlossen', `v${versions[0]} · main ${source.label} wurde in ${target.label} installiert.\n\nDie Config wird jetzt neu gestartet, damit der wiederhergestellte Code aktiv ist.`);
+    relaunchConfig();
+    return;
   } catch (e) {
     await notice('Recovery fehlgeschlagen', e.message);
   }
@@ -1607,20 +1564,20 @@ async function main() {
     if (choice === -1) break;
     if (choice === 0) {
       await configureWidget(cfg);
-      await save(cfg, false);
+      await save(cfg);
     }
     if (choice === 1) {
       await configureFullscreen(cfg);
-      await save(cfg, false);
+      await save(cfg);
     }
     if (choice === 2) {
       await configureLocation(cfg);
-      await save(cfg, false);
+      await save(cfg);
     }
     if (choice === 3) await managePinnedStops();
-    if (choice === 4) { await configureOffline(cfg); await save(cfg, false); }
-    if (choice === 5) { await configureUpdates(cfg); await save(cfg, false); }
-    if (choice === 6) { const result = await configureDeveloperOptions(cfg); if (result === 'uninstalled') break; await save(cfg, false); }
+    if (choice === 4) { await configureOffline(cfg); await save(cfg); }
+    if (choice === 5) { await configureUpdates(cfg); await save(cfg); }
+    if (choice === 6) { const result = await configureDeveloperOptions(cfg); if (result === 'uninstalled') break; await save(cfg); }
 
   }
 
