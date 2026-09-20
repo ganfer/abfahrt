@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "version": "2.0.9",
+  "version": "2.0.11",
   "files": [
     {
       "name": "abfahrt.js",
-      "sha256": "3a79fad042b1d0929237433015cfc2bbda9dd5e4dd6ea0b0d369d3464e28afa1"
+      "sha256": "087507585ee53ec9f6fd89d457d5f9a6d27383022c00fae5615b996c14ccb97f"
     },
     {
       "name": "abfahrt-config.js",
-      "sha256": "eabaa5d0e48b792b65f42982947a6f6f88b15264539cea95dea8cf1fb0ed6dd3"
+      "sha256": "db18842b271fb593cbc447746d60927c0601a9085fc06e99721065d845bccff1"
     }
   ]
 }
