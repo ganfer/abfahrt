@@ -5,11 +5,35 @@
 
 **abfahrt** ist ein schnelles Scriptable-Widget für iPhone und iPad, das dir die nächsten Abfahrten des öffentlichen Nahverkehrs in Baden-Württemberg zeigt – mit Echtzeitdaten, Verspätungen, Ausfällen, GPS-Haltestellensuche, angepinnten Haltestellen und einem Offline-Fahrplan als Fallback.
 
-<p align="center">
-  <img src="docs/assets/widget-preview.png" alt="abfahrt-Widget mit den nächsten Abfahrten" width="360">
-</p>
+## Vorschau
 
-> Die Vorschau verwendet feste Demodaten. Sie wird automatisch erzeugt und benötigt weder einen TRIAS-Key noch einen echten Standort.
+<table>
+  <tr>
+    <td align="center">
+      <a href="docs/assets/widget-preview-small.png">
+        <img src="docs/assets/widget-preview-small.png" alt="abfahrt Small Widget" width="160">
+      </a>
+      <br>
+      <sub>Widget klein</sub>
+    </td>
+    <td align="center">
+      <a href="docs/assets/widget-preview-large.png">
+        <img src="docs/assets/widget-preview-large.png" alt="abfahrt Large Widget" width="160">
+      </a>
+      <br>
+      <sub>Widget groß</sub>
+    </td>
+    <td align="center">
+      <a href="docs/assets/fullscreen-preview-platform.png">
+        <img src="docs/assets/fullscreen-preview-platform.png" alt="abfahrt Vollbildansicht nach Gleis sortiert" width="160">
+      </a>
+      <br>
+      <sub>Fullscreen · nach Gleis sortiert</sub>
+    </td>
+  </tr>
+</table>
+
+> Die Vorschauen verwenden feste Demodaten. Sie werden automatisch erzeugt und benötigen weder einen TRIAS-Key noch einen echten Standort. Ein Klick auf ein Bild öffnet die jeweilige Vorschau in voller Größe.
 
 ## Warum gibt es abfahrt?
 
@@ -294,7 +318,7 @@ Wenn Runtime oder Config beschädigt sind, steht zusätzlich **Recovery · Insta
 - [Module und Komponenten](docs/MODULES.md) – technische Übersicht über Runtime, Config, Installer, Hilfsskripte, Workflows und Tests
 - [Architektur](docs/ARCHITECTURE.md) – Zusammenspiel der Komponenten, Datenflüsse, Persistenz und Update-Modell
 - [Offline-GTFS](docs/GTFS.md) – Aufbau und Aktualisierung des Offline-Fahrplans
-- [Widget-Vorschau](docs/SCREENSHOTS.md) – automatische Erzeugung des README-Screenshots
+- [Vorschau-Screenshots](docs/SCREENSHOTS.md) – automatische Erzeugung der Small-/Large-Widget- und Fullscreen-Vorschauen
 
 ## Entwicklung
 
@@ -315,7 +339,7 @@ Lokal können die Regressionstests so gestartet werden:
 node --test test/*.test.js
 ```
 
-Eine separate CI erzeugt außerdem die deterministische Widget-Vorschau im README.
+Eine separate CI erzeugt außerdem die drei deterministischen README-Vorschauen für Small Widget, Large Widget und die nach Gleis sortierte Vollbildansicht.
 
 ## Versionierung
 
