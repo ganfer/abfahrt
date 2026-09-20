@@ -74,11 +74,21 @@ test('successful update relaunches Config so newly written code becomes active',
   assert.match(source, /relaunchConfig\(\);/);
 });
 
-test('Recovery bypasses channel selection and resolves exact main commit', () => {
+test('Config saves silently because settings are auto-saved', () => {
+  assert.match(source, /async function save\(cfg\) \{/);
+  assert.doesNotMatch(source, /notice\('Gespeichert'/);
+  assert.doesNotMatch(source, /save\(cfg, false\)/);
+  assert.match(source, /if \(choice === 1\) \{\s*await save\(cfg\);\s*await updateScripts\(cfg\);/);
+});
+
+
+test('Recovery bypasses channel selection, resolves exact main commit and relaunches Config', () => {
   assert.match(source, /async function recoverFromMain\(\)/);
   assert.match(source, /const source = await latestDevelopment\(\)/);
   assert.match(source, /downloadManagedFiles\(source\.ref\)/);
   assert.match(source, /Recovery · Installation reparieren/);
+  assert.match(source, /Recovery abgeschlossen[\s\S]*relaunchConfig\(\);/);
+  assert.doesNotMatch(source, /Bitte die Config anschließend neu öffnen/);
 });
 
 test('pending bootstrap installation is completed by Config', () => {
@@ -86,4 +96,10 @@ test('pending bootstrap installation is completed by Config', () => {
   assert.match(source, /PENDING_INSTALL_REF_KEY/);
   assert.match(source, /removeInstallerFiles\(\)/);
   assert.match(source, /clearPendingInstallState\(\)/);
+});
+
+test('obsolete Config leftovers stay removed', () => {
+  assert.doesNotMatch(source, /function summary\(cfg\)/);
+  assert.doesNotMatch(source, /const downloadedVersions =/);
+  assert.match(source, /auf die Standardwerte zurückgesetzt/);
 });
