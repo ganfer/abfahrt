@@ -1,4 +1,4 @@
-name: Widget screenshot
+name: Preview screenshots
 
 on:
   pull_request:
@@ -7,6 +7,7 @@ on:
       - 'abfahrt-config.js'
       - 'scripts/render-widget-preview.mjs'
       - '.github/workflows/widget-screenshot.yml'
+      - 'README.md'
   push:
     branches: [main]
     paths:
@@ -14,6 +15,7 @@ on:
       - 'abfahrt-config.js'
       - 'scripts/render-widget-preview.mjs'
       - '.github/workflows/widget-screenshot.yml'
+      - 'README.md'
   workflow_dispatch:
 
 permissions:
@@ -21,12 +23,12 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: widget-screenshot-${{ github.workflow }}-${{ github.ref }}
+  group: preview-screenshots-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   render:
-    name: Render smartphone preview
+    name: Render README previews
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -35,61 +37,89 @@ jobs:
           node-version: 22
 
       - name: Generate deterministic preview HTML
-        run: node scripts/render-widget-preview.mjs --output .preview/widget-preview.html
+        shell: bash
+        run: |
+          node scripts/render-widget-preview.mjs --variant widget-small --output .preview/widget-small.html
+          node scripts/render-widget-preview.mjs --variant widget-large --output .preview/widget-large.html
+          node scripts/render-widget-preview.mjs --variant fullscreen-platform --output .preview/fullscreen-platform.html
 
       - name: Install Chrome
         id: chrome
         uses: browser-actions/setup-chrome@v2
 
-      - name: Capture iPhone-sized screenshot
+      - name: Capture iPhone-sized screenshots
         shell: bash
         run: |
           mkdir -p docs/assets
-          "${{ steps.chrome.outputs.chrome-path }}" \
-            --headless=new \
-            --no-sandbox \
-            --disable-gpu \
-            --hide-scrollbars \
-            --window-size=430,932 \
-            --force-device-scale-factor=1 \
-            --screenshot=docs/assets/widget-preview.png \
-            "file://${GITHUB_WORKSPACE}/.preview/widget-preview.html"
+          CHROME="${{ steps.chrome.outputs.chrome-path }}"
+          COMMON_ARGS=(
+            --headless=new
+            --no-sandbox
+            --disable-gpu
+            --hide-scrollbars
+            --window-size=430,932
+            --force-device-scale-factor=1
+          )
 
-      - name: Upload preview artifact
+          "$CHROME" "${COMMON_ARGS[@]}" \
+            --screenshot=docs/assets/widget-preview-small.png \
+            "file://${GITHUB_WORKSPACE}/.preview/widget-small.html"
+
+          "$CHROME" "${COMMON_ARGS[@]}" \
+            --screenshot=docs/assets/widget-preview-large.png \
+            "file://${GITHUB_WORKSPACE}/.preview/widget-large.html"
+
+          "$CHROME" "${COMMON_ARGS[@]}" \
+            --screenshot=docs/assets/fullscreen-preview-platform.png \
+            "file://${GITHUB_WORKSPACE}/.preview/fullscreen-platform.html"
+
+      - name: Upload preview artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: widget-smartphone-preview-${{ github.sha }}
-          path: docs/assets/widget-preview.png
+          name: readme-previews-${{ github.sha }}
+          path: |
+            docs/assets/widget-preview-small.png
+            docs/assets/widget-preview-large.png
+            docs/assets/fullscreen-preview-platform.png
           if-no-files-found: error
 
-      - name: Publish refreshed README screenshot
+      - name: Publish refreshed README previews
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          if git diff --quiet -- docs/assets/widget-preview.png; then
-            echo "Widget screenshot is unchanged."
+          PREVIEWS=(
+            docs/assets/widget-preview-small.png
+            docs/assets/widget-preview-large.png
+            docs/assets/fullscreen-preview-platform.png
+          )
+
+          if [ -z "$(git status --porcelain -- "${PREVIEWS[@]}" docs/assets/widget-preview.png)" ]; then
+            echo "README previews are unchanged."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/assets/widget-preview.png
-          git commit -m "docs: refresh widget screenshot"
+          git add "${PREVIEWS[@]}"
+          if [ -f docs/assets/widget-preview.png ]; then
+            git rm docs/assets/widget-preview.png
+          fi
+          git commit -m "docs: refresh README previews"
 
-          BRANCH="automation/widget-screenshot"
+          BRANCH="automation/readme-previews"
           git push --force origin HEAD:"refs/heads/$BRANCH"
 
           EXISTING="$(gh pr list --base main --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
           if [ -n "$EXISTING" ]; then
-            echo "Screenshot PR #$EXISTING already exists and was refreshed."
+            echo "Preview PR #$EXISTING already exists and was refreshed."
           elif gh pr create \
             --base main \
             --head "$BRANCH" \
-            --title "docs: refresh widget screenshot" \
-            --body "Refresh the generated widget preview through the protected main-branch workflow."; then
-            echo "Opened screenshot pull request."
+            --title "docs: refresh README previews" \
+            --body "Refresh the generated Small/Large widget and fullscreen preview images through the protected main-branch workflow."; then
+            echo "Opened preview pull request."
           else
-            echo "::warning::The refreshed screenshot was pushed to $BRANCH, but GitHub Actions is not allowed to create pull requests. Open a PR from $BRANCH manually or enable 'Allow GitHub Actions to create and approve pull requests' in Settings → Actions → General."
+            echo "::warning::The refreshed previews were pushed to $BRANCH, but GitHub Actions could not create the pull request."
           fi
