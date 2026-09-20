@@ -97,7 +97,7 @@ test('GTFS workflow rebuilds when the builder changes in a push', () => {
   assert.match(workflow, /builderChanged=\$BUILDER_CHANGED/);
 });
 
-test('release workflow creates checksummed Stable metadata without bypassing protected main', () => {
+test('release workflow creates and safely merges checksummed Stable metadata through a PR', () => {
   const workflow = read('.github/workflows/release.yml');
   assert.match(workflow, /release-manifest\.json/);
   assert.match(workflow, /createHash\('sha256'\)/);
@@ -105,28 +105,25 @@ test('release workflow creates checksummed Stable metadata without bypassing pro
   assert.match(workflow, /--target "\$TARGET"/);
   assert.match(workflow, /RELEASE_BRANCH="release\/v\$VERSION"/);
   assert.match(workflow, /gh pr create/);
-  const metadataPrStep = workflow.split('- name: Open Stable metadata pull request')[1];
-  assert.ok(metadataPrStep, 'Stable metadata PR step must exist');
+
+  const metadataPrStep = workflow.split('- name: Open and merge Stable metadata pull request')[1];
+  assert.ok(metadataPrStep, 'Stable metadata PR merge step must exist');
   assert.doesNotMatch(metadataPrStep, /if: steps\.existing\.outputs\.exists == 'false'/);
   assert.match(metadataPrStep, /git ls-remote --exit-code --heads origin "\$RELEASE_BRANCH"/);
   assert.match(metadataPrStep, /origin\/main\.\.\.origin\/\$RELEASE_BRANCH/);
+  assert.match(metadataPrStep, /\.baseRefName == "main"/);
+  assert.match(metadataPrStep, /README\.md release-manifest\.json/);
+  assert.match(metadataPrStep, /gh pr merge "\$PR_NUMBER"/);
+  assert.match(metadataPrStep, /--match-head-commit "\$HEAD_SHA"/);
+  assert.doesNotMatch(metadataPrStep, /--admin/);
   assert.doesNotMatch(workflow, /git push origin HEAD:main/);
   assert.doesNotMatch(workflow, /--target "\$GITHUB_SHA"/);
-});
 
-test('Stable metadata merge waits for successful CI and only merges generated release PRs', () => {
-  const workflow = read('.github/workflows/release-metadata-merge.yml');
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /workflows: \["CI"\]/);
-  assert.match(workflow, /conclusion == 'success'/);
-  assert.match(workflow, /event == 'pull_request'/);
-  assert.match(workflow, /startsWith\(github\.event\.workflow_run\.head_branch, 'release\/v'\)/);
-  assert.match(workflow, /head_repository\.full_name == github\.repository/);
-  assert.match(workflow, /baseRefName == "main"/);
-  assert.match(workflow, /README\.md release-manifest\.json/);
-  assert.match(workflow, /gh pr merge/);
-  assert.match(workflow, /--match-head-commit "\$HEAD_SHA"/);
-  assert.doesNotMatch(workflow, /--admin/);
+  assert.equal(
+    fs.existsSync(path.join(root, '.github/workflows/release-metadata-merge.yml')),
+    false,
+    'Stable metadata must not depend on CI of a GITHUB_TOKEN-created PR',
+  );
 });
 
 test('preview workflow updates protected main through a pull request', () => {
