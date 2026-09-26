@@ -64,6 +64,13 @@ test('README quick installer stays copy-pasteable in Scriptable', () => {
   }
 });
 
+test('offline diagnostics distinguish local sync from source data time', () => {
+  const config = read('abfahrt-config.js');
+  assert.match(config, /localSyncedAt/);
+  assert.match(config, /Offline lokal synchronisiert/);
+  assert.match(config, /GTFS-Datenstand/);
+});
+
 test('offline config defines the GTFS stop reference normalizer', () => {
   const config = read('abfahrt-config.js');
   assert.ok(config.includes('function canonicalGtfsStopRef(ref) {'));

@@ -1,6 +1,6 @@
 # abfahrt
 
-**Entwicklungsversion: v2.0.13**  
+**Entwicklungsversion: v2.0.14**  
 **Stabile Version: v2.0.13**
 
 **abfahrt** ist ein schnelles Scriptable-Widget für iPhone und iPad, das dir die nächsten Abfahrten des öffentlichen Nahverkehrs in Baden-Württemberg zeigt – mit Echtzeitdaten, Verspätungen, Ausfällen, GPS-Haltestellensuche, angepinnten Haltestellen und einem Offline-Fahrplan als Fallback.
