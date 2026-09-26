@@ -2,7 +2,7 @@
 //
 // Interactive configuration assistant for abfahrt.
 
-const APP_VERSION = '2.0.12';
+const APP_VERSION = '2.0.13';
 const CONFIG_FILE_NAME = 'abfahrt.config.json';
 const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS'; // contains pinned stops
 const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
@@ -733,6 +733,11 @@ async function downloadJson(url) {
   if (status < 200 || status >= 300) throw new Error('HTTP ' + (status || '?'));
   return { raw, value: JSON.parse(raw) };
 }
+function canonicalGtfsStopRef(ref) {
+  const parts = String(ref || '').trim().split(':');
+  return parts.length >= 3 ? parts.slice(0, 3).join(':') : String(ref || '').trim();
+}
+
 function offlineWantedStopEntries(cfg) {
   const all = [];
   if (cfg.offline?.pinned) all.push(...savedStops().filter((stop) => stop.pinned === true));

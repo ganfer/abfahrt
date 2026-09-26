@@ -64,6 +64,11 @@ test('README quick installer stays copy-pasteable in Scriptable', () => {
   }
 });
 
+test('offline config defines the GTFS stop reference normalizer', () => {
+  const config = read('abfahrt-config.js');
+  assert.ok(config.includes('function canonicalGtfsStopRef(ref) {'));
+});
+
 test('config owns the managed installation lifecycle', () => {
   const config = read('abfahrt-config.js');
   assert.match(config, /const MANAGED_FILES = \[/);
