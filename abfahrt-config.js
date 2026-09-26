@@ -865,7 +865,7 @@ async function syncOfflineData(cfg) {
     const missingText = missing.length
       ? '\n\nNicht zugeordnet (' + missing.length + '):\n' + missing.map((item) => '• ' + item.name + ' [' + item.ref + ']').join('\n')
       : '';
-    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} Haltestellen-IDs verfügbar · ${shards.length} Datenpakete.\n\nDatenstand: ${stamp}${missingText}`);
+    await notice('Offline-Daten aktualisiert', `${found.length}/${wanted.length} Haltestellen-IDs verfügbar · ${shards.length} Datenpakete.\n\nGTFS-Datenstand: ${stamp}${missingText}`);
   } catch (e) {
     await notice('Offline-Update fehlgeschlagen', 'Die bisherigen Offline-Daten bleiben erhalten.\n\n' + e.message);
   }
@@ -881,14 +881,15 @@ function offlineStatus(cfg) {
   const wanted = offlineWantedStops(cfg);
   const available = wanted.filter((ref) => index?.stops?.[ref]).length;
   const stamp = formatOfflineTimestamp(manifest?.sourceImportedAt || manifest?.generatedAt || 'keine Daten');
-  return { wanted: wanted.length, available, stamp, schemaVersion: manifest?.schemaVersion || null };
+  const syncedAt = formatOfflineTimestamp(manifest?.localSyncedAt || (manifest ? 'nicht synchronisiert' : 'keine Daten'));
+  return { wanted: wanted.length, available, stamp, syncedAt, schemaVersion: manifest?.schemaVersion || null };
 }
 async function configureOffline(cfg) {
   while (true) {
     const status = offlineStatus(cfg);
     const a = new Alert();
     a.title = 'Offline-Fahrplan';
-    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nZuletzt verwendet (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nOffline-Zuordnungen: ${status.available}/${status.wanted}\nDatenformat: ${status.schemaVersion ? 'v' + status.schemaVersion : 'keine Daten'}\nDatenstand: ${status.stamp}`;
+    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nZuletzt verwendet (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nOffline-Zuordnungen: ${status.available}/${status.wanted}\nDatenformat: ${status.schemaVersion ? 'v' + status.schemaVersion : 'keine Daten'}\nLokal synchronisiert: ${status.syncedAt}\nGTFS-Datenstand: ${status.stamp}`;
     a.addAction(`Offline-Fahrplan ${cfg.offline.enabled ? 'ausschalten' : 'einschalten'}`);
     a.addAction(`Angepinnte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
     a.addAction(`Zuletzt verwendete: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
@@ -1424,6 +1425,7 @@ function diagnosticSnapshot(cfg) {
     offlineAvailable: `${offline.available}/${offline.wanted}`,
     offlineSchema: offline.schemaVersion ? 'v' + offline.schemaVersion : 'keine Daten',
     offlineStamp: offline.stamp,
+    offlineSync: offline.syncedAt,
   };
 }
 
@@ -1483,7 +1485,8 @@ async function buildDiagnostics(cfg) {
     `Offline-Fahrplan: ${d.offlineEnabled}`,
     `Offline-Zuordnungen: ${d.offlineAvailable}`,
     `Offline-Datenformat: ${d.offlineSchema}`,
-    `Offline-Datenstand: ${d.offlineStamp}`,
+    `Offline lokal synchronisiert: ${d.offlineSync}`,
+    `GTFS-Datenstand: ${d.offlineStamp}`,
   ].join('\n');
 }
 
