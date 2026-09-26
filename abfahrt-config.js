@@ -889,7 +889,7 @@ async function configureOffline(cfg) {
     const status = offlineStatus(cfg);
     const a = new Alert();
     a.title = 'Offline-Fahrplan';
-    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nZuletzt verwendet (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nOffline-Zuordnungen: ${status.available}/${status.wanted}\nDatenformat: ${status.schemaVersion ? 'v' + status.schemaVersion : 'keine Daten'}\nLokal synchronisiert: ${status.syncedAt}\\nGTFS-Datenstand: ${status.stamp}`;
+    a.message = `Offline: ${cfg.offline.enabled ? 'Ein' : 'Aus'}\nAngepinnte: ${cfg.offline.pinned ? 'Ein' : 'Aus'}\nZuletzt verwendet (max. 20): ${cfg.offline.history ? 'Ein' : 'Aus'}\nAutomatisch: ${cfg.offline.autoUpdate !== false ? 'Ein' : 'Aus'}\nOffline-Zuordnungen: ${status.available}/${status.wanted}\nDatenformat: ${status.schemaVersion ? 'v' + status.schemaVersion : 'keine Daten'}\nLokal synchronisiert: ${status.syncedAt}\nGTFS-Datenstand: ${status.stamp}`;
     a.addAction(`Offline-Fahrplan ${cfg.offline.enabled ? 'ausschalten' : 'einschalten'}`);
     a.addAction(`Angepinnte Haltestellen: ${cfg.offline.pinned ? 'Ein' : 'Aus'}`);
     a.addAction(`Zuletzt verwendete: ${cfg.offline.history ? 'Ein' : 'Aus'}`);
