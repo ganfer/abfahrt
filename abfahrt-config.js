@@ -783,6 +783,32 @@ function formatOfflineTimestamp(value) {
     hour: '2-digit', minute: '2-digit',
   }) + ' Uhr';
 }
+function offlineManager() {
+  return FileManager.local();
+}
+function offlineDir() {
+  const manager = offlineManager();
+  return manager.joinPath(manager.documentsDirectory(), GTFS_CACHE_DIR);
+}
+function offlineFile(name) {
+  const manager = offlineManager();
+  return manager.joinPath(offlineDir(), name);
+}
+function ensureOfflineDir() {
+  const manager = offlineManager();
+  const dir = offlineDir();
+  if (!manager.fileExists(dir)) manager.createDirectory(dir, true);
+}
+function readOfflineJson(name) {
+  try {
+    const manager = offlineManager();
+    const path = offlineFile(name);
+    return manager.fileExists(path) ? JSON.parse(manager.readString(path)) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function syncOfflineData(cfg) {
   if (!cfg.offline?.enabled) {
     await notice('Offline-Fahrplan ist aus', 'Aktiviere den Offline-Fahrplan zuerst.');
