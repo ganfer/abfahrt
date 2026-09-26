@@ -733,6 +733,11 @@ async function downloadJson(url) {
   if (status < 200 || status >= 300) throw new Error('HTTP ' + (status || '?'));
   return { raw, value: JSON.parse(raw) };
 }
+function canonicalGtfsStopRef(ref) {
+  const parts = String(ref || '').trim().split(':');
+  return parts.length >= 3 ? parts.slice(0, 3).join(':') : String(ref || '').trim();
+}
+
 function offlineWantedStopEntries(cfg) {
   const all = [];
   if (cfg.offline?.pinned) all.push(...savedStops().filter((stop) => stop.pinned === true));
