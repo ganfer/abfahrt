@@ -2142,7 +2142,7 @@ async function presentDeparturesTable(key, context = null) {
 </style>
 </head>
 <body>
-  <main id="abfahrt-board" ${resumeFixed ? 'hidden' : ''}>
+  <main id="abfahrt-board"${resumeFixed ? ' hidden' : ''}>
   <section class="stop-card">
     <div class="stop-top">
       <div class="stop-symbol" aria-hidden="true"><span>H</span></div>
