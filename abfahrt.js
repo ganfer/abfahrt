@@ -1675,7 +1675,23 @@ async function presentDeparturesTable(key, context = null) {
       : 'Bertoldsbrunnen';
 
   try {
-    const events = await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
+    const currentFixed = fixedTrip();
+    const resumeSelected = context?.resumeFixed && currentFixed ? { ...currentFixed } : null;
+    let initialTripHTML = '';
+    let initialStops = [];
+    if (resumeSelected) {
+      try {
+        initialStops = await loadTripInfoStops(resumeSelected, key);
+        initialTripHTML = renderTripProgressHTML(
+          resumeSelected, initialStops, resumeSelected.originName || title, true,
+        );
+      } catch (resumeError) {
+        initialTripHTML = renderTripFailureHTML(friendlyError(resumeError), true);
+      }
+    }
+    // Resuming a journey must not depend on departures at the old boarding stop.
+    const events = resumeSelected ? [] :
+      await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
     const filteredEvents = applyPinnedFilter(events, activePin, 'fullscreen');
     const now = Date.now();
     const rows = filteredEvents
@@ -1704,8 +1720,7 @@ async function presentDeparturesTable(key, context = null) {
       : platformValues.length > 1
         ? platformValues.length + ' Steige'
         : '';
-    const currentFixed = fixedTrip();
-    const resumeFixed = Boolean(context?.resumeFixed && currentFixed);
+    const resumeFixed = Boolean(resumeSelected);
     const pinGlyph = activePin ? '★' : '☆';
     const pinTitle = activePin ? 'Angepinnte Haltestelle' : 'Nicht angepinnt';
     const locationMeta = context?.autoSelected && Number.isFinite(context.distance)
@@ -2127,7 +2142,7 @@ async function presentDeparturesTable(key, context = null) {
 </style>
 </head>
 <body>
-  <main id="abfahrt-board">
+  <main id="abfahrt-board" ${resumeFixed ? 'hidden' : ''}>
   <section class="stop-card">
     <div class="stop-top">
       <div class="stop-symbol" aria-hidden="true"><span>H</span></div>
@@ -2157,14 +2172,14 @@ async function presentDeparturesTable(key, context = null) {
   </div>
 
   </main>
-  <section id="abfahrt-trip" hidden aria-live="polite"></section>
+  <section id="abfahrt-trip" ${resumeFixed ? '' : 'hidden'} aria-live="polite">${initialTripHTML}</section>
   <script>
     // Native Scriptable intercepts these URLs before navigation. Unlike the
     // previous callback bridge, this leaves the initial WebView free to render.
     window.abfahrtEmit = function(action) {
       if (action.type === 'open' && Number.isInteger(action.index) && action.index >= 0) {
         window.location.href = 'https://abfahrt-trip.invalid/open/' + action.index;
-      } else if (action.type === 'back' || action.type === 'refresh') {
+      } else if (['back', 'refresh', 'resume', 'pin', 'unpin'].includes(action.type)) {
         window.location.href = 'https://abfahrt-trip.invalid/' + action.type;
       }
     };
@@ -2195,16 +2210,17 @@ async function presentDeparturesTable(key, context = null) {
       window.abfahrtUpdateCountdowns();
       window.scrollTo(0, 0);
     };
-    window.abfahrtShowError = function(message) {
+    window.abfahrtShowError = function(safeHTML) {
       const view = document.getElementById('abfahrt-trip');
-      const back = document.createElement('button');
-      back.type = 'button'; back.className = 'trip-nav-button';
-      back.dataset.tripAction = 'back'; back.textContent = '‹ Abfahrten';
-      const label = document.createElement('p');
-      label.className = 'trip-note'; label.textContent = message;
-      view.replaceChildren(back, label);
+      view.innerHTML = safeHTML;
       view.hidden = false;
       document.getElementById('abfahrt-board').hidden = true;
+    };
+    window.abfahrtSetFixedTrip = function(summary) {
+      const shortcut = document.getElementById('trip-fixed-banner');
+      const label = document.getElementById('trip-fixed-summary');
+      if (shortcut) shortcut.hidden = !summary;
+      if (label) label.textContent = summary || '';
     };
     window.abfahrtShowBoard = function() {
       document.getElementById('abfahrt-trip').hidden = true;
@@ -2216,8 +2232,11 @@ async function presentDeparturesTable(key, context = null) {
         const diff = Number(el.dataset.arrivalMs) - Date.now();
         el.textContent = diff < -60000 ? 'vorbei' :
           diff < 60000 ? 'jetzt' : Math.floor(diff / 60000) + ' min';
+        const row = el.closest('.trip-stop');
+        if (row) row.classList.toggle('trip-passed', diff < -60000);
       });
     };
+    window.abfahrtUpdateCountdowns();
     setInterval(window.abfahrtUpdateCountdowns, 30000);
   </script>
 </body>
@@ -2232,11 +2251,11 @@ async function presentDeparturesTable(key, context = null) {
     // The original departure table renders with only loadHTML + present.
     web.shouldAllowRequest = (request) => {
       const url = String(request?.url || '');
-      const match = /^https:\/\/abfahrt-trip\.invalid\/(?:open\/(\d+)|back|refresh)\/?$/.exec(url);
+      const match = /^https:\/\/abfahrt-trip\.invalid\/(?:open\/(\d+)|back|refresh|resume|pin|unpin)\/?$/.exec(url);
       if (!match) return true;
       const command = match[1] !== undefined
         ? { type: 'open', index: Number(match[1]) }
-        : { type: url.includes('/back') ? 'back' : 'refresh' };
+        : { type: url.substring(url.lastIndexOf('/') + 1) };
       if (notifyCommand) {
         const notify = notifyCommand;
         notifyCommand = null;
