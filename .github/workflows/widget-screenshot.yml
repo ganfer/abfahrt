@@ -42,6 +42,7 @@ jobs:
           node scripts/render-widget-preview.mjs --variant widget-small --output .preview/widget-small.html
           node scripts/render-widget-preview.mjs --variant widget-large --output .preview/widget-large.html
           node scripts/render-widget-preview.mjs --variant fullscreen-platform --output .preview/fullscreen-platform.html
+          node scripts/render-widget-preview.mjs --variant trip-normal --output .preview/trip-normal.html
 
       - name: Install Chrome
         id: chrome
@@ -73,6 +74,10 @@ jobs:
             --screenshot=docs/assets/fullscreen-preview-platform.png \
             "file://${GITHUB_WORKSPACE}/.preview/fullscreen-platform.html"
 
+          "$CHROME" "${COMMON_ARGS[@]}" \
+            --screenshot=docs/assets/trip-normal-preview.png \
+            "file://${GITHUB_WORKSPACE}/.preview/trip-normal.html"
+
       - name: Upload preview artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -81,6 +86,7 @@ jobs:
             docs/assets/widget-preview-small.png
             docs/assets/widget-preview-large.png
             docs/assets/fullscreen-preview-platform.png
+            docs/assets/trip-normal-preview.png
           if-no-files-found: error
 
       - name: Publish refreshed README previews
@@ -93,6 +99,7 @@ jobs:
             docs/assets/widget-preview-small.png
             docs/assets/widget-preview-large.png
             docs/assets/fullscreen-preview-platform.png
+            docs/assets/trip-normal-preview.png
           )
 
           if [ -z "$(git status --porcelain -- "${PREVIEWS[@]}" docs/assets/widget-preview.png)" ]; then

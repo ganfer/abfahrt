@@ -343,10 +343,80 @@ function renderFullscreenPlatform() {
 </html>`;
 }
 
+
+// A single deterministic preview of the normal (not fixed) trip detail screen.
+// Reuse the actual view renderer from abfahrt.js, not a separate mock layout.
+function renderTripProgress() {
+  // Use a fixed German local timezone, independently of the runner location.
+  process.env.TZ = 'Europe/Berlin';
+  const bootstrap = source.replace(
+    /await main\(\);\s*$/,
+    'return { renderTripProgressHTML };',
+  );
+  if (bootstrap === source) throw new Error('Cannot extract Scriptable trip renderer');
+  const { renderTripProgressHTML } = new Function(bootstrap)();
+  const cssStart = source.indexOf('  .trip-toolbar {');
+  const cssEnd = source.indexOf('  .stop-card {', cssStart);
+  if (cssStart < 0 || cssEnd < 0) throw new Error('Trip CSS not found in abfahrt.js');
+  const tripCSS = source.slice(cssStart, cssEnd);
+
+  const at = (clock) => Date.parse('2026-09-19T' + clock + ':00+02:00');
+  const now = at('12:42');
+  const selected = {
+    line: '1', destination: 'Landwasser', stopRef: 'de:08311:30100:0:1',
+    plannedTime: at('12:45'), realtimeTime: null,
+    journeyRef: 'preview-trip-1', operatingDayRef: '2026-09-19',
+  };
+  const fixtureStops = [
+    { name: 'Stadttheater', planned: '12:47', estimated: '12:48', platform: '1' },
+    { name: 'Hauptbahnhof', planned: '12:50', estimated: '12:50', platform: '2' },
+    { name: 'Eschholzstraße', planned: '12:54', platform: '1' },
+    { name: 'Runzmattenweg', planned: '12:57', estimated: '12:58' },
+    { name: 'Betzenhauser Torplatz', planned: '13:02', estimated: '13:02' },
+    { name: 'Bischofskreuz', planned: '13:07' },
+    { name: 'Landwasser', planned: '13:13', estimated: '13:14' },
+  ].map((stop, index) => ({
+    stopRef: 'demo:stop:' + (index + 1),
+    name: stop.name,
+    plannedTime: at(stop.planned),
+    at: at(stop.estimated || stop.planned),
+    realtime: Boolean(stop.estimated),
+    cancelled: false,
+    platform: stop.platform || '',
+    noAlighting: false,
+  }));
+
+  // The real WebView fills relative minutes. Freeze the demo clock to 12:42
+  // so repeated workflow runs create the same image.
+  const detail = renderTripProgressHTML(selected, fixtureStops, 'Bertoldsbrunnen', false)
+    .replace(/(<strong class="trip-remaining" data-arrival-ms="(\d+)">)–(<\/strong>)/g,
+      (_match, before, milliseconds, after) => {
+        const remaining = Math.max(0, Math.floor((Number(milliseconds) - now) / 60000));
+        return before + (remaining ? remaining + ' min' : 'jetzt') + after;
+      });
+
+  return [
+    '<!doctype html>',
+    '<html lang="de"><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<title>abfahrt Fahrtverlauf Vorschau</title>',
+    '<style>',
+    '  :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif; --bg:#0d0d0f; --border:rgba(255,255,255,.11); --muted:#9b9ba1; --text:#f5f5f7; }',
+    '  * { box-sizing: border-box; }',
+    '  html, body { width:430px; height:932px; margin:0; overflow:hidden; }',
+    '  body { color:var(--text); padding:26px 14px 28px; background:radial-gradient(circle at 50% -8%, rgba(58,122,255,.10), transparent 32%), var(--bg); }',
+    tripCSS,
+    '</style></head><body>',
+    detail,
+    '</body></html>',
+  ].join('\n');
+}
+
 let html;
 if (variant === 'widget-small') html = renderWidget('small');
 else if (variant === 'widget-large') html = renderWidget('large');
 else if (variant === 'fullscreen-platform') html = renderFullscreenPlatform();
+else if (variant === 'trip-normal') html = renderTripProgress();
 else throw new Error(`Unknown preview variant: ${variant}`);
 
 fs.writeFileSync(output, html);

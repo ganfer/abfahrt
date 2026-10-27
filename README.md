@@ -30,6 +30,13 @@
       <br>
       <sub>Fullscreen · nach Gleis sortiert</sub>
     </td>
+    <td align="center">
+      <a href="docs/assets/trip-normal-preview.png">
+        <img src="docs/assets/trip-normal-preview.png" alt="abfahrt Fahrtverlauf mit folgenden Haltestellen, Uhrzeiten und Restminuten" width="160">
+      </a>
+      <br>
+      <sub>Fahrtverlauf</sub>
+    </td>
   </tr>
 </table>
 
