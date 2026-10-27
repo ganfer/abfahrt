@@ -1626,7 +1626,7 @@ function htmlEsc(value) {
 }
 
 
-function renderTripProgressHTML(selected, stops, originName) {
+function renderTripProgressHTML(selected, stops, originName, pinned = false) {
   const departure = selected.realtimeTime || selected.plannedTime;
   const origin = htmlEsc(originName || 'Einstiegshaltestelle');
   const items = stops.map((stop) => {
@@ -1649,6 +1649,9 @@ function renderTripProgressHTML(selected, stops, originName) {
   return '<nav class="trip-toolbar">' +
     '<button type="button" data-trip-action="back" class="trip-nav-button">‹ Abfahrten</button>' +
     '<button type="button" data-trip-action="refresh" class="trip-nav-button">↻ Aktualisieren</button></nav>' +
+    '<button type="button" data-trip-action="' + (pinned ? 'unpin' : 'pin') +
+    '" class="trip-fix-button' + (pinned ? ' is-fixed' : '') + '">' +
+    (pinned ? '📌 Fahrt fixiert · Fixierung lösen' : '📌 Fahrt fixieren') + '</button>' +
     '<section class="trip-heading"><div class="trip-head-line"><span class="trip-line">' +
     htmlEsc(selected.line || '–') + '</span><div><h1>Richtung ' +
     htmlEsc(selected.destination || 'Unbekannte Richtung') + '</h1>' +
@@ -1701,6 +1704,8 @@ async function presentDeparturesTable(key, context = null) {
       : platformValues.length > 1
         ? platformValues.length + ' Steige'
         : '';
+    const currentFixed = fixedTrip();
+    const resumeFixed = Boolean(context?.resumeFixed && currentFixed);
     const pinGlyph = activePin ? '★' : '☆';
     const pinTitle = activePin ? 'Angepinnte Haltestelle' : 'Nicht angepinnt';
     const locationMeta = context?.autoSelected && Number.isFinite(context.distance)
@@ -1801,6 +1806,19 @@ async function presentDeparturesTable(key, context = null) {
   .departure-row[data-trip-index] { cursor: pointer; }
   .departure-row[data-trip-index]:focus-visible { outline: 2px solid #69c26a; outline-offset: -2px; }
   .trip-toolbar { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 15px; }
+  .trip-fix-button { display: block; width: 100%; padding: 14px; margin-bottom: 16px;
+    background: rgba(251,191,36,.10); color: #facc15; border: 1px solid rgba(250,204,21,.42);
+    border-radius: 13px; font-weight: 750; font-size: 15px; cursor: pointer; }
+  .trip-fix-button.is-fixed { background: rgba(48,209,88,.12); color: #85e29b;
+    border-color: rgba(48,209,88,.40); }
+  .trip-fixed-banner { margin-bottom: 14px; padding: 0; border-radius: 16px;
+    border: 1px solid rgba(250,204,21,.28); background: rgba(251,191,36,.08); }
+  .trip-fixed-banner button { border: 0; display: flex; align-items: center;
+    justify-content: space-between; gap: 10px; text-align: left; width: 100%;
+    min-height: 70px; color: #facc15; background: transparent; font-size: 14px;
+    padding: 15px; cursor: pointer; }
+  .trip-fixed-banner small { color: var(--muted); display: block; margin-top: 5px; }
+  .trip-passed { opacity: .48; }
   .trip-nav-button { background: #242429; color: #f5f5f7; border: 1px solid var(--border);
     border-radius: 12px; padding: 11px 14px; font-size: 14px; cursor: pointer; }
   .trip-heading { padding: 18px 16px; border-radius: 18px; border: 1px solid var(--border);
@@ -2125,6 +2143,11 @@ async function presentDeparturesTable(key, context = null) {
     </div>
   </section>
 
+  <section id="trip-fixed-banner" class="trip-fixed-banner" ${currentFixed ? '': 'hidden'}>
+    <button type="button" data-trip-action="resume"><span><strong>📌 Aktuelle Fahrt fortsetzen</strong>
+      <small id="trip-fixed-summary">${currentFixed ? htmlEsc(fixedTripDisplay(currentFixed)) : ''}</small></span>
+      <span aria-hidden="true">›</span></button>
+  </section>
   <div class="table-wrap">
     <table>
       <colgroup>${colgroup}</colgroup>
