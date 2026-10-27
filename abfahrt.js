@@ -2094,7 +2094,49 @@ async function presentDeparturesTable(key, context = null) {
 
     const web = new WebView();
     await web.loadHTML(html);
-    await web.present(true);
+    const presented = web.present(true);
+    let selectedRow = null;
+    try {
+      while (true) {
+        const command = await Promise.race([
+          presented.then(() => null),
+          web.evaluateJavaScript(
+            "if (window.abfahrtCommands.length) {" +
+            " completion(window.abfahrtCommands.shift());" +
+            "} else {" +
+            " window.addEventListener('abfahrt:command', function () {" +
+            "   completion(window.abfahrtCommands.shift());" +
+            " }, {once: true});" +
+            "}",
+            true,
+          ),
+        ]);
+        if (!command) break;
+        if (command.type === 'back') {
+          await web.evaluateJavaScript('window.abfahrtShowBoard();');
+          selectedRow = null;
+          continue;
+        }
+        if (command.type === 'open') {
+          if (!Number.isInteger(command.index) || command.index < 0 || command.index >= rows.length) continue;
+          selectedRow = rows[command.index];
+        } else if (command.type !== 'refresh' || !selectedRow) {
+          continue;
+        }
+        await web.evaluateJavaScript('window.abfahrtShowLoading();');
+        try {
+          const stops = await loadTripInfoStops(selectedRow, key);
+          const detail = renderTripProgressHTML(selectedRow, stops, title);
+          await web.evaluateJavaScript('window.abfahrtShowTrip(' + JSON.stringify(detail) + ');');
+        } catch (tripError) {
+          await web.evaluateJavaScript('window.abfahrtShowError(' +
+            JSON.stringify(friendlyError(tripError)) + ');');
+        }
+      }
+    } catch (closed) {
+      // Dismissing the WebView cancels its pending JavaScript callback.
+    }
+    await presented;
   } catch (e) {
     const alert = new Alert();
     alert.title = 'Abfahrten nicht verfügbar';
