@@ -119,3 +119,25 @@ test('fullscreen uses a lazily invoked native WebView bridge; widgets remain unm
   assert.match(source, /const events = await fetchDeparturesWithOffline\(stopRefs, key/);
   assert.doesNotMatch(source, /function buildStopEventRequest[\s\S]*?<IncludeOnwardCalls>true/);
 });
+
+
+test('regular stop-detail departures keep the original TRIAS request structure', () => {
+  const normal = vm.runInContext("buildStopEventRequest('de:08311:30100:0:1', 'key', 8)", sandbox);
+  assert.match(normal, /<NumberOfResults>8<\/NumberOfResults>/);
+  assert.match(normal, /<IncludeRealtimeData>true<\/IncludeRealtimeData>/);
+  assert.match(normal, /<StopEventPolicy>DEPARTURE<\/StopEventPolicy>/);
+  assert.doesNotMatch(normal, /IncludeOperatingDays/);
+});
+
+test('additional operating day info is only requested on demand and produces valid XML', () => {
+  const lookup = vm.runInContext("buildTripRefLookupRequest('de:08311:30100:0:1', 'key')", sandbox);
+  assert.match(lookup, /<IncludeOperatingDays>true<\/IncludeOperatingDays>\n\s*<IncludeRealtimeData>/);
+  assert.match(lookup, /<NumberOfResults>30<\/NumberOfResults>/);
+  assert.doesNotMatch(lookup, /<\/IncludeOperatingDays>\\n/);
+});
+
+test('WebView bridge failures restore original stop details instead of silently swallowing errors', () => {
+  assert.match(source, /catch \(bridgeError\)/);
+  assert.match(source, /if\(board\) \{ board\.hidden=false/);
+  assert.match(source, /if\(trip\) trip\.hidden=true/);
+});
