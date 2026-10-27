@@ -11,28 +11,28 @@
   <tr>
     <td align="center">
       <a href="docs/assets/widget-preview-small.png">
-        <img src="docs/assets/widget-preview-small.png" alt="abfahrt Small Widget" width="160">
+        <img src="https://raw.githubusercontent.com/ganfer/abfahrt/main/docs/assets/widget-preview-small.png?v=20261027" alt="abfahrt Small Widget" width="160">
       </a>
       <br>
       <sub>Widget klein</sub>
     </td>
     <td align="center">
       <a href="docs/assets/widget-preview-large.png">
-        <img src="docs/assets/widget-preview-large.png" alt="abfahrt Large Widget" width="160">
+        <img src="https://raw.githubusercontent.com/ganfer/abfahrt/main/docs/assets/widget-preview-large.png?v=20261027" alt="abfahrt Large Widget" width="160">
       </a>
       <br>
       <sub>Widget groß</sub>
     </td>
     <td align="center">
       <a href="docs/assets/fullscreen-preview-platform.png">
-        <img src="docs/assets/fullscreen-preview-platform.png" alt="abfahrt Vollbildansicht nach Gleis sortiert" width="160">
+        <img src="https://raw.githubusercontent.com/ganfer/abfahrt/main/docs/assets/fullscreen-preview-platform.png?v=20261027" alt="abfahrt Vollbildansicht nach Gleis sortiert" width="160">
       </a>
       <br>
       <sub>Fullscreen · nach Gleis sortiert</sub>
     </td>
     <td align="center">
       <a href="docs/assets/trip-normal-preview.png">
-        <img src="docs/assets/trip-normal-preview.png" alt="abfahrt Fahrtverlauf mit folgenden Haltestellen, Uhrzeiten und Restminuten" width="160">
+        <img src="https://raw.githubusercontent.com/ganfer/abfahrt/main/docs/assets/trip-normal-preview.png?v=20261027" alt="abfahrt Fahrtverlauf mit folgenden Haltestellen, Uhrzeiten und Restminuten" width="160">
       </a>
       <br>
       <sub>Fahrtverlauf</sub>
