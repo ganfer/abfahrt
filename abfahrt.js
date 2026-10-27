@@ -1692,6 +1692,40 @@ async function presentDeparturesTable(key, context = null) {
     color: var(--text);
   }
 
+
+  [hidden] { display: none !important; }
+  .departure-row[data-trip-index] { cursor: pointer; }
+  .departure-row[data-trip-index]:focus-visible { outline: 2px solid #69c26a; outline-offset: -2px; }
+  .trip-toolbar { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 15px; }
+  .trip-nav-button { background: #242429; color: #f5f5f7; border: 1px solid var(--border);
+    border-radius: 12px; padding: 11px 14px; font-size: 14px; cursor: pointer; }
+  .trip-heading { padding: 18px 16px; border-radius: 18px; border: 1px solid var(--border);
+    background: linear-gradient(145deg, #20272b, #171719); margin-bottom: 20px; }
+  .trip-head-line { display: flex; align-items: center; gap: 14px; }
+  .trip-line { background: #303842; border-radius: 10px; min-width: 48px; padding: 11px;
+    text-align: center; font-size: 20px; font-weight: 800; }
+  .trip-heading h1 { font-size: 20px; margin: 0 0 4px; overflow-wrap: anywhere; }
+  .trip-subtitle, .trip-origin, .trip-note { color: var(--muted); font-size: 12px; }
+  .trip-origin { margin-top: 14px; font-size: 14px; }
+  .trip-legend { font-size: 13px; color: var(--muted); margin: 0 0 12px 4px; }
+  .trip-stops { list-style: none; padding: 0 0 0 8px; margin: 0; }
+  .trip-stop { display: flex; min-height: 74px; gap: 12px; position: relative; }
+  .trip-timeline { display: block; width: 14px; flex: 0 0 14px; position: relative; }
+  .trip-timeline::after { content: ''; position: absolute; left: 6px; top: 16px; bottom: 0;
+    width: 2px; background: #52545b; }
+  .trip-stop:last-child .trip-timeline::after { display: none; }
+  .trip-dot { width: 13px; height: 13px; border: 2px solid #69c26a; border-radius: 50%;
+    display: block; margin-top: 3px; background: var(--bg); }
+  .trip-stop-info { flex: 1; min-width: 0; padding-bottom: 20px; }
+  .trip-stop-info > strong { display: block; font-size: 15px; overflow-wrap: anywhere; }
+  .trip-stop-meta { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+  .trip-stop-times { display: flex; flex: 0 0 auto; align-items: flex-end; flex-direction: column;
+    gap: 4px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  .trip-plan { color: var(--muted); font-size: 11px; }
+  .trip-remaining { color: #69c26a; font-size: 13px; }
+  .trip-cancelled .trip-stop-info > strong { text-decoration: line-through; opacity: .65; }
+  .trip-cancelled .trip-remaining { color: var(--muted); }
+  .trip-note { line-height: 1.5; margin: 10px 0; }
   .stop-card {
     position: relative;
     overflow: hidden;
@@ -1971,6 +2005,7 @@ async function presentDeparturesTable(key, context = null) {
 </style>
 </head>
 <body>
+  <main id="abfahrt-board">
   <section class="stop-card">
     <div class="stop-top">
       <div class="stop-symbol" aria-hidden="true"><span>H</span></div>
@@ -1993,6 +2028,67 @@ async function presentDeparturesTable(key, context = null) {
       <tbody>${body}</tbody>
     </table>
   </div>
+
+  </main>
+  <section id="abfahrt-trip" hidden aria-live="polite"></section>
+  <script>
+    window.abfahrtCommands = [];
+    window.abfahrtEmit = function(action) {
+      window.abfahrtCommands.push(action);
+      window.dispatchEvent(new Event('abfahrt:command'));
+    };
+    document.addEventListener('click', function(event) {
+      const action = event.target.closest('[data-trip-action]');
+      if (action) { window.abfahrtEmit({type: action.dataset.tripAction}); return; }
+      const row = event.target.closest('tr[data-trip-index]');
+      if (row) window.abfahrtEmit({type: 'open', index: Number(row.dataset.tripIndex)});
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const row = event.target.closest('tr[data-trip-index]');
+      if (!row) return;
+      event.preventDefault();
+      window.abfahrtEmit({type: 'open', index: Number(row.dataset.tripIndex)});
+    });
+    window.abfahrtShowLoading = function() {
+      document.getElementById('abfahrt-board').hidden = true;
+      const view = document.getElementById('abfahrt-trip');
+      view.hidden = false;
+      view.innerHTML = '<p class="trip-note">Fahrtverlauf wird geladen …</p>';
+      window.scrollTo(0, 0);
+    };
+    window.abfahrtShowTrip = function(html) {
+      const view = document.getElementById('abfahrt-trip');
+      view.hidden = false;
+      view.innerHTML = html;
+      window.abfahrtUpdateCountdowns();
+      window.scrollTo(0, 0);
+    };
+    window.abfahrtShowError = function(message) {
+      const view = document.getElementById('abfahrt-trip');
+      const back = document.createElement('button');
+      back.type = 'button'; back.className = 'trip-nav-button';
+      back.dataset.tripAction = 'back'; back.textContent = '‹ Abfahrten';
+      const label = document.createElement('p');
+      label.className = 'trip-note'; label.textContent = message;
+      view.replaceChildren(back, label);
+      view.hidden = false;
+      document.getElementById('abfahrt-board').hidden = true;
+    };
+    window.abfahrtShowBoard = function() {
+      document.getElementById('abfahrt-trip').hidden = true;
+      document.getElementById('abfahrt-board').hidden = false;
+      window.scrollTo(0, 0);
+    };
+    window.abfahrtUpdateCountdowns = function() {
+      document.querySelectorAll('[data-arrival-ms]').forEach(function(el) {
+        const diff = Number(el.dataset.arrivalMs) - Date.now();
+        el.textContent = diff < -60000 ? 'vorbei' :
+          diff < 60000 ? 'jetzt' : Math.floor(diff / 60000) + ' min';
+      });
+    };
+    setInterval(window.abfahrtUpdateCountdowns, 30000);
+  </script>
 </body>
 </html>`;
 
