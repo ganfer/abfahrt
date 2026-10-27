@@ -518,7 +518,7 @@ function buildTripRefLookupRequest(stopRef, key) {
   // needed by TripInfo are requested on demand, and only after a row tap.
   return buildStopEventRequest(stopRef, key, 30).replace(
     '          <IncludeRealtimeData>true</IncludeRealtimeData>',
-    '          <IncludeOperatingDays>true</IncludeOperatingDays>\\n' +
+    '          <IncludeOperatingDays>true</IncludeOperatingDays>\n' +
     '          <IncludeRealtimeData>true</IncludeRealtimeData>',
   );
 }
