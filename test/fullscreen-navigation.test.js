@@ -54,7 +54,7 @@ function startFullscreen({failTrip = false} = {}) {
   assert.notEqual(modified, source, 'Scriptable bootstrap must be replaceable');
   const launch = new Function('deps', 'const {Keychain,WebView,Script}=deps;\n' + modified);
   const running = launch(deps);
-  return { running, instance: WebViewMock.current };
+  return { running, getInstance: () => WebViewMock.current };
 }
 
 async function tick() {
@@ -62,8 +62,9 @@ async function tick() {
 }
 
 test('fullscreen renders the previous stop board without a pending JS callback', async () => {
-  const {running, instance} = startFullscreen();
+  const {running, getInstance} = startFullscreen();
   await tick();
+  const instance = getInstance();
   assert.equal(instance.presented, true);
   assert.match(instance.html, /<main id="abfahrt-board">/);
   assert.match(instance.html, /Bertoldsbrunnen/);
@@ -76,8 +77,9 @@ test('fullscreen renders the previous stop board without a pending JS callback',
 });
 
 test('tapping a departure is intercepted without leaving the WebView', async () => {
-  const {running, instance} = startFullscreen();
+  const {running, getInstance} = startFullscreen();
   await tick();
+  const instance = getInstance();
   assert.equal(instance.shouldAllowRequest({url: 'https://abfahrt-trip.invalid/open/0'}), false);
   await tick();
   assert.ok(instance.calls.some((call) => call.includes('window.abfahrtShowLoading')));
@@ -90,8 +92,9 @@ test('tapping a departure is intercepted without leaving the WebView', async () 
 });
 
 test('API errors show a message rather than a blank page', async () => {
-  const {running, instance} = startFullscreen({failTrip: true});
+  const {running, getInstance} = startFullscreen({failTrip: true});
   await tick();
+  const instance = getInstance();
   assert.equal(instance.shouldAllowRequest({url: 'https://abfahrt-trip.invalid/open/0'}), false);
   await tick();
   assert.ok(instance.calls.some((call) => call.includes('window.abfahrtShowError')));
@@ -103,8 +106,9 @@ test('API errors show a message rather than a blank page', async () => {
 });
 
 test('only internal event URLs are blocked', async () => {
-  const {running, instance} = startFullscreen();
+  const {running, getInstance} = startFullscreen();
   await tick();
+  const instance = getInstance();
   assert.equal(instance.shouldAllowRequest({url: 'about:blank'}), true);
   assert.equal(instance.shouldAllowRequest({url: 'https://example.com/'}), true);
   assert.equal(instance.shouldAllowRequest({url: 'https://abfahrt-trip.invalid/refresh'}), false);
