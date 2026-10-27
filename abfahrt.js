@@ -2476,6 +2476,27 @@ async function main() {
   // in Scriptable. The Home Screen widget remains passive and never relies on
   // widget tap URLs.
   if (present) {
+    const saved = fixedTrip();
+    if (saved) {
+      // Offer the saved journey BEFORE GPS: trains may already have left the
+      // original stop, and location services may be unavailable in tunnels.
+      const menu = new Alert();
+      menu.title = '📌 Fixierte Fahrt';
+      menu.message = fixedTripDisplay(saved) + '\\n' +
+        'Du kannst die Fahrt auch nach der Abfahrt wieder öffnen.';
+      menu.addAction('Aktuelle Fahrt fortsetzen');
+      menu.addAction('Haltestellen anzeigen');
+      menu.addCancelAction('Abbrechen');
+      const choice = await menu.present();
+      if (choice === 0) {
+        await presentDeparturesTable(key, { resumeFixed: true });
+      } else if (choice === 1) {
+        await nearbyFlow(key);
+      } else {
+        Script.complete();
+      }
+      return;
+    }
     await nearbyFlow(key);
     return;
   }
