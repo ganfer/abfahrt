@@ -408,6 +408,8 @@ function stopEventsFromDoc(doc) {
 
     events.push({
       stopRef,
+      journeyRef: text(service, 'JourneyRef'),
+      operatingDayRef: text(service, 'OperatingDayRef'),
       plannedTime: Date.parse(planned),
       realtimeTime: estimated ? Date.parse(estimated) : null,
       cancelled,
@@ -417,6 +419,106 @@ function stopEventsFromDoc(doc) {
     });
   }
   return events;
+}
+
+
+function buildTripInfoRequest(journeyRef, operatingDayRef, key) {
+  const ts = new Date().toISOString();
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Trias version="1.2" language="de" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+    '  <ServiceRequest>',
+    '    <siri:RequestTimestamp>' + ts + '</siri:RequestTimestamp>',
+    '    <siri:RequestorRef>' + xmlEsc(key) + '</siri:RequestorRef>',
+    '    <RequestPayload>',
+    '      <TripInfoRequest>',
+    '        <JourneyRef>' + xmlEsc(journeyRef) + '</JourneyRef>',
+    '        <OperatingDayRef>' + xmlEsc(operatingDayRef) + '</OperatingDayRef>',
+    '        <Params>',
+    '          <IncludeCalls>true</IncludeCalls>',
+    '          <UseTimetabledDataOnly>false</UseTimetabledDataOnly>',
+    '        </Params>',
+    '      </TripInfoRequest>',
+    '    </RequestPayload>',
+    '  </ServiceRequest>',
+    '</Trias>',
+  ].join('\n');
+}
+
+function timestampOrNull(value) {
+  const time = Date.parse(value || '');
+  return Number.isFinite(time) ? time : null;
+}
+
+function tripCallFromNode(node) {
+  const call = child(node, 'CallAtStop') || node;
+  const planned = timestampOrNull(
+    text(call, 'ServiceArrival', 'TimetabledTime') ||
+    text(call, 'ServiceDeparture', 'TimetabledTime')
+  );
+  const estimated = timestampOrNull(
+    text(call, 'ServiceArrival', 'EstimatedTime') ||
+    text(call, 'ServiceDeparture', 'EstimatedTime')
+  );
+  const departure = timestampOrNull(
+    text(call, 'ServiceDeparture', 'TimetabledTime') ||
+    text(call, 'ServiceArrival', 'TimetabledTime')
+  );
+  const seq = Number(text(call, 'StopSeqNumber'));
+  return {
+    stopRef: text(call, 'StopPointRef'),
+    name: text(call, 'StopPointName', 'Text') || text(call, 'StopPointName'),
+    plannedTime: planned,
+    realtimeTime: estimated,
+    departureTime: departure,
+    platform: text(call, 'EstimatedBay', 'Text') || text(call, 'EstimatedBay') ||
+      text(call, 'PlannedBay', 'Text') || text(call, 'PlannedBay') || '',
+    stopSequence: Number.isFinite(seq) && seq > 0 ? seq : null,
+    cancelled: text(call, 'NotServicedStop') === 'true',
+    noAlighting: text(call, 'NoAlightingAtStop') === 'true',
+  };
+}
+
+function tripInfoStopsFromDoc(doc, selected) {
+  const response =
+    child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'TripInfoResponse') ||
+    child(doc, 'Trias', 'TripInfoResponse') ||
+    child(doc, 'ServiceDelivery', 'DeliveryPayload', 'TripInfoResponse') ||
+    child(doc, 'TripInfoResponse');
+  const result = child(response, 'TripInfoResult');
+  if (!result) throw new Error('Für diese Fahrt ist derzeit kein Verlauf verfügbar.');
+  const calls = [
+    ...children(result, 'PreviousCall'),
+    ...children(result, 'OnwardCall'),
+  ].map(tripCallFromNode).filter((call) => call.stopRef && Number.isFinite(call.plannedTime));
+  if (!calls.length) throw new Error('Keine Haltestellen für diese Fahrt gefunden.');
+  // Repeated stop IDs on a circular route are disambiguated by departure time.
+  const matches = calls.map((call, index) => ({ call, index })).filter(({ call }) =>
+    call.stopRef === selected.stopRef &&
+    call.departureTime !== null &&
+    Math.abs(call.departureTime - selected.plannedTime) <= 120000
+  );
+  const currentIndex = matches.length ? matches.reduce((best, item) =>
+    Math.abs(item.call.departureTime - selected.plannedTime) <
+    Math.abs(best.call.departureTime - selected.plannedTime) ? item : best
+  ).index : -1;
+  // When the provider only reports onward calls, time-filter the whole journey.
+  const onward = currentIndex >= 0 ? calls.slice(currentIndex + 1) :
+    calls.filter((call) => call.plannedTime > selected.plannedTime + 1000);
+  if (!onward.length) throw new Error('Für diese Fahrt wurden keine weiteren Haltestellen gemeldet.');
+  return onward.map((call) => {
+    const realtime = call.realtimeTime !== null &&
+      Math.abs(call.realtimeTime - call.plannedTime) <= 12 * 3600000;
+    return { ...call, at: realtime ? call.realtimeTime : call.plannedTime, realtime };
+  });
+}
+
+async function loadTripInfoStops(selected, key) {
+  if (!selected.journeyRef || !selected.operatingDayRef || selected.offline) {
+    throw new Error('Fahrtverlauf nur für Live-Abfahrten mit Fahrtreferenz verfügbar.');
+  }
+  const xml = await triasPost(buildTripInfoRequest(selected.journeyRef, selected.operatingDayRef, key));
+  return tripInfoStopsFromDoc(parseXmlTree(xml), selected);
 }
 
 function nearbyStopsFromDoc(doc) {
