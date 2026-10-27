@@ -1,0 +1,58 @@
+name: GTFS 2026 Compatibility Check
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/build-gtfs.py'
+      - 'scripts/check-gtfs-compat.py'
+      - 'test/test_gtfs_compat.py'
+      - '.github/workflows/gtfs-compat.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture:
+    name: Regression tests (synthetic GTFS)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Exercise production builder and compatibility audit
+        run: python3 -m unittest discover -s test -p 'test_gtfs_compat.py' -v
+
+  live:
+    name: Check NVBW develop GTFS (no publish)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Download announced NVBW develop feed
+        run: |
+          curl --fail --location --retry 3 --show-error \
+            --connect-timeout 30 --max-time 1800 \
+            'https://www.nvbw.de/fileadmin/user_upload/service/open_data/fahrplandaten_mit_liniennetz/bwgesamt_develop.zip' \
+            -o "$RUNNER_TEMP/bwgesamt_develop.zip"
+          unzip -t "$RUNNER_TEMP/bwgesamt_develop.zip" | tail -n 2
+      - name: Build snapshot (isolated temp directory)
+        run: python3 scripts/build-gtfs.py "$RUNNER_TEMP/bwgesamt_develop.zip" "$RUNNER_TEMP/gtfs-test"
+      - name: Audit GTFS joins and Scriptable snapshot
+        run: |
+          python3 scripts/check-gtfs-compat.py \
+            "$RUNNER_TEMP/bwgesamt_develop.zip" "$RUNNER_TEMP/gtfs-test" \
+            --report "$RUNNER_TEMP/gtfs-compat-report.json"
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gtfs-compat-report
+          path: ${{ runner.temp }}/gtfs-compat-report.json
+          if-no-files-found: warn
