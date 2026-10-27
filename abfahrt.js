@@ -14,7 +14,7 @@
 //     The selected stop is saved in Keychain and used by the widget afterwards.
 //
 
-const APP_VERSION = '2.0.17';
+const APP_VERSION = '2.0.18';
 const TRIAS_ENDPOINT = 'https://efa-bw.de/trias';
 const DEFAULT_STOPS = [
   'de:08311:30100:0:1',
@@ -34,6 +34,8 @@ const LAST_STOP_NAME_KEY = 'ABFAHRT_LAST_STOP_NAME';
 const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS';
 const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
+const FIXED_TRIP_KEY = 'ABFAHRT_FIXED_TRIP';
+const MAX_FIXED_TRIP_HOURS = 72;
 
 // User-facing Home Screen widget configuration. Every Scriptable widget
 // family has its own layout; only behavior shared by all families lives in
@@ -544,6 +546,10 @@ async function loadTripInfoStops(selected, key) {
   if (!journeyRef || !operatingDayRef) {
     throw new Error('Für diese Fahrt ist derzeit keine eindeutige Fahrtreferenz verfügbar.');
   }
+  // Keep resolved identifiers on the selected trip so a later fixation can
+  // resume it without looking up a departure that has already disappeared.
+  selected.journeyRef = journeyRef;
+  selected.operatingDayRef = operatingDayRef;
   const xml = await triasPost(buildTripInfoRequest(journeyRef, operatingDayRef, key));
   return tripInfoStopsFromDoc(parseXmlTree(xml), selected);
 }
@@ -1542,6 +1548,77 @@ async function nearbyFlow(key) {
   await presentDeparturesTable(key);
 }
 
+
+function clearFixedTrip() {
+  if (Keychain.contains(FIXED_TRIP_KEY)) Keychain.remove(FIXED_TRIP_KEY);
+}
+
+function fixedTrip() {
+  try {
+    if (!Keychain.contains(FIXED_TRIP_KEY)) return null;
+    const value = JSON.parse(Keychain.get(FIXED_TRIP_KEY));
+    if (value?.version !== 1 ||
+        !value.journeyRef || !value.operatingDayRef || !value.stopRef ||
+        !Number.isFinite(value.plannedTime) || !Number.isFinite(value.expiresAt) ||
+        value.expiresAt <= Date.now()) {
+      clearFixedTrip();
+      return null;
+    }
+    return value;
+  } catch (_) {
+    // An invalid local entry must not break the standard departure board.
+    try { clearFixedTrip(); } catch (_) {}
+    return null;
+  }
+}
+
+function isFixedTrip(selected, saved = fixedTrip()) {
+  return Boolean(saved && selected &&
+    saved.journeyRef === selected.journeyRef &&
+    saved.operatingDayRef === selected.operatingDayRef);
+}
+
+function fixTrip(selected, originName, stops) {
+  if (selected.offline || !selected.journeyRef || !selected.operatingDayRef ||
+      !selected.stopRef || !Number.isFinite(selected.plannedTime) ||
+      !Array.isArray(stops) || !stops.length) {
+    throw new Error('Diese Fahrt kann nicht fixiert werden: Fahrtreferenz oder Haltestellen fehlen.');
+  }
+  const lastArrival = Math.max(...stops.map((stop) => Number(stop.at) || 0));
+  const expiresAt = Math.min(
+    selected.plannedTime + MAX_FIXED_TRIP_HOURS * 3600000,
+    Math.max(lastArrival + 3 * 3600000, Date.now() + 3 * 3600000),
+  );
+  const saved = {
+    version: 1,
+    journeyRef: selected.journeyRef,
+    operatingDayRef: selected.operatingDayRef,
+    stopRef: selected.stopRef,
+    plannedTime: selected.plannedTime,
+    realtimeTime: selected.realtimeTime || null,
+    line: String(selected.line || ''),
+    destination: String(selected.destination || ''),
+    originName: String(originName || ''),
+    fixedAt: Date.now(),
+    expiresAt,
+  };
+  Keychain.set(FIXED_TRIP_KEY, JSON.stringify(saved));
+  return saved;
+}
+
+function fixedTripDisplay(saved) {
+  return (saved.line ? 'Linie ' + saved.line + ' · ' : '') +
+    (saved.destination ? 'Richtung ' + saved.destination : 'Aktuelle Fahrt');
+}
+
+function renderTripFailureHTML(message, hasFixed) {
+  return '<nav class="trip-toolbar">' +
+    '<button type="button" data-trip-action="back" class="trip-nav-button">‹ Abfahrten</button>' +
+    '<button type="button" data-trip-action="refresh" class="trip-nav-button">↻ Erneut versuchen</button></nav>' +
+    '<p class="trip-note">' + htmlEsc(message) + '</p>' +
+    (hasFixed ? '<button type="button" data-trip-action="unpin" class="trip-nav-button">Fixierung lösen</button>' : '');
+}
+
 function htmlEsc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -1549,7 +1626,7 @@ function htmlEsc(value) {
 }
 
 
-function renderTripProgressHTML(selected, stops, originName) {
+function renderTripProgressHTML(selected, stops, originName, pinned = false) {
   const departure = selected.realtimeTime || selected.plannedTime;
   const origin = htmlEsc(originName || 'Einstiegshaltestelle');
   const items = stops.map((stop) => {
@@ -1572,6 +1649,9 @@ function renderTripProgressHTML(selected, stops, originName) {
   return '<nav class="trip-toolbar">' +
     '<button type="button" data-trip-action="back" class="trip-nav-button">‹ Abfahrten</button>' +
     '<button type="button" data-trip-action="refresh" class="trip-nav-button">↻ Aktualisieren</button></nav>' +
+    '<button type="button" data-trip-action="' + (pinned ? 'unpin' : 'pin') +
+    '" class="trip-fix-button' + (pinned ? ' is-fixed' : '') + '">' +
+    (pinned ? '📌 Fahrt fixiert · Fixierung lösen' : '📌 Fahrt fixieren') + '</button>' +
     '<section class="trip-heading"><div class="trip-head-line"><span class="trip-line">' +
     htmlEsc(selected.line || '–') + '</span><div><h1>Richtung ' +
     htmlEsc(selected.destination || 'Unbekannte Richtung') + '</h1>' +
@@ -1595,7 +1675,23 @@ async function presentDeparturesTable(key, context = null) {
       : 'Bertoldsbrunnen';
 
   try {
-    const events = await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
+    const currentFixed = fixedTrip();
+    const resumeSelected = context?.resumeFixed && currentFixed ? { ...currentFixed } : null;
+    let initialTripHTML = '';
+    let initialStops = [];
+    if (resumeSelected) {
+      try {
+        initialStops = await loadTripInfoStops(resumeSelected, key);
+        initialTripHTML = renderTripProgressHTML(
+          resumeSelected, initialStops, resumeSelected.originName || title, true,
+        );
+      } catch (resumeError) {
+        initialTripHTML = renderTripFailureHTML(friendlyError(resumeError), true);
+      }
+    }
+    // Resuming a journey must not depend on departures at the old boarding stop.
+    const events = resumeSelected ? [] :
+      await fetchDeparturesWithOffline(stopRefs, key, Math.max(8, Number(WIDGET_CONFIG.fullscreen.rows) || 8));
     const filteredEvents = applyPinnedFilter(events, activePin, 'fullscreen');
     const now = Date.now();
     const rows = filteredEvents
@@ -1624,6 +1720,7 @@ async function presentDeparturesTable(key, context = null) {
       : platformValues.length > 1
         ? platformValues.length + ' Steige'
         : '';
+    const resumeFixed = Boolean(resumeSelected);
     const pinGlyph = activePin ? '★' : '☆';
     const pinTitle = activePin ? 'Angepinnte Haltestelle' : 'Nicht angepinnt';
     const locationMeta = context?.autoSelected && Number.isFinite(context.distance)
@@ -1724,6 +1821,19 @@ async function presentDeparturesTable(key, context = null) {
   .departure-row[data-trip-index] { cursor: pointer; }
   .departure-row[data-trip-index]:focus-visible { outline: 2px solid #69c26a; outline-offset: -2px; }
   .trip-toolbar { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 15px; }
+  .trip-fix-button { display: block; width: 100%; padding: 14px; margin-bottom: 16px;
+    background: rgba(251,191,36,.10); color: #facc15; border: 1px solid rgba(250,204,21,.42);
+    border-radius: 13px; font-weight: 750; font-size: 15px; cursor: pointer; }
+  .trip-fix-button.is-fixed { background: rgba(48,209,88,.12); color: #85e29b;
+    border-color: rgba(48,209,88,.40); }
+  .trip-fixed-banner { margin-bottom: 14px; padding: 0; border-radius: 16px;
+    border: 1px solid rgba(250,204,21,.28); background: rgba(251,191,36,.08); }
+  .trip-fixed-banner button { border: 0; display: flex; align-items: center;
+    justify-content: space-between; gap: 10px; text-align: left; width: 100%;
+    min-height: 70px; color: #facc15; background: transparent; font-size: 14px;
+    padding: 15px; cursor: pointer; }
+  .trip-fixed-banner small { color: var(--muted); display: block; margin-top: 5px; }
+  .trip-passed { opacity: .48; }
   .trip-nav-button { background: #242429; color: #f5f5f7; border: 1px solid var(--border);
     border-radius: 12px; padding: 11px 14px; font-size: 14px; cursor: pointer; }
   .trip-heading { padding: 18px 16px; border-radius: 18px; border: 1px solid var(--border);
@@ -2032,7 +2142,7 @@ async function presentDeparturesTable(key, context = null) {
 </style>
 </head>
 <body>
-  <main id="abfahrt-board">
+  <main id="abfahrt-board"${resumeFixed ? ' hidden' : ''}>
   <section class="stop-card">
     <div class="stop-top">
       <div class="stop-symbol" aria-hidden="true"><span>H</span></div>
@@ -2048,6 +2158,11 @@ async function presentDeparturesTable(key, context = null) {
     </div>
   </section>
 
+  <section id="trip-fixed-banner" class="trip-fixed-banner" ${currentFixed ? '': 'hidden'}>
+    <button type="button" data-trip-action="resume"><span><strong>📌 Aktuelle Fahrt fortsetzen</strong>
+      <small id="trip-fixed-summary">${currentFixed ? htmlEsc(fixedTripDisplay(currentFixed)) : ''}</small></span>
+      <span aria-hidden="true">›</span></button>
+  </section>
   <div class="table-wrap">
     <table>
       <colgroup>${colgroup}</colgroup>
@@ -2057,14 +2172,14 @@ async function presentDeparturesTable(key, context = null) {
   </div>
 
   </main>
-  <section id="abfahrt-trip" hidden aria-live="polite"></section>
+  <section id="abfahrt-trip" ${resumeFixed ? '' : 'hidden'} aria-live="polite">${initialTripHTML}</section>
   <script>
     // Native Scriptable intercepts these URLs before navigation. Unlike the
     // previous callback bridge, this leaves the initial WebView free to render.
     window.abfahrtEmit = function(action) {
       if (action.type === 'open' && Number.isInteger(action.index) && action.index >= 0) {
         window.location.href = 'https://abfahrt-trip.invalid/open/' + action.index;
-      } else if (action.type === 'back' || action.type === 'refresh') {
+      } else if (['back', 'refresh', 'resume', 'pin', 'unpin'].includes(action.type)) {
         window.location.href = 'https://abfahrt-trip.invalid/' + action.type;
       }
     };
@@ -2095,16 +2210,17 @@ async function presentDeparturesTable(key, context = null) {
       window.abfahrtUpdateCountdowns();
       window.scrollTo(0, 0);
     };
-    window.abfahrtShowError = function(message) {
+    window.abfahrtShowError = function(safeHTML) {
       const view = document.getElementById('abfahrt-trip');
-      const back = document.createElement('button');
-      back.type = 'button'; back.className = 'trip-nav-button';
-      back.dataset.tripAction = 'back'; back.textContent = '‹ Abfahrten';
-      const label = document.createElement('p');
-      label.className = 'trip-note'; label.textContent = message;
-      view.replaceChildren(back, label);
+      view.innerHTML = safeHTML;
       view.hidden = false;
       document.getElementById('abfahrt-board').hidden = true;
+    };
+    window.abfahrtSetFixedTrip = function(summary) {
+      const shortcut = document.getElementById('trip-fixed-banner');
+      const label = document.getElementById('trip-fixed-summary');
+      if (shortcut) shortcut.hidden = !summary;
+      if (label) label.textContent = summary || '';
     };
     window.abfahrtShowBoard = function() {
       document.getElementById('abfahrt-trip').hidden = true;
@@ -2116,8 +2232,11 @@ async function presentDeparturesTable(key, context = null) {
         const diff = Number(el.dataset.arrivalMs) - Date.now();
         el.textContent = diff < -60000 ? 'vorbei' :
           diff < 60000 ? 'jetzt' : Math.floor(diff / 60000) + ' min';
+        const row = el.closest('.trip-stop');
+        if (row) row.classList.toggle('trip-passed', diff < -60000);
       });
     };
+    window.abfahrtUpdateCountdowns();
     setInterval(window.abfahrtUpdateCountdowns, 30000);
   </script>
 </body>
@@ -2132,11 +2251,11 @@ async function presentDeparturesTable(key, context = null) {
     // The original departure table renders with only loadHTML + present.
     web.shouldAllowRequest = (request) => {
       const url = String(request?.url || '');
-      const match = /^https:\/\/abfahrt-trip\.invalid\/(?:open\/(\d+)|back|refresh)\/?$/.exec(url);
+      const match = /^https:\/\/abfahrt-trip\.invalid\/(?:open\/(\d+)|back|refresh|resume|pin|unpin)\/?$/.exec(url);
       if (!match) return true;
       const command = match[1] !== undefined
         ? { type: 'open', index: Number(match[1]) }
-        : { type: url.includes('/back') ? 'back' : 'refresh' };
+        : { type: url.substring(url.lastIndexOf('/') + 1) };
       if (notifyCommand) {
         const notify = notifyCommand;
         notifyCommand = null;
@@ -2149,7 +2268,9 @@ async function presentDeparturesTable(key, context = null) {
 
     await web.loadHTML(html);
     const presented = web.present(true);
-    let selectedRow = null;
+    let selectedRow = resumeSelected;
+    let selectedStops = initialStops;
+    let selectedOrigin = resumeSelected ? (resumeSelected.originName || title) : title;
     try {
       while (true) {
         const nextCommand = new Promise((resolve) => {
@@ -2164,22 +2285,64 @@ async function presentDeparturesTable(key, context = null) {
         if (command.type === 'back') {
           await web.evaluateJavaScript('window.abfahrtShowBoard();');
           selectedRow = null;
+          selectedStops = [];
           continue;
         }
-        if (command.type === 'open') {
+        if (command.type === 'pin' || command.type === 'unpin') {
+          if (!selectedRow) continue;
+          try {
+            if (command.type === 'pin') {
+              fixTrip(selectedRow, selectedOrigin, selectedStops);
+            } else if (isFixedTrip(selectedRow)) {
+              clearFixedTrip();
+            }
+            const saved = fixedTrip();
+            await web.evaluateJavaScript('window.abfahrtSetFixedTrip(' +
+              JSON.stringify(saved ? fixedTripDisplay(saved) : '') + ');');
+            if (selectedStops.length) {
+              const detail = renderTripProgressHTML(
+                selectedRow, selectedStops, selectedOrigin, isFixedTrip(selectedRow, saved),
+              );
+              await web.evaluateJavaScript('window.abfahrtShowTrip(' + JSON.stringify(detail) + ');');
+            } else {
+              const html = renderTripFailureHTML(
+                'Die Fahrtinformationen sind gerade nicht verfügbar. Bitte erneut versuchen.',
+                isFixedTrip(selectedRow, saved),
+              );
+              await web.evaluateJavaScript('window.abfahrtShowError(' + JSON.stringify(html) + ');');
+            }
+          } catch (pinError) {
+            await web.evaluateJavaScript('window.abfahrtShowError(' +
+              JSON.stringify(renderTripFailureHTML(friendlyError(pinError), isFixedTrip(selectedRow))) + ');');
+          }
+          continue;
+        }
+        if (command.type === 'resume') {
+          const saved = fixedTrip();
+          if (!saved) {
+            await web.evaluateJavaScript('window.abfahrtSetFixedTrip("");');
+            continue;
+          }
+          selectedRow = { ...saved };
+          selectedOrigin = saved.originName || title;
+        } else if (command.type === 'open') {
           if (!Number.isInteger(command.index) || command.index < 0 || command.index >= rows.length) continue;
-          selectedRow = rows[command.index];
+          selectedRow = { ...rows[command.index] };
+          selectedOrigin = title;
         } else if (command.type !== 'refresh' || !selectedRow) {
           continue;
         }
+        selectedStops = [];
         await web.evaluateJavaScript('window.abfahrtShowLoading();');
         try {
-          const stops = await loadTripInfoStops(selectedRow, key);
-          const detail = renderTripProgressHTML(selectedRow, stops, title);
+          selectedStops = await loadTripInfoStops(selectedRow, key);
+          const detail = renderTripProgressHTML(
+            selectedRow, selectedStops, selectedOrigin, isFixedTrip(selectedRow),
+          );
           await web.evaluateJavaScript('window.abfahrtShowTrip(' + JSON.stringify(detail) + ');');
         } catch (tripError) {
           await web.evaluateJavaScript('window.abfahrtShowError(' +
-            JSON.stringify(friendlyError(tripError)) + ');');
+            JSON.stringify(renderTripFailureHTML(friendlyError(tripError), isFixedTrip(selectedRow))) + ');');
         }
       }
     } catch (bridgeError) {
@@ -2313,6 +2476,27 @@ async function main() {
   // in Scriptable. The Home Screen widget remains passive and never relies on
   // widget tap URLs.
   if (present) {
+    const saved = fixedTrip();
+    if (saved) {
+      // Offer the saved journey BEFORE GPS: trains may already have left the
+      // original stop, and location services may be unavailable in tunnels.
+      const menu = new Alert();
+      menu.title = '📌 Fixierte Fahrt';
+      menu.message = fixedTripDisplay(saved) + '\n' +
+        'Du kannst die Fahrt auch nach der Abfahrt wieder öffnen.';
+      menu.addAction('Aktuelle Fahrt fortsetzen');
+      menu.addAction('Haltestellen anzeigen');
+      menu.addCancelAction('Abbrechen');
+      const choice = await menu.present();
+      if (choice === 0) {
+        await presentDeparturesTable(key, { resumeFixed: true });
+      } else if (choice === 1) {
+        await nearbyFlow(key);
+      } else {
+        Script.complete();
+      }
+      return;
+    }
     await nearbyFlow(key);
     return;
   }
