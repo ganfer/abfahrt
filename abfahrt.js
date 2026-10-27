@@ -276,8 +276,7 @@ function buildStopEventRequest(stopRef, key, resultLimit = 8) {
     '        <Params>',
     '          <Language>de</Language>',
     `          <NumberOfResults>${Math.max(1, Math.min(30, Math.round(Number(resultLimit) || 8)))}</NumberOfResults>`,
-    '          <IncludeOperatingDays>true</IncludeOperatingDays>',
-'          <IncludeRealtimeData>true</IncludeRealtimeData>',
+    '          <IncludeRealtimeData>true</IncludeRealtimeData>',
     '          <StopEventPolicy>DEPARTURE</StopEventPolicy>',
     '        </Params>',
     '      </StopEventRequest>',
@@ -514,11 +513,38 @@ function tripInfoStopsFromDoc(doc, selected) {
   });
 }
 
+function buildTripRefLookupRequest(stopRef, key) {
+  // The normal stop list must keep its old proven request shape. Extra fields
+  // needed by TripInfo are requested on demand, and only after a row tap.
+  return buildStopEventRequest(stopRef, key, 30).replace(
+    '          <IncludeRealtimeData>true</IncludeRealtimeData>',
+    '          <IncludeOperatingDays>true</IncludeOperatingDays>\\n' +
+    '          <IncludeRealtimeData>true</IncludeRealtimeData>',
+  );
+}
+
 async function loadTripInfoStops(selected, key) {
-  if (!selected.journeyRef || !selected.operatingDayRef || selected.offline) {
-    throw new Error('Fahrtverlauf nur für Live-Abfahrten mit Fahrtreferenz verfügbar.');
+  if (selected.offline) {
+    throw new Error('Fahrtverlauf nur für Live-Abfahrten verfügbar.');
   }
-  const xml = await triasPost(buildTripInfoRequest(selected.journeyRef, selected.operatingDayRef, key));
+  let journeyRef = selected.journeyRef;
+  let operatingDayRef = selected.operatingDayRef;
+  if (!journeyRef || !operatingDayRef) {
+    const lookup = await triasPost(buildTripRefLookupRequest(selected.stopRef, key));
+    const matches = stopEventsFromDoc(parseXmlTree(lookup)).filter((event) =>
+      event.stopRef === selected.stopRef &&
+      Math.abs(event.plannedTime - selected.plannedTime) <= 60000 &&
+      event.line === selected.line
+    );
+    if (matches.length === 1) {
+      journeyRef = journeyRef || matches[0].journeyRef;
+      operatingDayRef = operatingDayRef || matches[0].operatingDayRef;
+    }
+  }
+  if (!journeyRef || !operatingDayRef) {
+    throw new Error('Für diese Fahrt ist derzeit keine eindeutige Fahrtreferenz verfügbar.');
+  }
+  const xml = await triasPost(buildTripInfoRequest(journeyRef, operatingDayRef, key));
   return tripInfoStopsFromDoc(parseXmlTree(xml), selected);
 }
 
@@ -2134,8 +2160,27 @@ async function presentDeparturesTable(key, context = null) {
             JSON.stringify(friendlyError(tripError)) + ');');
         }
       }
-    } catch (closed) {
-      // Dismissing the WebView cancels its pending JavaScript callback.
+    } catch (bridgeError) {
+      // A WebView bridge failure must never break the original stop detail
+      // board. Keep the table visible even when the optional trip view fails.
+      console.warn('Fahrtverlauf-WebView nicht verfügbar:', bridgeError);
+      try {
+        await web.evaluateJavaScript(
+          "(function() {" +
+          " var board=document.getElementById('abfahrt-board');" +
+          " var trip=document.getElementById('abfahrt-trip');" +
+          " if(board) { board.hidden=false;" +
+          "   var note=document.createElement('p');" +
+          "   note.className='trip-note';" +
+          "   note.textContent='Fahrtverlauf gerade nicht verfügbar. Die Abfahrtsliste bleibt nutzbar.';" +
+          "   board.insertBefore(note,board.firstChild);" +
+          " }" +
+          " if(trip) trip.hidden=true;" +
+          "})();",
+        );
+      } catch (restoreError) {
+        console.warn('Abfahrtsansicht konnte nicht wiederhergestellt werden:', restoreError);
+      }
     }
     await presented;
   } catch (e) {
