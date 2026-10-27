@@ -3,7 +3,7 @@
 **Entwicklungsversion: v2.0.18**  
 **Stabile Version: v2.0.18**
 
-**abfahrt** ist ein schnelles Scriptable-Widget für iPhone und iPad, das dir die nächsten Abfahrten des öffentlichen Nahverkehrs in Baden-Württemberg zeigt – mit Echtzeitdaten, Verspätungen, Ausfällen, GPS-Haltestellensuche, angepinnten Haltestellen und einem Offline-Fahrplan als Fallback.
+**abfahrt** zeigt dir auf iPhone und iPad die nächsten Bus-, Straßenbahn- und Zugabfahrten in Baden-Württemberg – direkt als Scriptable-Widget, mit Echtzeitdaten, Verspätungen und Offline-Fallback. Tippe eine Abfahrt an, um die **folgenden Haltestellen mit Ankunftsuhrzeit und Restminuten** zu sehen. Wenn du einsteigst, kannst du die **Fahrt fixieren und später fortsetzen**, auch nachdem sie aus der Abfahrtsliste verschwunden ist.
 
 ## Vorschau
 
@@ -40,13 +40,13 @@
   </tr>
 </table>
 
-> Die Vorschauen verwenden feste Demodaten. Sie werden automatisch erzeugt und benötigen weder einen TRIAS-Key noch einen echten Standort. Ein Klick auf ein Bild öffnet die jeweilige Vorschau in voller Größe.
+> Die vier Vorschaubilder werden automatisch aus festen Demodaten erzeugt – ohne TRIAS-Key oder Standortzugriff. Ein Klick öffnet die jeweilige PNG-Datei in voller Größe. Der Fahrtverlauf zeigt bewusst eine **noch nicht fixierte** Fahrt.
 
 ## Warum gibt es abfahrt?
 
 Die Idee entstand aus einem sehr einfachen Problem: Ich wollte nicht jedes Mal eine große ÖPNV-App öffnen, eine Haltestelle suchen und mich durch mehrere Ansichten tippen, nur um eine Frage zu beantworten:
 
-**Wann kommt die nächste Bahn – und wann muss ich loslaufen?**
+**Wann kommt die nächste Bahn – und wann muss ich loslaufen?** Und wenn ich schon im Zug sitze: **Wann erreiche ich die nächsten Haltestellen?**
 
 Gerade in einer Stadt mit Straßenbahn ist man oft sowieso in der Nähe einer Haltestelle. Vielleicht sitzt man noch in einer Kneipe, steht bei Freunden vor der Tür oder läuft gerade durch die Innenstadt. Statt zuerst die passende Haltestelle in einer offiziellen App zu suchen, reicht bei abfahrt ein Tap auf das Widget.
 
@@ -54,13 +54,14 @@ Der Ablauf ist bewusst kurz:
 
 ```text
 Widget antippen
-  → Standort wird erst jetzt abgefragt
-  → Haltestellen in der Nähe werden erkannt
-  → passende angepinnte Haltestelle wird optional automatisch gewählt
-  → nächste Abfahrten erscheinen
+  → falls vorhanden: fixierte Fahrt fortsetzen oder Haltestellen anzeigen
+  → sonst: Standort abfragen und nahe Haltestelle auswählen
+  → nächste Abfahrten im Vollbild anzeigen
+  → Abfahrt antippen: Folgehaltestellen mit Uhrzeiten und Restminuten
+  → optional: Fahrt fixieren und später wieder öffnen
 ```
 
-Das Home-Screen-Widget selbst verwendet **keine dauerhafte Standortabfrage**. Es zeigt die zuletzt aktive Haltestelle und lädt deren Abfahrten. Erst wenn du das Widget antippst und abfahrt im Vordergrund öffnest, wird der Standort verwendet. Dadurch bleibt die Bedienung schnell und unnötige Hintergrundortung wird vermieden.
+Das Home-Screen-Widget selbst verwendet **keine dauerhafte Standortabfrage**. Es zeigt die zuletzt aktive Haltestelle und lädt deren Abfahrten. Erst beim interaktiven Öffnen in Scriptable wird bei Bedarf nach dem Standort gefragt. Eine bereits fixierte Fahrt lässt sich sogar **ohne neue GPS-Abfrage** fortsetzen.
 
 abfahrt ist außerdem keine eigene App: Im Kern sind es JavaScript-Dateien, die in [Scriptable](https://scriptable.app/) laufen. Das Projekt ist bewusst leichtgewichtig geblieben, auch wenn inzwischen viele Einstellungen und Komfortfunktionen dazugekommen sind.
 
@@ -82,7 +83,9 @@ Besonders praktisch ist es in Städten mit Straßenbahn- oder Stadtbahnnetzen, w
 - Widgets in **Small, Medium, Large und Extra Large**
 - eigene Layout-Einstellungen für jede Widget-Größe
 - **Vollbildansicht** mit konfigurierbarer Sortierung nach Abfahrtszeit, Gleis, Richtung oder Linie – inklusive Gruppenüberschriften bei Gleis, Richtung und Linie
-- **Offline-Fallback** auf vorbereitete GTFS-Sollfahrplandaten
+- **Interaktiver Fahrtverlauf** für einzelne Abfahrten: Folgehaltestellen, absolute Ankunftszeiten, Restminuten und verfügbare Echtzeitprognosen
+- **Fahrt fixieren und fortsetzen**: eine ausgewählte Fahrt lokal merken und nach der Abfahrt erneut öffnen
+- **Offline-Fallback** auf vorbereitete GTFS-Sollfahrplandaten für Abfahrten
 - automatischer **Stable-/Development-Updater**
 - Diagnose, Backup/Wiederherstellung, Recovery und saubere Deinstallation
 
@@ -178,15 +181,41 @@ Beim Antippen des Widgets öffnet sich abfahrt in Scriptable:
 
 ```text
 Home-Screen-Widget
-  → GPS-Standort
-  → Suche nach Haltestellen in der Nähe
-  → automatische Auswahl einer passenden angepinnten Haltestelle oder Auswahlmenü
-  → gewählte Haltestelle wird gespeichert
-  → Widget kann direkt aktualisiert werden
+  → falls fixiert: „Aktuelle Fahrt fortsetzen“ oder „Haltestellen anzeigen“
+  → sonst: GPS-Standort und Suche nach Haltestellen in der Nähe
+  → passende angepinnte Haltestelle automatisch wählen oder manuell auswählen
+  → Haltestelle speichern, Widget bei Bedarf aktualisieren
   → Vollbildansicht mit Abfahrten
+  → einzelne Abfahrt antippen: Fahrtverlauf anzeigen
 ```
 
 Wenn GPS nicht verfügbar ist oder keine Haltestelle gefunden wird, kann abfahrt – je nach Einstellung – auf die letzte Haltestelle, **🏠 Home** oder die angepinnten Haltestellen ausweichen.
+
+### Fahrtverlauf: Wo hält meine Bahn als Nächstes?
+
+Tippe in der **Vollbild-Abfahrtsliste** auf eine Straßenbahn-, Bus- oder Zugabfahrt. Die Detailansicht zeigt die gemeldeten folgenden Haltestellen in Fahrtreihenfolge – jeweils mit **Ankunftsuhrzeit (HH:MM)** und **verbleibenden Minuten**.
+
+- **Live**, wenn eine Echtzeitprognose vorhanden ist; andernfalls ausdrücklich **Fahrplan**. Bei Abweichungen erscheint zusätzlich die Planzeit.
+- **Aktualisieren** lädt neue Fahrtdaten. Die Restminuten zählen auf dem geöffneten Bildschirm alle 30 Sekunden automatisch weiter, ohne dabei neue Netzabfragen auszulösen.
+- **Abfahrten** bringt dich zurück zur Haltestellenliste. Vergangene Halte werden im Fahrtverlauf ausgegraut.
+
+Der Fahrtverlauf benötigt eine passende TRIAS-Fahrtreferenz und gemeldete Folgehaltestellen. Für reine **Offline-GTFS-Abfahrten** ist er nicht verfügbar.
+
+### Fahrt fixieren: Unterwegs die Verbindung wiederfinden
+
+Möchtest du die Fahrt nach dem Einsteigen weiterverfolgen, tippe **📌 Fahrt fixieren** in der Detailansicht. Das Speichern ist **freiwillig**: Das bloße Öffnen einer Abfahrt fixiert sie nicht.
+
+1. Die Abfahrtsliste bietet danach **📌 Aktuelle Fahrt fortsetzen** oberhalb der normalen Abfahrten.
+2. Auch beim nächsten Start von `abfahrt` in Scriptable erscheint **Aktuelle Fahrt fortsetzen** **vor** der Standortsuche.
+3. Die Fahrt wird direkt anhand ihrer gespeicherten Kennung neu geladen. Sie muss nicht mehr im Abfahrtsmonitor der Einstiegshaltestelle stehen.
+4. Mit **📌 Fahrt fixiert · Fixierung lösen** entfernst du die gespeicherte Fahrt wieder. Fixierst du eine andere, ersetzt sie die bisherige.
+
+Du kannst **eine Fahrt pro Gerät** fixieren. Die Fixierung läuft automatisch aus: ungefähr drei Stunden nach der letzten gemeldeten Ankunft, spätestens 72 Stunden nach der planmäßigen Abfahrt. Bei einem vorübergehenden Datenfehler kannst du **Erneut versuchen** oder die Fixierung lösen.
+
+Gespeichert werden die Fahrtreferenz und die zum Wiederöffnen nötigen Fahrtinformationen lokal im **iOS-Keychain**. Der TRIAS-Zugangsschlüssel wird **nicht** in den gespeicherten Fahrt-Datensatz kopiert. Diese Funktion arbeitet in der **Scriptable-Vordergrundansicht** – es gibt keine dauerhafte GPS-Ortung oder Hintergrundverfolgung des Fahrzeugs.
+
+Mehr dazu: **[Fahrtverlauf und fixierte Fahrten](docs/FAHRTVERLAUF.md)**.
+
 
 ## Konfiguration
 
@@ -304,6 +333,7 @@ abfahrt ist so aufgebaut, dass Standortzugriffe bewusst im Vordergrund stattfind
 - Das Home-Screen-Widget verwendet die gespeicherte aktive Haltestelle.
 - GPS wird beim interaktiven Start von abfahrt angefragt, nicht dauerhaft im Hintergrund.
 - Der TRIAS-Requester-Key liegt im iOS-Keychain.
+- Eine ausdrücklich fixierte Fahrt wird ebenfalls lokal im Keychain gespeichert; dafür werden Fahrtreferenz, Einstiegsdaten, Linie und Richtung hinterlegt, aber nicht der TRIAS-Key kopiert.
 - Diagnoseausgaben enthalten bewusst keine Key-Werte, StopRefs, Haltestellennamen oder Koordinaten.
 - Offline-Daten werden nur für relevante Haltestellen lokal gespeichert.
 
@@ -311,7 +341,9 @@ abfahrt ist so aufgebaut, dass Standortzugriffe bewusst im Vordergrund stattfind
 
 Wenn der TRIAS-Key abgelehnt wird, prüfe zuerst den gespeicherten Key und ob dein Zugang von MobiData BW aktiv ist.
 
-Wenn kein Standort verfügbar ist, prüfe die Standortberechtigung von Scriptable unter iOS. Mit aktiviertem Fallback kann abfahrt trotzdem die letzte, die Home- oder eine angepinnte Haltestelle verwenden.
+Wenn kein Standort verfügbar ist, prüfe die Standortberechtigung von Scriptable unter iOS. Mit aktiviertem Fallback kann abfahrt trotzdem die letzte, die Home- oder eine angepinnte Haltestelle verwenden. Eine **fixierte Fahrt** lässt sich ohne neue Standortabfrage fortsetzen.
+
+Wenn **kein Fahrtverlauf** angezeigt wird, fehlen möglicherweise die nötigen Fahrtreferenzen oder Folgehaltestellen in der TRIAS-Antwort. Bei einem vorübergehenden Fehler einer fixierten Fahrt nutze **Erneut versuchen**. Aus reinen Offline-GTFS-Abfahrten kann kein Fahrtverlauf geladen werden.
 
 Bei Update- oder Installationsproblemen starte zuerst:
 
@@ -325,7 +357,8 @@ Wenn Runtime oder Config beschädigt sind, steht zusätzlich **Recovery · Insta
 - [Module und Komponenten](docs/MODULES.md) – technische Übersicht über Runtime, Config, Installer, Hilfsskripte, Workflows und Tests
 - [Architektur](docs/ARCHITECTURE.md) – Zusammenspiel der Komponenten, Datenflüsse, Persistenz und Update-Modell
 - [Offline-GTFS](docs/GTFS.md) – Aufbau und Aktualisierung des Offline-Fahrplans
-- [Vorschau-Screenshots](docs/SCREENSHOTS.md) – automatische Erzeugung der Small-/Large-Widget- und Fullscreen-Vorschauen
+- [Fahrtverlauf und Fahrt fixieren](docs/FAHRTVERLAUF.md) – nächste Haltestellen, Ankunftszeiten, Merken und Fortsetzen einer Fahrt
+- [Vorschau-Screenshots](docs/SCREENSHOTS.md) – automatische Erzeugung aller vier README-Vorschaubilder
 
 ## Entwicklung
 
@@ -338,7 +371,7 @@ Sie prüft:
 - Versionskonsistenz
 - Repository-Verträge
 
-Die Tests decken unter anderem TRIAS-Request/Parsing, Gleiserkennung, Ergebnislimits, Standort- und Pin-Logik, Updater-Verhalten und nutzerfreundliche Fehlerzustände ab.
+Die Tests decken unter anderem TRIAS-Requests und -Parsing, Gleiserkennung, Standort- und Pin-Logik, Fahrtverlauf, Fixieren/Fortsetzen einer Fahrt, Updater und nutzerfreundliche Fehlerzustände ab.
 
 Lokal können die Regressionstests so gestartet werden:
 
@@ -346,7 +379,7 @@ Lokal können die Regressionstests so gestartet werden:
 node --test test/*.test.js
 ```
 
-Eine separate CI erzeugt außerdem die drei deterministischen README-Vorschauen für Small Widget, Large Widget und die nach Gleis sortierte Vollbildansicht.
+Ein separater Workflow erzeugt außerdem **vier deterministische README-Vorschauen**: kleines Widget, großes Widget, Vollbild nach Gleis sortiert und normaler Fahrtverlauf.
 
 ## Versionierung
 
