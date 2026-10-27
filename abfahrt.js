@@ -1521,6 +1521,40 @@ function htmlEsc(value) {
   }[ch]));
 }
 
+
+function renderTripProgressHTML(selected, stops, originName) {
+  const departure = selected.realtimeTime || selected.plannedTime;
+  const origin = htmlEsc(originName || 'Einstiegshaltestelle');
+  const items = stops.map((stop) => {
+    const live = stop.realtime ? 'Live' : 'Fahrplan';
+    const status = stop.cancelled ? 'entfällt' : live;
+    const time = stop.cancelled ? '–' : fmtClock(stop.at) + ' Uhr';
+    const planned = stop.realtime && !stop.cancelled && stop.at !== stop.plannedTime
+      ? '<span class="trip-plan">Plan ' + htmlEsc(fmtClock(stop.plannedTime)) + '</span>' : '';
+    const rest = stop.cancelled ? '<strong class="trip-remaining">entfällt</strong>' :
+      '<strong class="trip-remaining" data-arrival-ms="' + stop.at + '">–</strong>';
+    const platform = stop.platform ? ' · Gleis/Steig ' + htmlEsc(stop.platform) : '';
+    const alighting = stop.noAlighting ? ' · Kein Ausstieg' : '';
+    return '<li class="trip-stop' + (stop.cancelled ? ' trip-cancelled' : '') + '">' +
+      '<span class="trip-timeline" aria-hidden="true"><span class="trip-dot"></span></span>' +
+      '<span class="trip-stop-info"><strong>' + htmlEsc(stop.name || stop.stopRef) + '</strong>' +
+      '<span class="trip-stop-meta">' + htmlEsc(status) + platform + alighting + '</span></span>' +
+      '<span class="trip-stop-times"><strong>' + htmlEsc(time) + '</strong>' + planned + rest + '</span>' +
+      '</li>';
+  }).join('');
+  return '<nav class="trip-toolbar">' +
+    '<button type="button" data-trip-action="back" class="trip-nav-button">‹ Abfahrten</button>' +
+    '<button type="button" data-trip-action="refresh" class="trip-nav-button">↻ Aktualisieren</button></nav>' +
+    '<section class="trip-heading"><div class="trip-head-line"><span class="trip-line">' +
+    htmlEsc(selected.line || '–') + '</span><div><h1>Richtung ' +
+    htmlEsc(selected.destination || 'Unbekannte Richtung') + '</h1>' +
+    '<div class="trip-subtitle">Fahrtverlauf · ' + stops.length + ' weitere Haltestellen</div></div></div>' +
+    '<div class="trip-origin">Abfahrt ' + origin + ' · ' + htmlEsc(fmtClock(departure)) + ' Uhr</div></section>' +
+    '<div class="trip-legend">Ankunft · Uhrzeit und verbleibende Minuten</div>' +
+    '<ol class="trip-stops">' + items + '</ol>' +
+    '<p class="trip-note">Live-Prognose, wenn vorhanden, sonst Fahrplan. Minuten zählen ab jetzt.</p>';
+}
+
 async function presentDeparturesTable(key, context = null) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
@@ -1617,7 +1651,7 @@ async function presentDeparturesTable(key, context = null) {
         }
         return `<td class="${d.cls}${state}">${value}</td>`;
       }).join('');
-      return `<tr class="departure-row">${cells}</tr>`;
+      return `<tr class="departure-row" role="button" tabindex="0" data-trip-index="${rows.indexOf(r)}" aria-label="${htmlEsc("Fahrtverlauf " + (r.line || "") + " Richtung " + (r.destination || ""))}">${cells}</tr>`;
     };
 
     const groupedRows = groupFullscreenRows(rows, fs.sortBy);
