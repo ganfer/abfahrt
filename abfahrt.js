@@ -2059,10 +2059,14 @@ async function presentDeparturesTable(key, context = null) {
   </main>
   <section id="abfahrt-trip" hidden aria-live="polite"></section>
   <script>
-    window.abfahrtCommands = [];
+    // Native Scriptable intercepts these URLs before navigation. Unlike the
+    // previous callback bridge, this leaves the initial WebView free to render.
     window.abfahrtEmit = function(action) {
-      window.abfahrtCommands.push(action);
-      window.dispatchEvent(new Event('abfahrt:command'));
+      if (action.type === 'open' && Number.isInteger(action.index) && action.index >= 0) {
+        window.location.href = 'https://abfahrt-trip.invalid/open/' + action.index;
+      } else if (action.type === 'back' || action.type === 'refresh') {
+        window.location.href = 'https://abfahrt-trip.invalid/' + action.type;
+      }
     };
     document.addEventListener('click', function(event) {
       const action = event.target.closest('[data-trip-action]');
@@ -2120,23 +2124,41 @@ async function presentDeparturesTable(key, context = null) {
 </html>`;
 
     const web = new WebView();
+    const commandQueue = [];
+    let notifyCommand = null;
+
+    // Use a blocked navigation as an event instead of opening a pending
+    // evaluateJavaScript(..., true) callback while the WebView is presenting.
+    // The original departure table renders with only loadHTML + present.
+    web.shouldAllowRequest = (request) => {
+      const url = String(request?.url || '');
+      const match = /^https:\/\/abfahrt-trip\.invalid\/(?:open\/(\d+)|back|refresh)\/?$/.exec(url);
+      if (!match) return true;
+      const command = match[1] !== undefined
+        ? { type: 'open', index: Number(match[1]) }
+        : { type: url.includes('/back') ? 'back' : 'refresh' };
+      if (notifyCommand) {
+        const notify = notifyCommand;
+        notifyCommand = null;
+        notify(command);
+      } else {
+        commandQueue.push(command);
+      }
+      return false;
+    };
+
     await web.loadHTML(html);
     const presented = web.present(true);
     let selectedRow = null;
     try {
       while (true) {
+        const nextCommand = new Promise((resolve) => {
+          if (commandQueue.length) resolve(commandQueue.shift());
+          else notifyCommand = resolve;
+        });
         const command = await Promise.race([
           presented.then(() => null),
-          web.evaluateJavaScript(
-            "if (window.abfahrtCommands.length) {" +
-            " completion(window.abfahrtCommands.shift());" +
-            "} else {" +
-            " window.addEventListener('abfahrt:command', function () {" +
-            "   completion(window.abfahrtCommands.shift());" +
-            " }, {once: true});" +
-            "}",
-            true,
-          ),
+          nextCommand,
         ]);
         if (!command) break;
         if (command.type === 'back') {
