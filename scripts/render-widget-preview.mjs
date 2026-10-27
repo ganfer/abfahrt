@@ -347,6 +347,8 @@ function renderFullscreenPlatform() {
 // A single deterministic preview of the normal (not fixed) trip detail screen.
 // Reuse the actual view renderer from abfahrt.js, not a separate mock layout.
 function renderTripProgress() {
+  // Use a fixed German local timezone, independently of the runner location.
+  process.env.TZ = 'Europe/Berlin';
   const bootstrap = source.replace(
     /await main\(\);\s*$/,
     'return { renderTripProgressHTML };',
