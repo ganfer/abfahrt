@@ -2482,7 +2482,7 @@ async function main() {
       // original stop, and location services may be unavailable in tunnels.
       const menu = new Alert();
       menu.title = '📌 Fixierte Fahrt';
-      menu.message = fixedTripDisplay(saved) + '\\n' +
+      menu.message = fixedTripDisplay(saved) + '\n' +
         'Du kannst die Fahrt auch nach der Abfahrt wieder öffnen.';
       menu.addAction('Aktuelle Fahrt fortsetzen');
       menu.addAction('Haltestellen anzeigen');
