@@ -2268,7 +2268,9 @@ async function presentDeparturesTable(key, context = null) {
 
     await web.loadHTML(html);
     const presented = web.present(true);
-    let selectedRow = null;
+    let selectedRow = resumeSelected;
+    let selectedStops = initialStops;
+    let selectedOrigin = resumeSelected ? (resumeSelected.originName || title) : title;
     try {
       while (true) {
         const nextCommand = new Promise((resolve) => {
@@ -2283,22 +2285,64 @@ async function presentDeparturesTable(key, context = null) {
         if (command.type === 'back') {
           await web.evaluateJavaScript('window.abfahrtShowBoard();');
           selectedRow = null;
+          selectedStops = [];
           continue;
         }
-        if (command.type === 'open') {
+        if (command.type === 'pin' || command.type === 'unpin') {
+          if (!selectedRow) continue;
+          try {
+            if (command.type === 'pin') {
+              fixTrip(selectedRow, selectedOrigin, selectedStops);
+            } else if (isFixedTrip(selectedRow)) {
+              clearFixedTrip();
+            }
+            const saved = fixedTrip();
+            await web.evaluateJavaScript('window.abfahrtSetFixedTrip(' +
+              JSON.stringify(saved ? fixedTripDisplay(saved) : '') + ');');
+            if (selectedStops.length) {
+              const detail = renderTripProgressHTML(
+                selectedRow, selectedStops, selectedOrigin, isFixedTrip(selectedRow, saved),
+              );
+              await web.evaluateJavaScript('window.abfahrtShowTrip(' + JSON.stringify(detail) + ');');
+            } else {
+              const html = renderTripFailureHTML(
+                'Die Fahrtinformationen sind gerade nicht verfügbar. Bitte erneut versuchen.',
+                isFixedTrip(selectedRow, saved),
+              );
+              await web.evaluateJavaScript('window.abfahrtShowError(' + JSON.stringify(html) + ');');
+            }
+          } catch (pinError) {
+            await web.evaluateJavaScript('window.abfahrtShowError(' +
+              JSON.stringify(renderTripFailureHTML(friendlyError(pinError), isFixedTrip(selectedRow))) + ');');
+          }
+          continue;
+        }
+        if (command.type === 'resume') {
+          const saved = fixedTrip();
+          if (!saved) {
+            await web.evaluateJavaScript('window.abfahrtSetFixedTrip("");');
+            continue;
+          }
+          selectedRow = { ...saved };
+          selectedOrigin = saved.originName || title;
+        } else if (command.type === 'open') {
           if (!Number.isInteger(command.index) || command.index < 0 || command.index >= rows.length) continue;
-          selectedRow = rows[command.index];
+          selectedRow = { ...rows[command.index] };
+          selectedOrigin = title;
         } else if (command.type !== 'refresh' || !selectedRow) {
           continue;
         }
+        selectedStops = [];
         await web.evaluateJavaScript('window.abfahrtShowLoading();');
         try {
-          const stops = await loadTripInfoStops(selectedRow, key);
-          const detail = renderTripProgressHTML(selectedRow, stops, title);
+          selectedStops = await loadTripInfoStops(selectedRow, key);
+          const detail = renderTripProgressHTML(
+            selectedRow, selectedStops, selectedOrigin, isFixedTrip(selectedRow),
+          );
           await web.evaluateJavaScript('window.abfahrtShowTrip(' + JSON.stringify(detail) + ');');
         } catch (tripError) {
           await web.evaluateJavaScript('window.abfahrtShowError(' +
-            JSON.stringify(friendlyError(tripError)) + ');');
+            JSON.stringify(renderTripFailureHTML(friendlyError(tripError), isFixedTrip(selectedRow))) + ');');
         }
       }
     } catch (bridgeError) {
