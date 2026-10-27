@@ -34,6 +34,8 @@ const LAST_STOP_NAME_KEY = 'ABFAHRT_LAST_STOP_NAME';
 const SAVED_STOPS_KEY = 'ABFAHRT_SAVED_STOPS';
 const RECENT_STOPS_KEY = 'ABFAHRT_RECENT_STOPS';
 const RECENT_STOPS_LIMIT = 20;
+const FIXED_TRIP_KEY = 'ABFAHRT_FIXED_TRIP';
+const MAX_FIXED_TRIP_HOURS = 72;
 
 // User-facing Home Screen widget configuration. Every Scriptable widget
 // family has its own layout; only behavior shared by all families lives in
@@ -544,6 +546,10 @@ async function loadTripInfoStops(selected, key) {
   if (!journeyRef || !operatingDayRef) {
     throw new Error('Für diese Fahrt ist derzeit keine eindeutige Fahrtreferenz verfügbar.');
   }
+  // Keep resolved identifiers on the selected trip so a later fixation can
+  // resume it without looking up a departure that has already disappeared.
+  selected.journeyRef = journeyRef;
+  selected.operatingDayRef = operatingDayRef;
   const xml = await triasPost(buildTripInfoRequest(journeyRef, operatingDayRef, key));
   return tripInfoStopsFromDoc(parseXmlTree(xml), selected);
 }
@@ -1540,6 +1546,77 @@ async function nearbyFlow(key) {
   // Live and pinned selections use the exact same downstream flow:
   // persist active stop, refresh the widget and open fullscreen departures.
   await presentDeparturesTable(key);
+}
+
+
+function clearFixedTrip() {
+  if (Keychain.contains(FIXED_TRIP_KEY)) Keychain.remove(FIXED_TRIP_KEY);
+}
+
+function fixedTrip() {
+  try {
+    if (!Keychain.contains(FIXED_TRIP_KEY)) return null;
+    const value = JSON.parse(Keychain.get(FIXED_TRIP_KEY));
+    if (value?.version !== 1 ||
+        !value.journeyRef || !value.operatingDayRef || !value.stopRef ||
+        !Number.isFinite(value.plannedTime) || !Number.isFinite(value.expiresAt) ||
+        value.expiresAt <= Date.now()) {
+      clearFixedTrip();
+      return null;
+    }
+    return value;
+  } catch (_) {
+    // An invalid local entry must not break the standard departure board.
+    try { clearFixedTrip(); } catch (_) {}
+    return null;
+  }
+}
+
+function isFixedTrip(selected, saved = fixedTrip()) {
+  return Boolean(saved && selected &&
+    saved.journeyRef === selected.journeyRef &&
+    saved.operatingDayRef === selected.operatingDayRef);
+}
+
+function fixTrip(selected, originName, stops) {
+  if (selected.offline || !selected.journeyRef || !selected.operatingDayRef ||
+      !selected.stopRef || !Number.isFinite(selected.plannedTime) ||
+      !Array.isArray(stops) || !stops.length) {
+    throw new Error('Diese Fahrt kann nicht fixiert werden: Fahrtreferenz oder Haltestellen fehlen.');
+  }
+  const lastArrival = Math.max(...stops.map((stop) => Number(stop.at) || 0));
+  const expiresAt = Math.min(
+    selected.plannedTime + MAX_FIXED_TRIP_HOURS * 3600000,
+    Math.max(lastArrival + 3 * 3600000, Date.now() + 3 * 3600000),
+  );
+  const saved = {
+    version: 1,
+    journeyRef: selected.journeyRef,
+    operatingDayRef: selected.operatingDayRef,
+    stopRef: selected.stopRef,
+    plannedTime: selected.plannedTime,
+    realtimeTime: selected.realtimeTime || null,
+    line: String(selected.line || ''),
+    destination: String(selected.destination || ''),
+    originName: String(originName || ''),
+    fixedAt: Date.now(),
+    expiresAt,
+  };
+  Keychain.set(FIXED_TRIP_KEY, JSON.stringify(saved));
+  return saved;
+}
+
+function fixedTripDisplay(saved) {
+  return (saved.line ? 'Linie ' + saved.line + ' · ' : '') +
+    (saved.destination ? 'Richtung ' + saved.destination : 'Aktuelle Fahrt');
+}
+
+function renderTripFailureHTML(message, hasFixed) {
+  return '<nav class="trip-toolbar">' +
+    '<button type="button" data-trip-action="back" class="trip-nav-button">‹ Abfahrten</button>' +
+    '<button type="button" data-trip-action="refresh" class="trip-nav-button">↻ Erneut versuchen</button></nav>' +
+    '<p class="trip-note">' + htmlEsc(message) + '</p>' +
+    (hasFixed ? '<button type="button" data-trip-action="unpin" class="trip-nav-button">Fixierung lösen</button>' : '');
 }
 
 function htmlEsc(value) {
