@@ -408,6 +408,8 @@ function stopEventsFromDoc(doc) {
 
     events.push({
       stopRef,
+      journeyRef: text(service, 'JourneyRef'),
+      operatingDayRef: text(service, 'OperatingDayRef'),
       plannedTime: Date.parse(planned),
       realtimeTime: estimated ? Date.parse(estimated) : null,
       cancelled,
@@ -417,6 +419,106 @@ function stopEventsFromDoc(doc) {
     });
   }
   return events;
+}
+
+
+function buildTripInfoRequest(journeyRef, operatingDayRef, key) {
+  const ts = new Date().toISOString();
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Trias version="1.2" language="de" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+    '  <ServiceRequest>',
+    '    <siri:RequestTimestamp>' + ts + '</siri:RequestTimestamp>',
+    '    <siri:RequestorRef>' + xmlEsc(key) + '</siri:RequestorRef>',
+    '    <RequestPayload>',
+    '      <TripInfoRequest>',
+    '        <JourneyRef>' + xmlEsc(journeyRef) + '</JourneyRef>',
+    '        <OperatingDayRef>' + xmlEsc(operatingDayRef) + '</OperatingDayRef>',
+    '        <Params>',
+    '          <IncludeCalls>true</IncludeCalls>',
+    '          <UseTimetabledDataOnly>false</UseTimetabledDataOnly>',
+    '        </Params>',
+    '      </TripInfoRequest>',
+    '    </RequestPayload>',
+    '  </ServiceRequest>',
+    '</Trias>',
+  ].join('\n');
+}
+
+function timestampOrNull(value) {
+  const time = Date.parse(value || '');
+  return Number.isFinite(time) ? time : null;
+}
+
+function tripCallFromNode(node) {
+  const call = child(node, 'CallAtStop') || node;
+  const planned = timestampOrNull(
+    text(call, 'ServiceArrival', 'TimetabledTime') ||
+    text(call, 'ServiceDeparture', 'TimetabledTime')
+  );
+  const estimated = timestampOrNull(
+    text(call, 'ServiceArrival', 'EstimatedTime') ||
+    text(call, 'ServiceDeparture', 'EstimatedTime')
+  );
+  const departure = timestampOrNull(
+    text(call, 'ServiceDeparture', 'TimetabledTime') ||
+    text(call, 'ServiceArrival', 'TimetabledTime')
+  );
+  const seq = Number(text(call, 'StopSeqNumber'));
+  return {
+    stopRef: text(call, 'StopPointRef'),
+    name: text(call, 'StopPointName', 'Text') || text(call, 'StopPointName'),
+    plannedTime: planned,
+    realtimeTime: estimated,
+    departureTime: departure,
+    platform: text(call, 'EstimatedBay', 'Text') || text(call, 'EstimatedBay') ||
+      text(call, 'PlannedBay', 'Text') || text(call, 'PlannedBay') || '',
+    stopSequence: Number.isFinite(seq) && seq > 0 ? seq : null,
+    cancelled: text(call, 'NotServicedStop') === 'true',
+    noAlighting: text(call, 'NoAlightingAtStop') === 'true',
+  };
+}
+
+function tripInfoStopsFromDoc(doc, selected) {
+  const response =
+    child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'TripInfoResponse') ||
+    child(doc, 'Trias', 'TripInfoResponse') ||
+    child(doc, 'ServiceDelivery', 'DeliveryPayload', 'TripInfoResponse') ||
+    child(doc, 'TripInfoResponse');
+  const result = child(response, 'TripInfoResult');
+  if (!result) throw new Error('Für diese Fahrt ist derzeit kein Verlauf verfügbar.');
+  const calls = [
+    ...children(result, 'PreviousCall'),
+    ...children(result, 'OnwardCall'),
+  ].map(tripCallFromNode).filter((call) => call.stopRef && Number.isFinite(call.plannedTime));
+  if (!calls.length) throw new Error('Keine Haltestellen für diese Fahrt gefunden.');
+  // Repeated stop IDs on a circular route are disambiguated by departure time.
+  const matches = calls.map((call, index) => ({ call, index })).filter(({ call }) =>
+    call.stopRef === selected.stopRef &&
+    call.departureTime !== null &&
+    Math.abs(call.departureTime - selected.plannedTime) <= 120000
+  );
+  const currentIndex = matches.length ? matches.reduce((best, item) =>
+    Math.abs(item.call.departureTime - selected.plannedTime) <
+    Math.abs(best.call.departureTime - selected.plannedTime) ? item : best
+  ).index : -1;
+  // When the provider only reports onward calls, time-filter the whole journey.
+  const onward = currentIndex >= 0 ? calls.slice(currentIndex + 1) :
+    calls.filter((call) => call.plannedTime > selected.plannedTime + 1000);
+  if (!onward.length) throw new Error('Für diese Fahrt wurden keine weiteren Haltestellen gemeldet.');
+  return onward.map((call) => {
+    const realtime = call.realtimeTime !== null &&
+      Math.abs(call.realtimeTime - call.plannedTime) <= 12 * 3600000;
+    return { ...call, at: realtime ? call.realtimeTime : call.plannedTime, realtime };
+  });
+}
+
+async function loadTripInfoStops(selected, key) {
+  if (!selected.journeyRef || !selected.operatingDayRef || selected.offline) {
+    throw new Error('Fahrtverlauf nur für Live-Abfahrten mit Fahrtreferenz verfügbar.');
+  }
+  const xml = await triasPost(buildTripInfoRequest(selected.journeyRef, selected.operatingDayRef, key));
+  return tripInfoStopsFromDoc(parseXmlTree(xml), selected);
 }
 
 function nearbyStopsFromDoc(doc) {
@@ -1419,6 +1521,40 @@ function htmlEsc(value) {
   }[ch]));
 }
 
+
+function renderTripProgressHTML(selected, stops, originName) {
+  const departure = selected.realtimeTime || selected.plannedTime;
+  const origin = htmlEsc(originName || 'Einstiegshaltestelle');
+  const items = stops.map((stop) => {
+    const live = stop.realtime ? 'Live' : 'Fahrplan';
+    const status = stop.cancelled ? 'entfällt' : live;
+    const time = stop.cancelled ? '–' : fmtClock(stop.at) + ' Uhr';
+    const planned = stop.realtime && !stop.cancelled && stop.at !== stop.plannedTime
+      ? '<span class="trip-plan">Plan ' + htmlEsc(fmtClock(stop.plannedTime)) + '</span>' : '';
+    const rest = stop.cancelled ? '<strong class="trip-remaining">entfällt</strong>' :
+      '<strong class="trip-remaining" data-arrival-ms="' + stop.at + '">–</strong>';
+    const platform = stop.platform ? ' · Gleis/Steig ' + htmlEsc(stop.platform) : '';
+    const alighting = stop.noAlighting ? ' · Kein Ausstieg' : '';
+    return '<li class="trip-stop' + (stop.cancelled ? ' trip-cancelled' : '') + '">' +
+      '<span class="trip-timeline" aria-hidden="true"><span class="trip-dot"></span></span>' +
+      '<span class="trip-stop-info"><strong>' + htmlEsc(stop.name || stop.stopRef) + '</strong>' +
+      '<span class="trip-stop-meta">' + htmlEsc(status) + platform + alighting + '</span></span>' +
+      '<span class="trip-stop-times"><strong>' + htmlEsc(time) + '</strong>' + planned + rest + '</span>' +
+      '</li>';
+  }).join('');
+  return '<nav class="trip-toolbar">' +
+    '<button type="button" data-trip-action="back" class="trip-nav-button">‹ Abfahrten</button>' +
+    '<button type="button" data-trip-action="refresh" class="trip-nav-button">↻ Aktualisieren</button></nav>' +
+    '<section class="trip-heading"><div class="trip-head-line"><span class="trip-line">' +
+    htmlEsc(selected.line || '–') + '</span><div><h1>Richtung ' +
+    htmlEsc(selected.destination || 'Unbekannte Richtung') + '</h1>' +
+    '<div class="trip-subtitle">Fahrtverlauf · ' + stops.length + ' weitere Haltestellen</div></div></div>' +
+    '<div class="trip-origin">Abfahrt ' + origin + ' · ' + htmlEsc(fmtClock(departure)) + ' Uhr</div></section>' +
+    '<div class="trip-legend">Ankunft · Uhrzeit und verbleibende Minuten</div>' +
+    '<ol class="trip-stops">' + items + '</ol>' +
+    '<p class="trip-note">Live-Prognose, wenn vorhanden, sonst Fahrplan. Minuten zählen ab jetzt.</p>';
+}
+
 async function presentDeparturesTable(key, context = null) {
   const hasLastStop =
     Keychain.contains(LAST_STOP_REF_KEY) &&
@@ -1515,7 +1651,7 @@ async function presentDeparturesTable(key, context = null) {
         }
         return `<td class="${d.cls}${state}">${value}</td>`;
       }).join('');
-      return `<tr class="departure-row">${cells}</tr>`;
+      return `<tr class="departure-row" role="button" tabindex="0" data-trip-index="${rows.indexOf(r)}" aria-label="${htmlEsc("Fahrtverlauf " + (r.line || "") + " Richtung " + (r.destination || ""))}">${cells}</tr>`;
     };
 
     const groupedRows = groupFullscreenRows(rows, fs.sortBy);
@@ -1556,6 +1692,40 @@ async function presentDeparturesTable(key, context = null) {
     color: var(--text);
   }
 
+
+  [hidden] { display: none !important; }
+  .departure-row[data-trip-index] { cursor: pointer; }
+  .departure-row[data-trip-index]:focus-visible { outline: 2px solid #69c26a; outline-offset: -2px; }
+  .trip-toolbar { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 15px; }
+  .trip-nav-button { background: #242429; color: #f5f5f7; border: 1px solid var(--border);
+    border-radius: 12px; padding: 11px 14px; font-size: 14px; cursor: pointer; }
+  .trip-heading { padding: 18px 16px; border-radius: 18px; border: 1px solid var(--border);
+    background: linear-gradient(145deg, #20272b, #171719); margin-bottom: 20px; }
+  .trip-head-line { display: flex; align-items: center; gap: 14px; }
+  .trip-line { background: #303842; border-radius: 10px; min-width: 48px; padding: 11px;
+    text-align: center; font-size: 20px; font-weight: 800; }
+  .trip-heading h1 { font-size: 20px; margin: 0 0 4px; overflow-wrap: anywhere; }
+  .trip-subtitle, .trip-origin, .trip-note { color: var(--muted); font-size: 12px; }
+  .trip-origin { margin-top: 14px; font-size: 14px; }
+  .trip-legend { font-size: 13px; color: var(--muted); margin: 0 0 12px 4px; }
+  .trip-stops { list-style: none; padding: 0 0 0 8px; margin: 0; }
+  .trip-stop { display: flex; min-height: 74px; gap: 12px; position: relative; }
+  .trip-timeline { display: block; width: 14px; flex: 0 0 14px; position: relative; }
+  .trip-timeline::after { content: ''; position: absolute; left: 6px; top: 16px; bottom: 0;
+    width: 2px; background: #52545b; }
+  .trip-stop:last-child .trip-timeline::after { display: none; }
+  .trip-dot { width: 13px; height: 13px; border: 2px solid #69c26a; border-radius: 50%;
+    display: block; margin-top: 3px; background: var(--bg); }
+  .trip-stop-info { flex: 1; min-width: 0; padding-bottom: 20px; }
+  .trip-stop-info > strong { display: block; font-size: 15px; overflow-wrap: anywhere; }
+  .trip-stop-meta { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+  .trip-stop-times { display: flex; flex: 0 0 auto; align-items: flex-end; flex-direction: column;
+    gap: 4px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  .trip-plan { color: var(--muted); font-size: 11px; }
+  .trip-remaining { color: #69c26a; font-size: 13px; }
+  .trip-cancelled .trip-stop-info > strong { text-decoration: line-through; opacity: .65; }
+  .trip-cancelled .trip-remaining { color: var(--muted); }
+  .trip-note { line-height: 1.5; margin: 10px 0; }
   .stop-card {
     position: relative;
     overflow: hidden;
@@ -1835,6 +2005,7 @@ async function presentDeparturesTable(key, context = null) {
 </style>
 </head>
 <body>
+  <main id="abfahrt-board">
   <section class="stop-card">
     <div class="stop-top">
       <div class="stop-symbol" aria-hidden="true"><span>H</span></div>
@@ -1857,12 +2028,115 @@ async function presentDeparturesTable(key, context = null) {
       <tbody>${body}</tbody>
     </table>
   </div>
+
+  </main>
+  <section id="abfahrt-trip" hidden aria-live="polite"></section>
+  <script>
+    window.abfahrtCommands = [];
+    window.abfahrtEmit = function(action) {
+      window.abfahrtCommands.push(action);
+      window.dispatchEvent(new Event('abfahrt:command'));
+    };
+    document.addEventListener('click', function(event) {
+      const action = event.target.closest('[data-trip-action]');
+      if (action) { window.abfahrtEmit({type: action.dataset.tripAction}); return; }
+      const row = event.target.closest('tr[data-trip-index]');
+      if (row) window.abfahrtEmit({type: 'open', index: Number(row.dataset.tripIndex)});
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const row = event.target.closest('tr[data-trip-index]');
+      if (!row) return;
+      event.preventDefault();
+      window.abfahrtEmit({type: 'open', index: Number(row.dataset.tripIndex)});
+    });
+    window.abfahrtShowLoading = function() {
+      document.getElementById('abfahrt-board').hidden = true;
+      const view = document.getElementById('abfahrt-trip');
+      view.hidden = false;
+      view.innerHTML = '<p class="trip-note">Fahrtverlauf wird geladen …</p>';
+      window.scrollTo(0, 0);
+    };
+    window.abfahrtShowTrip = function(html) {
+      const view = document.getElementById('abfahrt-trip');
+      view.hidden = false;
+      view.innerHTML = html;
+      window.abfahrtUpdateCountdowns();
+      window.scrollTo(0, 0);
+    };
+    window.abfahrtShowError = function(message) {
+      const view = document.getElementById('abfahrt-trip');
+      const back = document.createElement('button');
+      back.type = 'button'; back.className = 'trip-nav-button';
+      back.dataset.tripAction = 'back'; back.textContent = '‹ Abfahrten';
+      const label = document.createElement('p');
+      label.className = 'trip-note'; label.textContent = message;
+      view.replaceChildren(back, label);
+      view.hidden = false;
+      document.getElementById('abfahrt-board').hidden = true;
+    };
+    window.abfahrtShowBoard = function() {
+      document.getElementById('abfahrt-trip').hidden = true;
+      document.getElementById('abfahrt-board').hidden = false;
+      window.scrollTo(0, 0);
+    };
+    window.abfahrtUpdateCountdowns = function() {
+      document.querySelectorAll('[data-arrival-ms]').forEach(function(el) {
+        const diff = Number(el.dataset.arrivalMs) - Date.now();
+        el.textContent = diff < -60000 ? 'vorbei' :
+          diff < 60000 ? 'jetzt' : Math.floor(diff / 60000) + ' min';
+      });
+    };
+    setInterval(window.abfahrtUpdateCountdowns, 30000);
+  </script>
 </body>
 </html>`;
 
     const web = new WebView();
     await web.loadHTML(html);
-    await web.present(true);
+    const presented = web.present(true);
+    let selectedRow = null;
+    try {
+      while (true) {
+        const command = await Promise.race([
+          presented.then(() => null),
+          web.evaluateJavaScript(
+            "if (window.abfahrtCommands.length) {" +
+            " completion(window.abfahrtCommands.shift());" +
+            "} else {" +
+            " window.addEventListener('abfahrt:command', function () {" +
+            "   completion(window.abfahrtCommands.shift());" +
+            " }, {once: true});" +
+            "}",
+            true,
+          ),
+        ]);
+        if (!command) break;
+        if (command.type === 'back') {
+          await web.evaluateJavaScript('window.abfahrtShowBoard();');
+          selectedRow = null;
+          continue;
+        }
+        if (command.type === 'open') {
+          if (!Number.isInteger(command.index) || command.index < 0 || command.index >= rows.length) continue;
+          selectedRow = rows[command.index];
+        } else if (command.type !== 'refresh' || !selectedRow) {
+          continue;
+        }
+        await web.evaluateJavaScript('window.abfahrtShowLoading();');
+        try {
+          const stops = await loadTripInfoStops(selectedRow, key);
+          const detail = renderTripProgressHTML(selectedRow, stops, title);
+          await web.evaluateJavaScript('window.abfahrtShowTrip(' + JSON.stringify(detail) + ');');
+        } catch (tripError) {
+          await web.evaluateJavaScript('window.abfahrtShowError(' +
+            JSON.stringify(friendlyError(tripError)) + ');');
+        }
+      }
+    } catch (closed) {
+      // Dismissing the WebView cancels its pending JavaScript callback.
+    }
+    await presented;
   } catch (e) {
     const alert = new Alert();
     alert.title = 'Abfahrten nicht verfügbar';
