@@ -481,6 +481,16 @@ function tripCallFromNode(node) {
   };
 }
 
+function sameTripStationRef(leftRef, rightRef) {
+  if (leftRef === rightRef) return true;
+  const left = String(leftRef || '').split(':');
+  const right = String(rightRef || '').split(':');
+  // TRIAS can return a different platform for the same parent station.
+  return left.length >= 5 && right.length >= 5 &&
+    left[0] === 'de' && right[0] === 'de' &&
+    left[1] === right[1] && left[2] === right[2];
+}
+
 function tripInfoStopsFromDoc(doc, selected) {
   const response =
     child(doc, 'Trias', 'ServiceDelivery', 'DeliveryPayload', 'TripInfoResponse') ||
@@ -489,14 +499,14 @@ function tripInfoStopsFromDoc(doc, selected) {
     child(doc, 'TripInfoResponse');
   const result = child(response, 'TripInfoResult');
   if (!result) throw new Error('Für diese Fahrt ist derzeit kein Verlauf verfügbar.');
-  const calls = [
-    ...children(result, 'PreviousCall'),
-    ...children(result, 'OnwardCall'),
-  ].map(tripCallFromNode).filter((call) => call.stopRef && Number.isFinite(call.plannedTime));
+  const validCall = (call) => call.stopRef && Number.isFinite(call.plannedTime);
+  const previousCalls = children(result, 'PreviousCall').map(tripCallFromNode).filter(validCall);
+  const onwardCalls = children(result, 'OnwardCall').map(tripCallFromNode).filter(validCall);
+  const calls = [...previousCalls, ...onwardCalls];
   if (!calls.length) throw new Error('Keine Haltestellen für diese Fahrt gefunden.');
   // Repeated stop IDs on a circular route are disambiguated by departure time.
   const matches = calls.map((call, index) => ({ call, index })).filter(({ call }) =>
-    call.stopRef === selected.stopRef &&
+    sameTripStationRef(call.stopRef, selected.stopRef) &&
     call.departureTime !== null &&
     Math.abs(call.departureTime - selected.plannedTime) <= 120000
   );
@@ -504,9 +514,16 @@ function tripInfoStopsFromDoc(doc, selected) {
     Math.abs(item.call.departureTime - selected.plannedTime) <
     Math.abs(best.call.departureTime - selected.plannedTime) ? item : best
   ).index : -1;
-  // When the provider only reports onward calls, time-filter the whole journey.
+  // If the boarding call is present, stop order is authoritative (also for resumed trips).
+  // Otherwise PreviousCall must NEVER become a future stop: TRIAS sometimes reports
+  // those with a next-day timestamp around midnight. Restrict the unanchored fallback
+  // to plausible onward calls; a missing boarding stop must not show a 24-hour countdown.
+  const fallbackMaxDuration = 12 * 3600000;
   const onward = currentIndex >= 0 ? calls.slice(currentIndex + 1) :
-    calls.filter((call) => call.plannedTime > selected.plannedTime + 1000);
+    onwardCalls.filter((call) =>
+      call.plannedTime > selected.plannedTime + 1000 &&
+      call.plannedTime <= selected.plannedTime + fallbackMaxDuration
+    );
   if (!onward.length) throw new Error('Für diese Fahrt wurden keine weiteren Haltestellen gemeldet.');
   return onward.map((call) => {
     const realtime = call.realtimeTime !== null &&
