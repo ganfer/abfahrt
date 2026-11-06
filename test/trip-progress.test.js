@@ -96,6 +96,53 @@ test('when the provider sends only OnwardCalls, past stops are discarded', () =>
   assert.deepEqual(Array.from(stops, x => x.name), ['Nächster Halt']);
 });
 
+
+test('midnight: a misdated PreviousCall must not be treated as an onward stop', () => {
+  const midnight = {...selected, plannedTime: stamp('2026-11-07T00:01:00+01:00')};
+  const calls = [
+    // The source can label yesterday's 23:43 stop as 23:43 today, nearly 24h ahead.
+    call('before', 'Moosweiher', '2026-11-07T23:43:00+01:00', {kind:'PreviousCall'}),
+    call('after', 'Nächster Halt', '2026-11-07T00:04:00+01:00'),
+  ];
+  const stops = T.tripInfoStopsFromDoc(response(calls), midnight);
+  assert.deepEqual(Array.from(stops, x => x.name), ['Nächster Halt']);
+  assert.equal(stops[0].at - midnight.plannedTime, 3 * 60000);
+});
+
+test('midnight: an unanchored OnwardCall must not produce a 24-hour countdown', () => {
+  const midnight = {...selected, plannedTime: stamp('2026-11-07T00:01:00+01:00')};
+  const calls = [
+    call('before', 'Moosweiher', '2026-11-07T23:43:00+01:00'),
+    call('after', 'Nächster Halt', '2026-11-07T00:04:00+01:00'),
+  ];
+  const stops = T.tripInfoStopsFromDoc(response(calls), midnight);
+  assert.deepEqual(Array.from(stops, x => x.name), ['Nächster Halt']);
+});
+
+test('boarding matches another platform of the same station, including at midnight', () => {
+  const midnight = {...selected, plannedTime: stamp('2026-11-07T00:01:00+01:00')};
+  const calls = [
+    call('before', 'Moosweiher', '2026-11-07T23:43:00+01:00', {kind:'PreviousCall'}),
+    call('de:08311:30100:0:2', 'Bertoldsbrunnen', '2026-11-07T00:01:00+01:00',
+      {kind:'PreviousCall', departure:'2026-11-07T00:01:00+01:00'}),
+    call('next-1', 'Erster Halt', '2026-11-07T00:04:00+01:00', {kind:'PreviousCall'}),
+    call('next-2', 'Zweiter Halt', '2026-11-07T00:06:00+01:00'),
+  ];
+  const stops = T.tripInfoStopsFromDoc(response(calls), midnight);
+  assert.deepEqual(Array.from(stops, x => x.name), ['Erster Halt', 'Zweiter Halt']);
+});
+
+test('a real trip crossing midnight keeps its next-day onward stops', () => {
+  const late = {...selected, plannedTime: stamp('2026-11-06T23:57:00+01:00')};
+  const calls = [
+    call('before', 'Vorheriger Halt', '2026-11-06T23:50:00+01:00', {kind:'PreviousCall'}),
+    call('after', 'Nach Mitternacht', '2026-11-07T00:03:00+01:00'),
+  ];
+  const stops = T.tripInfoStopsFromDoc(response(calls), late);
+  assert.deepEqual(Array.from(stops, x => x.name), ['Nach Mitternacht']);
+  assert.equal(stops[0].at - late.plannedTime, 6 * 60000);
+});
+
 test('detail view renders both absolute arrival times and countdown hooks; text is escaped', () => {
   const calls = [
     call('s2', '<script>alert(1)</script>', base + '13:35:00Z', {estimated:base + '13:38:00Z'}),
