@@ -132,6 +132,15 @@ test('boarding matches another platform of the same station, including at midnig
   assert.deepEqual(Array.from(stops, x => x.name), ['Erster Halt', 'Zweiter Halt']);
 });
 
+test('midnight: a response containing only previous stops fails rather than showing them', () => {
+  const midnight = {...selected, plannedTime: stamp('2026-11-07T00:01:00+01:00')};
+  const calls = [
+    call('before', 'Moosweiher', '2026-11-07T23:43:00+01:00', {kind:'PreviousCall'}),
+  ];
+  assert.throws(() => T.tripInfoStopsFromDoc(response(calls), midnight),
+    /keine weiteren Haltestellen/);
+});
+
 test('a real trip crossing midnight keeps its next-day onward stops', () => {
   const late = {...selected, plannedTime: stamp('2026-11-06T23:57:00+01:00')};
   const calls = [
